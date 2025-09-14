@@ -1,9 +1,4 @@
-if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent(
-    )).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    $scriptPath = $MyInvocation.MyCommand.Path
-    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
-    exit
-}
+#Requires -RunAsAdministrator
 
 $Host.UI.RawUI.WindowTitle = ''
 $Host.UI.RawUI.BackgroundColor = 'Black'
@@ -384,6 +379,7 @@ if ($WPD) {
 
 
 Write-Output "Script execution completed."
+
 
 
 
