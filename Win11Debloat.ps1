@@ -104,6 +104,118 @@ function Repair-Winget {
 	}
 }
 
+function CTT-WinUtilAutomation {
+<#
+	Optional:
+	# Run Disk Cleanup
+	"WPFTweaksDiskCleanup",
+	# Disable hibernation
+	"WPFTweaksHiber",
+	# Disable Full Screen optimization
+	"WPFTweaksDisableFSO",
+#>
+$json = @'
+{
+    "WPFTweaks":  [
+                      "WPFTweaksRestorePoint",
+                      "WPFTweaksTeredo",
+                      "WPFTweaksWifi",
+                      "WPFTweaksRazerBlock",
+                      "WPFTweaksRightClickMenu",
+                      "WPFTweaksDebloatAdobe",
+                      "WPFTweaksDisableWpbtExecution",
+                      "WPFTweaksDisableLMS1",
+                      "WPFTweaksStorage",
+                      "WPFTweaksDeBloat",
+                      "WPFTweaksRemoveHome",
+                      "WPFTweaksIPv46",
+                      "WPFTweaksConsumerFeatures",
+                      "WPFTweaksDVR",
+                      "WPFTweaksRemoveGallery",
+                      "WPFTweaksTele",
+                      "WPFTweaksDisplay",
+                      "WPFTweaksAH",
+                      "WPFTweaksEndTaskOnTaskbar",
+                      "WPFTweaksBlockAdobeNet",
+                      "WPFTweaksEdgeDebloat",
+                      "WPFTweaksRemoveCopilot",
+                      "WPFTweaksLoc",
+                      "WPFTweaksRemoveOnedrive",
+                      "WPFTweaksHome",
+                      "WPFTweaksDisableExplorerAutoDiscovery",
+                      "WPFTweaksBraveDebloat",
+                      "WPFTweaksDisableNotifications",
+                      "WPFTweaksPowershell7Tele",
+                      "WPFTweaksDeleteTempFiles",
+                      "WPFTweaksUTC",
+                      "WPFTweaksRecallOff",
+                      "WPFTweaksDisableBGapps",
+                      "WPFTweaksPowershell7",
+                      "WPFTweaksServices",
+					  "WPFTweaksDisableCrossDeviceResume"					
+                  ],
+    "Install":  [
+                    {
+                        "winget":  "Microsoft.VCRedist.2015+.x86",
+                        "choco":  "na"
+                    },
+                    {
+                        "winget":  "Microsoft.VCRedist.2015+.x64",
+                        "choco":  "na"
+                    }
+                    {
+                        "winget":  "Microsoft.PowerShell",
+                        "choco":  "powershell-core"
+                    }
+                ],
+    "WPFInstall":  [
+                       "WPFInstallvc2015_32",
+                       "WPFInstallvc2015_64"
+                   ],
+    "WPFFeature":  [
+                       "WPFFeatureEnableLegacyRecovery",
+                       "WPFFeaturesdotnet"
+					   "WPFWinUtilInstallPSProfile"
+                   ]
+}
+'@
+
+	$config = "$env:TEMP\tweaks.json"
+	$script = "$env:TEMP\winutil.ps1"
+	
+	Set-Content -Path $config -Value $json -Encoding ASCII
+	iwr "https://github.com/ChrisTitusTech/winutil/releases/latest/download/winutil.ps1" -OutFile $script
+	
+	# Use Start-Process with redirected output
+	$outFile = "$env:TEMP\winutil_log.txt"
+	$psi = New-Object System.Diagnostics.ProcessStartInfo
+	$psi.FileName = "powershell.exe"
+	$psi.Arguments = "-NoProfile -Sta -ExecutionPolicy Bypass -File `"$script`" -Config `"$config`" -Run"
+	$psi.RedirectStandardOutput = $true
+	$psi.RedirectStandardError  = $true
+	$psi.UseShellExecute = $false
+	$psi.CreateNoWindow = $true
+	
+	$p = New-Object System.Diagnostics.Process
+	$p.StartInfo = $psi
+	$p.Start() | Out-Null
+	
+	$reader = $p.StandardOutput
+	while (-not $p.HasExited) {
+	    $line = $reader.ReadLine()
+	    if ($line -ne $null) {
+	        Write-Host $line
+	        if ($line -match "Tweaks are Finished") {
+	            Write-Host ">>> Marker found! Closing process..."
+	            $p.Kill()
+	            break
+	        }
+	    } else {
+	        Start-Sleep -Milliseconds 200
+	    }
+	}
+}
+
 function Run-Win11Debloat {
 	& ([scriptblock]::Create((irm "https://debloat.raphi.re/"))) `
 	    -Silent `
@@ -725,9 +837,14 @@ if ($Choco) {
     Install-Choco
 }
 
-# RUN WIN11DEBLOAT
+# RUN WIN11DEBLOAT AUTOMATION
 if ($Win11Debloat) {
     Run-Win11Debloat
+}
+
+# RUN WINUTIL AUTOMATION
+if ($CTTWinUtil) {
+	CTT-WinUtilAutomation
 }
 
 # REMOVE BLOATWARE
@@ -779,6 +896,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
