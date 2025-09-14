@@ -5,8 +5,6 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     exit
 }
 
-#Requires -RunAsAdministrator
-
 $Host.UI.RawUI.WindowTitle = ''
 $Host.UI.RawUI.BackgroundColor = 'Black'
 $Host.UI.RawUI.ForegroundColor = 'Blue'
@@ -386,6 +384,7 @@ if ($WPD) {
 
 
 Write-Output "Script execution completed."
+
 
 
 
