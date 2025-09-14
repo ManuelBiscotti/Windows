@@ -2,6 +2,7 @@
 
 [CmdletBinding()]
 param (
+    [switch]$PauseUpdates,
     [switch]$Runtimes,
     [switch]$CPlusPlus,
     [switch]$DirectX,
@@ -15,6 +16,7 @@ param (
     [switch]$RemoveEdge,
     [switch]$RemoveWindowsAI,
     [switch]$RemoveApps,
+    [switch]$InstallStore,	
     [switch]$PrivacyTweaks,
     [switch]$WPD,
     [switch]$ShutUp10,
@@ -23,6 +25,10 @@ param (
     [switch]$DisbaleDefender,
     [switch]$DisableMitigations
 )
+
+function Pause-Updates {
+
+}
 
 function Install-CPlusPlus { 
 	# Microsoft Visual C++ Redistributable Runtime
@@ -331,39 +337,130 @@ $process = Start-Process powershell.exe -ArgumentList @(
 ) -RedirectStandardInput "$env:TEMP\responses.txt" -WorkingDirectory $env:TEMP -PassThru -Wait
 }
 
-# REMOVE WINDOWS APPS FUNCTION
+
+
+
+<#
+KEPT.
+	NVIDIA, CBS, Winget, Snipping Tool
+	Notepad(system), VBSCRIPT, Microsoft Paint, Windows Media Player Legacy (App)
+	Media Features
+#>
 function Remove-Apps {
-    # Remove Universal Windows Platform Apps, keep: Snipping Tool
+    # Remove Universal Windows Platform Apps
     Write-Output "Removing Apps..."
     Get-AppXPackage -AllUsers | Where-Object { $_.Name -notlike '*NVIDIA*' -and $_.Name -notlike '*CBS*' -and $_.Name -notlike '*DesktopAppInstaller*'} | Remove-AppxPackage
-    # Remove Windows Capability apps, keep: Notepad(system), VBSCRIPT, Microsoft Paint, Windows Media Player Legacy (App)
-    Write-Output "Removing Optional Features..."
-    Remove-WindowsCapability -Online -Name "App.StepsRecorder~~~~0.0.1.0" | Out-Null
-	Remove-WindowsCapability -Online -Name "App.Support.QuickAssist~~~~0.0.1.0" | Out-Null
-	Remove-WindowsCapability -Online -Name "Browser.InternetExplorer~~~~0.0.11.0" | Out-Null
-	Remove-WindowsCapability -Online -Name "DirectX.Configuration.Database~~~~0.0.1.0" | Out-Null
-	Remove-WindowsCapability -Online -Name "Hello.Face.18967~~~~0.0.1.0" | Out-Null
-	Remove-WindowsCapability -Online -Name "Hello.Face.20134~~~~0.0.1.0" | Out-Null
-	Remove-WindowsCapability -Online -Name "MathRecognizer~~~~0.0.1.0" | Out-Null
-	Remove-WindowsCapability -Online -Name "Media.WindowsMediaPlayer~~~~0.0.12.0" | Out-Null
-	Remove-WindowsCapability -Online -Name "Microsoft.Wallpapers.Extended~~~~0.0.1.0" | Out-Null
- 	Remove-WindowsCapability -Online -Name "Microsoft.Windows.PowerShell.ISE~~~~0.0.1.0" | Out-Null
-  	Remove-WindowsCapability -Online -Name "Microsoft.Windows.WordPad~~~~0.0.1.0" | Out-Null
-	Remove-WindowsCapability -Online -Name "OneCoreUAP.OneSync~~~~0.0.1.0" | Out-Null
-	Remove-WindowsCapability -Online -Name "OpenSSH.Client~~~~0.0.1.0" | Out-Null
-	Remove-WindowsCapability -Online -Name "Print.Fax.Scan~~~~0.0.1.0" | Out-Null
-	Remove-WindowsCapability -Online -Name "Print.Management.Console~~~~0.0.1.0" | Out-Null
- 	Remove-WindowsCapability -Online -Name "WMIC~~~~" | Out-Null
- 	Remove-WindowsCapability -Online -Name "Windows.Kernel.LA57~~~~0.0.1.0" | Out-Null
-    # Remove "Character Map" capability app
-    function Set-ForceOwnership($p){cmd /c "takeown /f `"$p`" /a /r /d y >nul 2>&1";cmd /c "icacls `"$p`" /grant Administrators:F Everyone:F /t /c /q >nul 2>&1";$a=Get-Acl $p;if($a){$a.SetOwner([System.Security.Principal.NTAccount]"Administrators");Set-Acl $p $a}}; function Remove-Aggressive($p){if(Test-Path $p){Set-ForceOwnership $p;Remove-Item $p -Force -Recurse;cmd /c "attrib -r -s -h `"$p`" /s /d >nul 2>&1 & del /f /s /q `"$p`" & rd /s /q `"$p`" >nul 2>&1"}}; $p=@("$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Accessories","$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Windows Accessories","$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Windows Tools","$env:ProgramData\Microsoft\Windows\Start Menu\Programs","$env:AppData\Microsoft\Windows\Start Menu\Programs","$env:UserProfile\AppData\Roaming\Microsoft\Windows\Start Menu\Programs","$env:AllUsersProfile\Microsoft\Windows\Start Menu\Programs","$env:CommonProgramFiles\Microsoft Shared\Windows\Start Menu\Programs"); $n=@("Character Map.lnk","Character Map","charmap.lnk","charmap"); $p|%{ $d=$_; $n|%{Get-ChildItem -Path $d -Recurse -Filter "*$_*" -ea 0|%{Remove-Aggressive $_.FullName}}} > $null 2>&1
-    # Delete Internet Explorer shortcuts
-    @("$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Accessories\Internet Explorer.lnk","$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Internet Explorer.lnk","$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Accessories\Internet Explorer.lnk","$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Internet Explorer.lnk") | ForEach-Object {try{if(Test-Path $_){Remove-Item $_ -Force}}catch{}}	
-    # Uninstall Remote Desktop Connection app  
-    
-    # Disabel Windows Features
-    'WCF-Services45','WCF-TCP-PortSharing45','Printing-PrintToPDFServices-Features','Printing-XPSServices-Features','Printing-Foundation-Features','Printing-Foundation-InternetPrinting-Client','MSRDC-Infrastructure','SMB1Protocol','SMB1Protocol-Client','SMB1Protocol-Deprecation','SmbDirect','Windows-Identity-Foundation','MicrosoftWindowsPowerShellV2Root','MicrosoftWindowsPowerShellV2','WorkFolders-Client','Microsoft-Hyper-V-All','Recall' | % { Dism /Online /NoRestart /Disable-Feature /FeatureName:$_ | Out-Null }
-     
+	
+ 	# Uninstall Remote Desktop Connection
+ 	Write-Output "Uninstalling Remote Desktop Connection..."
+	
+  
+  	# Activate Windows Photo Viewer
+	Write-Host "Activating Windows Photo Viewer..."
+	'tif','tiff','bmp','dib','gif','jfif','jpe','jpeg','jpg','jxr','png','ico'|%{
+ 		reg add "HKLM\SOFTWARE\Microsoft\Windows Photo Viewer\Capabilities\FileAssociations" /v ".${_}" /t REG_SZ /d "PhotoViewer.FileAssoc.Tiff" /f >$null 2>&1
+ 		reg add "HKCU\SOFTWARE\Classes\.${_}" /ve /t REG_SZ /d "PhotoViewer.FileAssoc.Tiff" /f >$null 2>&1
+  	}
+   
+    # Remove Windows Capabilities
+    Write-Output "Removing Optional features..."
+    "App.StepsRecorder~~~~0.0.1.0",
+	"App.Support.QuickAssist~~~~0.0.1.0",
+	"Browser.InternetExplorer~~~~0.0.11.0",
+	"DirectX.Configuration.Database~~~~0.0.1.0",
+	"Hello.Face.18967~~~~0.0.1.0",
+	"Hello.Face.20134~~~~0.0.1.0",
+	"MathRecognizer~~~~0.0.1.0",
+	"Microsoft.Wallpapers.Extended~~~~0.0.1.0",
+	"Microsoft.Windows.PowerShell.ISE~~~~0.0.1.0",
+	"OneCoreUAP.OneSync~~~~0.0.1.0",
+	"OpenSSH.Client~~~~0.0.1.0",
+	"Print.Fax.Scan~~~~0.0.1.0",
+	"Print.Management.Console~~~~0.0.1.0",
+	"Windows.Kernel.LA57~~~~0.0.1.0",
+	"Microsoft.Windows.WordPad~~~~0.0.1.0",
+	"WMIC~~~~0.0.1.0" | % { Remove-WindowsCapability -Online -Name $_ | Out-Null }
+ 
+	# Remove "Character Map" capability app
+ 	Write-Output "Removing Character Map..."
+    function Set-ForceOwnership($p){
+		cmd /c "takeown /f `"$p`" /a /r /d y >nul 2>&1"
+		cmd /c "icacls `"$p`" /grant Administrators:F Everyone:F /t /c /q >nul 2>&1"
+		$a=Get-Acl $p;if($a){$a.SetOwner([System.Security.Principal.NTAccount]"Administrators")
+ 			Set-Acl $p $a
+		}
+  	}
+  	function Remove-Aggressive($p){
+   		if(Test-Path $p){
+	 		Set-ForceOwnership $p
+  			Remove-Item $p -Force -Recurse
+ 			cmd /c "attrib -r -s -h `"$p`" /s /d >nul 2>&1 & del /f /s /q `"$p`" & rd /s /q `"$p`" >nul 2>&1"
+		}
+  	}
+	$p = @(
+	    "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Accessories",
+	    "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Windows Accessories", 
+	    "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Windows Tools",
+	    "$env:ProgramData\Microsoft\Windows\Start Menu\Programs",
+	    "$env:AppData\Microsoft\Windows\Start Menu\Programs",
+	    "$env:UserProfile\AppData\Roaming\Microsoft\Windows\Start Menu\Programs",
+	    "$env:AllUsersProfile\Microsoft\Windows\Start Menu\Programs",
+	    "$env:CommonProgramFiles\Microsoft Shared\Windows\Start Menu\Programs"
+	)	
+	$n = @(
+	    "Character Map.lnk",
+	    "Character Map", 
+	    "charmap.lnk",
+	    "charmap"
+	)
+	$p | ForEach-Object { 
+	    $d = $_
+	    $n | ForEach-Object {
+	        Get-ChildItem -Path $d -Recurse -Filter "*$_*" | ForEach-Object {
+	            Remove-Aggressive $_.FullName
+	        }
+	    }
+	} > $null 2>&1
+
+	# Delete Internet Explorer shortcuts
+	@(
+    "$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Accessories\Internet Explorer.lnk",
+    "$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Internet Explorer.lnk",
+    "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Accessories\Internet Explorer.lnk",
+    "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Internet Explorer.lnk"
+	) | ForEach-Object {
+        if (Test-Path $_) {
+            Remove-Item $_ -Force
+        }
+    }
+	
+    # Disable Windows Features
+	'WCF-Services45',
+	'WCF-TCP-PortSharing45',
+	'Printing-PrintToPDFServices-Features',
+	'Printing-XPSServices-Features',
+	'Printing-Foundation-Features',
+	'Printing-Foundation-InternetPrinting-Client',
+	'MSRDC-Infrastructure',
+	'SMB1Protocol',
+	'SMB1Protocol-Client',
+	'SMB1Protocol-Deprecation',
+	'SmbDirect',
+	'Windows-Identity-Foundation',
+	'MicrosoftWindowsPowerShellV2Root',
+	'MicrosoftWindowsPowerShellV2',
+	'WorkFolders-Client',
+	'Microsoft-Hyper-V-All',
+	'Recall' | ForEach-Object { 
+    	Dism /Online /NoRestart /Disable-Feature /FeatureName:$_ | Out-Null 
+	} 
+}
+
+function Install-Store {
+	# Install Microsoft Store
+ 	Write-Output "Installing Microsoft Store..."
+	Get-AppXPackage -AllUsers *Microsoft.WindowsStore* | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register -ErrorAction SilentlyContinue "$($_.InstallLocation)\AppXManifest.xml"}       
+	Get-AppXPackage -AllUsers *Microsoft.Microsoft.StorePurchaseApp* | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register -ErrorAction SilentlyContinue "$($_.InstallLocation)\AppXManifest.xml"}
 }
 
 # WPD Function
@@ -890,6 +987,10 @@ if ($RemoveBloatware) {
     Remove-Apps
 }
 
+if ($InstallStore) {
+	Install-Store
+}
+
 # Uninstall OneDrive
 if ($UninstallOneDrive) {
     Uninstall-OneDrive   
@@ -930,6 +1031,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
