@@ -151,31 +151,7 @@ $json = @'
                       "WPFTweaksRecallOff",
                       "WPFTweaksDisableBGapps",
                       "WPFTweaksPowershell7",
-                      "WPFTweaksServices",
-					  "WPFTweaksDisableCrossDeviceResume"					
-                  ],
-    "Install":  [
-                    {
-                        "winget":  "Microsoft.VCRedist.2015+.x86",
-                        "choco":  "na"
-                    },
-                    {
-                        "winget":  "Microsoft.VCRedist.2015+.x64",
-                        "choco":  "na"
-                    }
-                    {
-                        "winget":  "Microsoft.PowerShell",
-                        "choco":  "powershell-core"
-                    }
-                ],
-    "WPFInstall":  [
-                       "WPFInstallvc2015_32",
-                       "WPFInstallvc2015_64"
-                   ],
-    "WPFFeature":  [
-                       "WPFFeatureEnableLegacyRecovery",
-                       "WPFFeaturesdotnet"
-					   "WPFWinUtilInstallPSProfile"
+                      "WPFTweaksServices"				  				
                    ]
 }
 '@
@@ -896,6 +872,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
