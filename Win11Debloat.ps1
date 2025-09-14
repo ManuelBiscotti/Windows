@@ -12,6 +12,10 @@ $ErrorActionPreference = 'SilentlyContinue'
 
 [CmdletBinding()]
 param (
+    [switch]$Choco,
+    [switch]$Winget,
+    [switch]$CTTWinUtil,
+    [switch]$Win11Debloat,
     [switch]$RemoveBloatware,
     [switch]$UninstallOneDrive,
     [switch]$RemoveEdge,
@@ -22,6 +26,143 @@ param (
     [switch]$ShutUp10,
     [switch]$PrivacyIsSexy
 )
+
+function Install-Choco {
+	# Allow script execution in current session
+	Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+	
+	# Ensure TLS 1.2 for secure downloads
+	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+	
+	# Check if Chocolatey is installed
+	if (Get-Command choco -ErrorAction SilentlyContinue) {
+	    # Upgrade Chocolatey if present
+	    choco upgrade chocolatey -y --ignore-checksums
+	}
+	else {
+	    # Remove old Chocolatey remnants if any
+	    Remove-Item "C:\ProgramData\Chocolatey*" -Recurse -Force -ErrorAction SilentlyContinue
+	    Remove-Item "C:\ProgramData\ChocolateyHttpCache" -Recurse -Force -ErrorAction SilentlyContinue
+	
+	    Start-Sleep -Seconds 3
+	
+	    # Install Chocolatey
+	    Invoke-Expression ((New-Object Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+	
+	    # Wait until Chocolatey becomes available or timeout
+	    $i = 0
+	    while (-not (Get-Command choco -ErrorAction SilentlyContinue) -and $i -lt 20) {
+	        Start-Sleep -Seconds 3
+	        $i++
+	    }
+	}
+}
+
+function Repair-Winget {
+	# Allow script execution in current session
+	Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+	
+	# Ensure TLS 1.2 for secure downloads
+	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+	
+	# Check if Chocolatey is installed
+	if (Get-Command choco -ErrorAction SilentlyContinue) {
+	    # Upgrade Chocolatey if present
+	    choco upgrade chocolatey -y --ignore-checksums
+	}
+	else {
+	    # Remove old Chocolatey remnants if any
+	    Remove-Item "C:\ProgramData\Chocolatey*" -Recurse -Force -ErrorAction SilentlyContinue
+	    Remove-Item "C:\ProgramData\ChocolateyHttpCache" -Recurse -Force -ErrorAction SilentlyContinue
+	
+	    Start-Sleep -Seconds 3
+	
+	    # Install Chocolatey
+	    Invoke-Expression ((New-Object Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+	
+	    # Wait until Chocolatey becomes available or timeout
+	    $i = 0
+	    while (-not (Get-Command choco -ErrorAction SilentlyContinue) -and $i -lt 20) {
+	        Start-Sleep -Seconds 3
+	        $i++
+	    }
+	}
+	
+	# Check if Winget is installed
+	if (Get-Command winget.exe -ErrorAction SilentlyContinue) {
+	    # Upgrade Winget if present
+	    choco upgrade winget -y --ignore-checksums
+	}
+	elseif (-not (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
+	    # Detect Windows build version
+	    $build = (Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild
+	
+	    if ($build -le 19045) {
+	        # For Windows 10
+	        Start-Process -Wait powershell -ArgumentList '-NoProfile', '-Command', 'Invoke-RestMethod https://asheroto.com/winget | Invoke-Expression'
+	    }
+	    elseif ($build -ge 22000) {
+	        # For Windows 11
+	        choco install winget -y --force --ignore-checksums
+	    }
+	}
+	else {
+	    Write-Output "Unexpected condition: Unable to determine Winget state."
+	}
+}
+
+function Run-Win11Debloat {
+	& ([scriptblock]::Create((irm "https://debloat.raphi.re/"))) `
+	    -Silent `
+	    -RemoveApps `
+	    -RemoveHPApps `
+	    -RemoveCommApps `
+	    -RemoveW11Outlook `
+	    -RemoveDevApps `
+	    -RemoveGamingApps `
+	    -ForceRemoveEdge `
+	    -DisableDVR `
+	    -DisableStartRecommended `
+	    -DisableStartPhoneLink `
+	    -DisableTelemetry `
+	    -DisableSuggestions `
+	    -DisableEdgeAds `
+	    -DisableDesktopSpotlight `
+	    -DisableLockscreenTips `
+	    -DisableSettings365Ads `
+	    -DisableSettingsHome `
+	    -DisableBing `
+	    -DisableCopilot `
+	    -DisableRecall `
+	    -DisableEdgeAI `
+	    -DisablePaintAI `
+	    -DisableNotepadAI `
+	    -RevertContextMenu `
+	    -DisableMouseAcceleration `
+	    -DisableStickyKeys `
+	    -DisableFastStartup `
+	    -DisableModernStandbyNetworking `
+	    -ShowHiddenFolders `
+	    -ShowKnownFileExt `
+	    -HideDupliDrive `
+	    -EnableDarkMode `
+	    -DisableTransparency `
+	    -DisableAnimations `
+	    -TaskbarAlignLeft `
+	    -HideSearchTb `
+	    -HideTaskview `
+	    -HideChat `
+	    -DisableWidgets `
+	    -EnableEndTask `
+	    -HideHome `
+	    -HideGallery `
+	    -ExplorerToThisPC `
+	    -HideOnedrive `
+	    -Hide3dObjects `
+	    -HideIncludeInLibrary `
+	    -HideGiveAccessTo `
+	    -HideShare
+}
 
 # UNINSTALL MICROSOFT ONEDRIVE FUNCTION
 function Uninstall-OneDrive {
@@ -345,6 +486,21 @@ function Run-PrivacySexy {
 
 }
 
+# REPAIR WINGET
+if ($Winget) {
+    Repair-Winget
+}
+
+# INSTALL CHOCOLATEY
+if ($Choco) {
+    Install-Choco
+}
+
+# RUN WIN11DEBLOAT
+if ($Win11Debloat) {
+    Run-Win11Debloat
+}
+
 # REMOVE BLOATWARE
 if ($RemoveBloatware) {
     Write-Output "Removing Bloatware..."
@@ -379,6 +535,7 @@ if ($WPD) {
 
 
 Write-Output "Script execution completed."
+
 
 
 
