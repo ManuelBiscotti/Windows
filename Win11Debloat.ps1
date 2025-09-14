@@ -1,15 +1,5 @@
 #Requires -RunAsAdministrator
 
-$Host.UI.RawUI.WindowTitle = ''
-$Host.UI.RawUI.BackgroundColor = 'Black'
-$Host.UI.RawUI.ForegroundColor = 'Blue'
-$Host.PrivateData.ProgressBackgroundColor = 'Black'
-$Host.PrivateData.ProgressForegroundColor = 'Blue'
-Clear-Host
-
-$ProgressPreference = 'SilentlyContinue'
-$ErrorActionPreference = 'SilentlyContinue'
-
 [CmdletBinding()]
 param (
     [switch]$Choco,
@@ -26,6 +16,16 @@ param (
     [switch]$ShutUp10,
     [switch]$PrivacyIsSexy
 )
+
+$Host.UI.RawUI.WindowTitle = ''
+$Host.UI.RawUI.BackgroundColor = 'Black'
+$Host.UI.RawUI.ForegroundColor = 'Blue'
+$Host.PrivateData.ProgressBackgroundColor = 'Black'
+$Host.PrivateData.ProgressForegroundColor = 'Blue'
+Clear-Host
+
+$ProgressPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'SilentlyContinue'
 
 function Install-Choco {
 	# Allow script execution in current session
@@ -552,6 +552,7 @@ if ($WPD) {
 
 Write-Output "Script execution completed."
 PAUSE
+
 
 
 
