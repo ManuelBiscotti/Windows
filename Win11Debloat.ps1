@@ -2,6 +2,7 @@
 
 [CmdletBinding()]
 param (
+    [switch]$ActivateWindows,
     [switch]$PauseUpdates,
     [switch]$Runtimes,
     [switch]$CPlusPlus,
@@ -26,8 +27,51 @@ param (
     [switch]$DisableMitigations
 )
 
-function Pause-Updates {
+function Activate-Windows {
+	Write-Output "Activating Windows..."
+	iex "& {$((irm https://get.activated.win))} /HWID"
+}
 
+function Pause-Updates {
+	# Fix Windows Update
+ 	Write-Output "Fixing Windows Update..."
+	$bat = "$env:TEMP\Fix Updates.bat"; iwr "https://raw.githubusercontent.com/ShadowWhisperer/Fix-WinUpdates/refs/heads/main/Fix%20Updates.bat" -OutFile $bat
+	Start-Process cmd.exe -ArgumentList "/c echo.|`"$bat`"" -WindowStyle Normal -Wait; shutdown /a
+	# Extend updates delay to beyond 35 days
+ 	Write-Output "Disabling automatic updates..."
+	Write-Output "Extending updates delay to beyond 35 days..."
+ 	iwr "https://github.com/Aetherinox/pause-windows-updates/raw/refs/heads/main/windows-updates-pause.reg" -OutFile "$env:TEMP\windows-updates-pause.reg"
+	reg.exe import "$env:TEMP\windows-updates-pause.reg" *> $null
+	# Pause updates until 7/11/3000
+	Write-Output "Pausing updates until 3000..."
+ 	$pe="3000-07-11T12:00:00Z"
+	$ps=(Get-Date).ToString("yyyy-MM-ddT00:00:00Z")
+ 	$uk=@("PauseUpdatesExpiryTime",$pe),("PauseUpdatesStartTime",$ps),("PauseFeatureUpdatesStartTime",$ps),("PauseFeatureUpdatesEndTime",$pe),("PauseQualityUpdatesStartTime",$ps),("PauseQualityUpdatesEndTime",$pe)
+	$p="HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings"
+ 	if(!(Test-Path $p)){New-Item $p -Force};$uk|%{Set-ItemProperty -Path $p -Name $_[0] -Value $_[1] -Type String}
+	# Disable driver offering through Windows Update 
+	Write-Output "Disabling driver offering through Windows Update..."
+ 	If (!(Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Device Metadata")) {New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Device Metadata" -Force | Out-Null}
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Device Metadata" -Name "PreventDeviceMetadataFromNetwork" -Type DWord -Value 1
+	If (!(Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching")) {New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching" -Force | Out-Null}
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching" -Name "DontPromptForWindowsUpdate" -Type DWord -Value 1
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching" -Name "DontSearchWindowsUpdate" -Type DWord -Value 1
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching" -Name "DriverUpdateWizardWuSearchEnabled" -Type DWord -Value 0
+	If (!(Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate")) {New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" | Out-Null}
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "ExcludeWUDriversInQualityUpdate" -Type DWord -Value 1
+	# Disable Windows Update automatic restart
+	Write-Output "Disabling Windows Update automatic restart..."
+ 	If (!(Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU")) {New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Force | Out-Null}
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "NoAutoRebootWithLoggedOnUsers" -Type DWord -Value 1
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "AUPowerManagement" -Type DWord -Value 0
+	# Feature updates delayed by 2 years
+ 	# Security updates installled after 4 days
+	Write-Output "Delaying Feature updates delayed by 2 years..."
+	Write-Output "Delaying Security updates installled after 4 days..."
+ 	If (!(Test-Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings")) {New-Item -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" -Force | Out-Null}
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" -Name "BranchReadinessLevel" -Type DWord -Value 20
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" -Name "DeferFeatureUpdatesPeriodInDays" -Type DWord -Value 365
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" -Name "DeferQualityUpdatesPeriodInDays" -Type DWord -Value 4
 }
 
 function Install-CPlusPlus { 
@@ -163,12 +207,12 @@ function Repair-Winget {
 function CTT-WinUtilAutomation {
 <#
 	Optional:
-	# Run Disk Cleanup
-	"WPFTweaksDiskCleanup",
-	# Disable hibernation
-	"WPFTweaksHiber",
-	# Disable Full Screen optimization
-	"WPFTweaksDisableFSO",
+	// Run Disk Cleanup
+	"WPFTweaksDiskCleanup"
+	// Disable hibernation
+	"WPFTweaksHiber"
+	// Disable Full Screen optimization
+	"WPFTweaksDisableFSO"
 #>
 $json = @'
 {
@@ -950,6 +994,16 @@ Clear-Host
 $ProgressPreference = 'SilentlyContinue'
 $ErrorActionPreference = 'SilentlyContinue'
 
+#
+if (ActivateWindows) {
+	Activate-Windows
+}
+
+#
+if (PauseUpdates) {
+	Pause-Updates
+}
+
 # INSTALL RUNTIMES
 if (Runtimes) {
 	Write-Output "Installing Runtimes..."
@@ -1031,6 +1085,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
