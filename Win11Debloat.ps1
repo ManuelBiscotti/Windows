@@ -1,4 +1,21 @@
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent(
+    )).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    $scriptPath = $MyInvocation.MyCommand.Path
+    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
+    exit
+}
+
 #Requires -RunAsAdministrator
+
+$Host.UI.RawUI.WindowTitle = ''
+$Host.UI.RawUI.BackgroundColor = 'Black'
+$Host.UI.RawUI.ForegroundColor = 'Blue'
+$Host.PrivateData.ProgressBackgroundColor = 'Black'
+$Host.PrivateData.ProgressForegroundColor = 'Blue'
+Clear-Host
+
+$ProgressPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'SilentlyContinue'
 
 [CmdletBinding()]
 param (
@@ -13,7 +30,7 @@ param (
     [switch]$PrivacyIsSexy
 )
 
-# UNINSTALL ONEDRIVE FUNCTION
+# UNINSTALL MICROSOFT ONEDRIVE FUNCTION
 function Uninstall-OneDrive {
     Write-Output "Uninstalling OneDrive..."
     irm asheroto.com/uninstallonedrive | iex *> $null
@@ -61,7 +78,11 @@ function Remove-Apps {
     function Set-ForceOwnership($p){cmd /c "takeown /f `"$p`" /a /r /d y >nul 2>&1";cmd /c "icacls `"$p`" /grant Administrators:F Everyone:F /t /c /q >nul 2>&1";$a=Get-Acl $p;if($a){$a.SetOwner([System.Security.Principal.NTAccount]"Administrators");Set-Acl $p $a}}; function Remove-Aggressive($p){if(Test-Path $p){Set-ForceOwnership $p;Remove-Item $p -Force -Recurse;cmd /c "attrib -r -s -h `"$p`" /s /d >nul 2>&1 & del /f /s /q `"$p`" & rd /s /q `"$p`" >nul 2>&1"}}; $p=@("$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Accessories","$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Windows Accessories","$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Windows Tools","$env:ProgramData\Microsoft\Windows\Start Menu\Programs","$env:AppData\Microsoft\Windows\Start Menu\Programs","$env:UserProfile\AppData\Roaming\Microsoft\Windows\Start Menu\Programs","$env:AllUsersProfile\Microsoft\Windows\Start Menu\Programs","$env:CommonProgramFiles\Microsoft Shared\Windows\Start Menu\Programs"); $n=@("Character Map.lnk","Character Map","charmap.lnk","charmap"); $p|%{ $d=$_; $n|%{Get-ChildItem -Path $d -Recurse -Filter "*$_*" -ea 0|%{Remove-Aggressive $_.FullName}}} > $null 2>&1
     # Delete Internet Explorer shortcuts
     @("$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Accessories\Internet Explorer.lnk","$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Internet Explorer.lnk","$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Accessories\Internet Explorer.lnk","$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Internet Explorer.lnk") | ForEach-Object {try{if(Test-Path $_){Remove-Item $_ -Force}}catch{}}	
-    # Uninstall Remote Desktop Connection app   
+    # Uninstall Remote Desktop Connection app  
+    
+    # Disabel Windows Features
+    'WCF-Services45','WCF-TCP-PortSharing45','Printing-PrintToPDFServices-Features','Printing-XPSServices-Features','Printing-Foundation-Features','Printing-Foundation-InternetPrinting-Client','MSRDC-Infrastructure','SMB1Protocol','SMB1Protocol-Client','SMB1Protocol-Deprecation','SmbDirect','Windows-Identity-Foundation','MicrosoftWindowsPowerShellV2Root','MicrosoftWindowsPowerShellV2','WorkFolders-Client','Microsoft-Hyper-V-All','Recall' | % { Dism /Online /NoRestart /Disable-Feature /FeatureName:$_ | Out-Null }
+     
 }
 
 # WPD Function
@@ -365,6 +386,7 @@ if ($WPD) {
 
 
 Write-Output "Script execution completed."
+
 
 
 
