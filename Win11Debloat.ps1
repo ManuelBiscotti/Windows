@@ -975,17 +975,17 @@ $ProgressPreference = 'SilentlyContinue'
 $ErrorActionPreference = 'SilentlyContinue'
 
 #
-if (ActivateWindows) {
+if ($ActivateWindows) {
 	Activate-Windows
 }
 
 #
-if (PauseUpdates) {
+if ($PauseUpdates) {
 	Pause-Updates
 }
 
 # INSTALL RUNTIMES
-if (Runtimes) {
+if ($Runtimes) {
 	Write-Output "Installing Runtimes..."
 	Install-CPlusPlus
  	Install-DirectX
@@ -1065,6 +1065,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
