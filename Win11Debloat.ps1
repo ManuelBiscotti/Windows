@@ -14,18 +14,11 @@ param (
     [switch]$PrivacyTweaks,
     [switch]$WPD,
     [switch]$ShutUp10,
-    [switch]$PrivacyIsSexy
+    [switch]$PrivacyIsSexy,
+    [switch]$DisableSecurity,
+    [switch]$DisbaleDefender,
+    [switch]$DisableMitigations
 )
-
-$Host.UI.RawUI.WindowTitle = ''
-$Host.UI.RawUI.BackgroundColor = 'Black'
-$Host.UI.RawUI.ForegroundColor = 'Blue'
-$Host.PrivateData.ProgressBackgroundColor = 'Black'
-$Host.PrivateData.ProgressForegroundColor = 'Blue'
-Clear-Host
-
-$ProgressPreference = 'SilentlyContinue'
-$ErrorActionPreference = 'SilentlyContinue'
 
 function Install-Choco {
 	# Allow script execution in current session
@@ -205,7 +198,7 @@ function Remove-Apps {
     # Remove Universal Windows Platform Apps, keep: Snipping Tool
     Write-Output "Removing Apps..."
     Get-AppXPackage -AllUsers | Where-Object { $_.Name -notlike '*NVIDIA*' -and $_.Name -notlike '*CBS*' -and $_.Name -notlike '*DesktopAppInstaller*'} | Remove-AppxPackage
-    # Remove Windows Capability apps, keep: Notepad(system), VBSCRIPT, VMIC, Microsoft Paint, Windows Media Player Legacy (App)
+    # Remove Windows Capability apps, keep: Notepad(system), VBSCRIPT, Microsoft Paint, Windows Media Player Legacy (App)
     Write-Output "Removing Optional Features..."
     Remove-WindowsCapability -Online -Name "App.StepsRecorder~~~~0.0.1.0" | Out-Null
 	Remove-WindowsCapability -Online -Name "App.Support.QuickAssist~~~~0.0.1.0" | Out-Null
@@ -502,6 +495,102 @@ function Run-PrivacySexy {
 
 }
 
+function Disable-Defender {
+    Write-Output "Disabling Defender..."
+	# Download RunAsTI if not present
+	Invoke-WebRequest "https://github.com/mbcdev/RunAsTrustedInstaller/releases/latest/download/RunAsTI.exe" -OutFile "$env:TEMP\RunAsTI.exe" -UseBasicParsing
+
+	# Create improved batch file
+	$batchCode = @'
+@echo off
+
+:: Disable UAC
+reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\System" /v "EnableLUA" /t REG_DWORD /d "0" /f > nul 2>&1
+
+:: Disable Firewall
+netsh advfirewall set allprofiles state off > nul 2>&1
+
+:: Disable security notifications
+reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.SecurityAndMaintenance" /v "Enabled" /t REG_DWORD /d "0" /f > nul 2>&1
+
+:: Disable virtualization-based security
+bcdedit /set hypervisorlaunchtype off > nul 2>&1
+bcdedit /set vsmlaunchtype off > nul 2>&1
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard" /v EnableVirtualizationBasedSecurity /t REG_DWORD /d 0 /f > nul 2>&1
+
+:: Disable SecurityHealthService
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\SecurityHealthService" /v Start /t REG_DWORD /d 4 /f > nul 2>&1
+
+:: Remove SecurityHealth tray icon
+reg delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v SecurityHealth /f > nul 2>&1
+
+:: Download and run DefenderSwitcher
+powershell -NoProfile -Command "try { Invoke-WebRequest 'https://github.com/instead1337/Defender-Switcher/releases/latest/download/DefenderSwitcher.ps1' -OutFile '%TEMP%\DefenderSwitcher.ps1' -UseBasicParsing } catch { }"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\DefenderSwitcher.ps1" -disable_av
+'@
+
+	# Save batch file
+	Set-Content -Path "$env:TEMP\DisableDefender.bat" -Value $batchCode -Encoding ASCII
+
+	# Execute with RunAsTI
+	Start-Process -FilePath "$env:TEMP\RunAsTI.exe" -ArgumentList "$env:TEMP\DisableDefender.bat" -Wait
+}
+
+function Disable-Mitigations {
+	    Write-Output "Disabling Mitigations..."
+	$batchCode = @'
+@echo off
+setlocal EnableDelayedExpansion
+
+:: Disable Spectre and Meltdown
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" /v "FeatureSettingsOverride" /t REG_DWORD /d "3" /f > nul 
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" /v "FeatureSettingsOverrideMask" /t REG_DWORD /d "3" /f > nul
+
+:: Disable Structured Exception Handling Overwrite Protection (SEHOP)
+:: Exists in ntoskrnl strings, keep for now
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" /v "DisableExceptionChainValidation" /t REG_DWORD /d "1" /f > nul
+
+:: Disable Control Flow Guard (CFG)
+:: Find correct mitigation values for different Windows versions
+:: Initialize bit mask in registry by disabling a random mitigation
+PowerShell -NoP -C "Set-ProcessMitigation -System -Disable CFG"
+
+:: Get current bit mask
+for /f "tokens=3 skip=2" %%a in ('reg query "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" /v "MitigationAuditOptions"') do (
+    set "mitigation_mask=%%a"
+)
+
+:: Set all bits to 2 (Disable all process mitigations)
+for /l %%a in (0,1,9) do (
+    set "mitigation_mask=!mitigation_mask:%%a=2!"
+)
+:: Fix Valorant with mitigations disabled - enable CFG
+set "enableCFGApps=valorant valorant-win64-shipping vgtray vgc"
+PowerShell -NoP -C "foreach ($a in $($env:enableCFGApps -split ' ')) {Set-ProcessMitigation -Name $a`.exe -Enable CFG}" > nul 
+
+:: Apply mask to kernel
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" /v "MitigationAuditOptions" /t REG_BINARY /d "%mitigation_mask%" /f > nul
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" /v "MitigationOptions" /t REG_BINARY /d "%mitigation_mask%" /f > nul
+
+:: Disable file system mitigations
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager" /v "ProtectionMode" /t REG_DWORD /d "0" /f > nul
+'@
+
+	$batPath = "$env:TEMP\DisableAllMitigations.bat"
+	Set-Content -Path $batPath -Value $batchCode -Encoding ASCII
+	cmd.exe /c "`"$batPath`""
+}
+
+$Host.UI.RawUI.WindowTitle = ''
+$Host.UI.RawUI.BackgroundColor = 'Black'
+$Host.UI.RawUI.ForegroundColor = 'Blue'
+$Host.PrivateData.ProgressBackgroundColor = 'Black'
+$Host.PrivateData.ProgressForegroundColor = 'Blue'
+Clear-Host
+
+$ProgressPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'SilentlyContinue'
+
 # REPAIR WINGET
 if ($Winget) {
     Repair-Winget
@@ -544,14 +633,29 @@ if ($PrivacyTweaks) {
     Run-PrivacySexy
 }
 
-# Run Windows Privacy Dashboard
+# Run Windows Privacy Dashboard Automation
 if ($WPD) {
-
+	Run-WPD
 }
 
+# Run O&O ShutUp10++ Automation
+if ($ShutUp10) {
+	Run-ShutUp10
+}
+
+# DISABLE SECURITY
+if ($DisableSecurity) {
+	Disable-Defender
+ 	Disable-Mitigations
+}
+
+Write-Output ""
+Write-Output ""
+Write-Output ""
 
 Write-Output "Script execution completed."
-PAUSE
+pause
+
 
 
 
