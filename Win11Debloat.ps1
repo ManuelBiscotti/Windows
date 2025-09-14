@@ -35,21 +35,26 @@ function Activate-Windows {
 function Pause-Updates {
 	# Fix Windows Update
  	Write-Output "Fixing Windows Update..."
-	$bat = "$env:TEMP\Fix Updates.bat"; iwr "https://raw.githubusercontent.com/ShadowWhisperer/Fix-WinUpdates/refs/heads/main/Fix%20Updates.bat" -OutFile $bat
-	Start-Process cmd.exe -ArgumentList "/c echo.|`"$bat`"" -WindowStyle Normal -Wait; shutdown /a
-	# Extend updates delay to beyond 35 days
+	$bat = "$env:TEMP\Fix Updates.bat"
+ 	iwr "https://raw.githubusercontent.com/ShadowWhisperer/Fix-WinUpdates/refs/heads/main/Fix%20Updates.bat" -OutFile $bat
+	Start-Process cmd.exe -ArgumentList "/c echo.|`"$bat`"" -WindowStyle Normal -Wait
+ 	shutdown /a
+	
+ 	# Extend updates delay to beyond 35 days
  	Write-Output "Disabling automatic updates..."
 	Write-Output "Extending updates delay to beyond 35 days..."
  	iwr "https://github.com/Aetherinox/pause-windows-updates/raw/refs/heads/main/windows-updates-pause.reg" -OutFile "$env:TEMP\windows-updates-pause.reg"
 	reg.exe import "$env:TEMP\windows-updates-pause.reg" *> $null
-	# Pause updates until 7/11/3000
+	
+ 	# Pause updates until 7/11/3000
 	Write-Output "Pausing updates until 3000..."
  	$pe="3000-07-11T12:00:00Z"
 	$ps=(Get-Date).ToString("yyyy-MM-ddT00:00:00Z")
  	$uk=@("PauseUpdatesExpiryTime",$pe),("PauseUpdatesStartTime",$ps),("PauseFeatureUpdatesStartTime",$ps),("PauseFeatureUpdatesEndTime",$pe),("PauseQualityUpdatesStartTime",$ps),("PauseQualityUpdatesEndTime",$pe)
 	$p="HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings"
  	if(!(Test-Path $p)){New-Item $p -Force};$uk|%{Set-ItemProperty -Path $p -Name $_[0] -Value $_[1] -Type String}
-	# Disable driver offering through Windows Update 
+	
+ 	# Disable driver offering through Windows Update 
 	Write-Output "Disabling driver offering through Windows Update..."
  	If (!(Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Device Metadata")) {New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Device Metadata" -Force | Out-Null}
 	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Device Metadata" -Name "PreventDeviceMetadataFromNetwork" -Type DWord -Value 1
@@ -59,12 +64,14 @@ function Pause-Updates {
 	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching" -Name "DriverUpdateWizardWuSearchEnabled" -Type DWord -Value 0
 	If (!(Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate")) {New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" | Out-Null}
 	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "ExcludeWUDriversInQualityUpdate" -Type DWord -Value 1
-	# Disable Windows Update automatic restart
+	
+ 	# Disable Windows Update automatic restart
 	Write-Output "Disabling Windows Update automatic restart..."
  	If (!(Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU")) {New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Force | Out-Null}
 	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "NoAutoRebootWithLoggedOnUsers" -Type DWord -Value 1
 	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "AUPowerManagement" -Type DWord -Value 0
-	# Feature updates delayed by 2 years
+	
+ 	# Feature updates delayed by 2 years
  	# Security updates installled after 4 days
 	Write-Output "Delaying Feature updates delayed by 2 years..."
 	Write-Output "Delaying Security updates installled after 4 days..."
@@ -75,7 +82,7 @@ function Pause-Updates {
 }
 
 function Install-CPlusPlus { 
-	# Microsoft Visual C++ Redistributable Runtime
+	# Download and install Microsoft Visual C++ Redistributable Runtimes
  	Write-Output "Installing Visual C++ Redistributable All in One..."
 	Get-FileFromWeb -URL "https://download.microsoft.com/download/8/B/4/8B42259F-5D70-43F4-AC2E-4B208FD8D66A/vcredist_x86.EXE" -File "$env:TEMP\vcredist2005_x86.exe"			
 	Get-FileFromWeb -URL "https://download.microsoft.com/download/8/B/4/8B42259F-5D70-43F4-AC2E-4B208FD8D66A/vcredist_x64.EXE" -File "$env:TEMP\vcredist2005_x64.exe"	    	
@@ -152,35 +159,8 @@ function Install-Choco {
 }
 
 function Repair-Winget {
-	# Allow script execution in current session
-	Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
-	
-	# Ensure TLS 1.2 for secure downloads
-	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-	
-	# Check if Chocolatey is installed
-	if (Get-Command choco -ErrorAction SilentlyContinue) {
-	    # Upgrade Chocolatey if present
-	    choco upgrade chocolatey -y --ignore-checksums
-	}
-	else {
-	    # Remove old Chocolatey remnants if any
-	    Remove-Item "C:\ProgramData\Chocolatey*" -Recurse -Force -ErrorAction SilentlyContinue
-	    Remove-Item "C:\ProgramData\ChocolateyHttpCache" -Recurse -Force -ErrorAction SilentlyContinue
-	
-	    Start-Sleep -Seconds 3
-	
-	    # Install Chocolatey
-	    Invoke-Expression ((New-Object Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-	
-	    # Wait until Chocolatey becomes available or timeout
-	    $i = 0
-	    while (-not (Get-Command choco -ErrorAction SilentlyContinue) -and $i -lt 20) {
-	        Start-Sleep -Seconds 3
-	        $i++
-	    }
-	}
-	
+	Install-Choco
+ 
 	# Check if Winget is installed
 	if (Get-Command winget.exe -ErrorAction SilentlyContinue) {
 	    # Upgrade Winget if present
@@ -1085,6 +1065,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
