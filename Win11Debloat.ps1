@@ -1,53 +1,30 @@
-if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent(
-    )).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    $scriptPath = $MyInvocation.MyCommand.Path
-    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`"" -Verb RunAs
-    exit
-}
+#Requires -RunAsAdministrator
 
-[CmdletBinding(SupportsShouldProcess=$true)]
+[CmdletBinding()]
 param (
     [switch]$UninstallOneDrive,
     [switch]$RemoveEdge,
     [switch]$RunWPD
 )
 
-function Uninstall-OneDrive {
-    & { iex (irm 'https://asheroto.com/uninstallonedrive') } *> $null
-}
-
-function Remove-Edge {
-    & { iex "&{$(irm 'https://cdn.jsdelivr.net/gh/he3als/EdgeRemover@main/get.ps1')} -UninstallEdge -RemoveEdgeData -NonInteractive -Wait" } *> $null
-}
-
-function Run-WPD {
-    $zip = Join-Path $env:TEMP 'latest.zip'
-    iwr 'https://wpd.app/get/latest.zip' -OutFile $zip
-    Expand-Archive $zip -DestinationPath $env:TEMP -Force
-    Start-Process (Join-Path $env:TEMP 'WPD.exe') -ArgumentList '-wfpOnly','-wfp on','-recommended','-close' -Wait
-}
-
-if (-not ($UninstallOneDrive -or $RemoveEdge -or $RunWPD)) {
-    Write-Output 'No switches selected. Exiting.'
-    return
-}
-
+# Uninstall OneDrive
 if ($UninstallOneDrive) {
-    if ($PSCmdlet.ShouldProcess('OneDrive','Uninstall OneDrive')) {
-        Uninstall-OneDrive
-    }
+    Write-Output "Uninstalling OneDrive..."
+    irm asheroto.com/uninstallonedrive | iex *> $null
 }
 
+# Remove Edge
 if ($RemoveEdge) {
-    if ($PSCmdlet.ShouldProcess('Edge','Remove Edge')) {
-        Remove-Edge
-    }
+    Write-Output "Removing Microsoft Edge..."
+    iex "&{$(irm https://cdn.jsdelivr.net/gh/he3als/EdgeRemover@main/get.ps1)} -UninstallEdge -RemoveEdgeData -NonInteractive -Wait"
 }
 
+# Run Windows Privacy Dashboard
 if ($RunWPD) {
-    if ($PSCmdlet.ShouldProcess('WPD','Run Windows Privacy Dashboard')) {
-        Run-WPD
-    }
+    Write-Output "Running Windows Privacy Dashboard..."
+    iwr "https://wpd.app/get/latest.zip" -OutFile "$env:TEMP\latest.zip"
+    Expand-Archive "$env:TEMP\latest.zip" -DestinationPath "$env:TEMP" -Force
+    Start-Process "$env:TEMP\WPD.exe" -ArgumentList "-wfpOnly","-wfp on","-recommended","-close" -Wait
 }
 
-Write-Output 'Completed.'
+Write-Output "Script execution completed."
