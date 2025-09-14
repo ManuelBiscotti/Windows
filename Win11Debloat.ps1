@@ -497,10 +497,7 @@ function Run-PrivacySexy {
 
 function Disable-Defender {
     Write-Output "Disabling Defender..."
-	# Download RunAsTI if not present
-	Invoke-WebRequest "https://github.com/mbcdev/RunAsTrustedInstaller/releases/latest/download/RunAsTI.exe" -OutFile "$env:TEMP\RunAsTI.exe" -UseBasicParsing
-
-	# Create improved batch file
+	# Create batch file
 	$batchCode = @'
 @echo off
 
@@ -533,7 +530,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\DefenderSwitcher.ps1
 	Set-Content -Path "$env:TEMP\DisableDefender.bat" -Value $batchCode -Encoding ASCII
 
 	# Execute with RunAsTI
-	Start-Process -FilePath "$env:TEMP\RunAsTI.exe" -ArgumentList "$env:TEMP\DisableDefender.bat" -Wait
+	RunAsTI -TargetPath "$env:TEMP\DisableDefender.bat" -Wait
 }
 
 function Disable-Mitigations {
@@ -579,6 +576,133 @@ reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager" /v "ProtectionMo
 	$batPath = "$env:TEMP\DisableAllMitigations.bat"
 	Set-Content -Path $batPath -Value $batchCode -Encoding ASCII
 	cmd.exe /c "`"$batPath`""
+}
+
+<#
+.SYNOPSIS
+Runs a file or command as the TrustedInstaller account using RunAsTI.exe.
+
+.DESCRIPTION
+The RunAsTI function downloads and configures the required Visual C++ Runtime
+and RunAsTI.exe tool (if missing) into the TEMP directory. It then executes the
+specified target (batch files, executables, scripts, or registry imports) with
+TrustedInstaller privileges. The function also supports waiting for the target
+process to finish.
+
+.PARAMETER TargetPath
+The file or command host to execute. This can be an executable, script, or
+command host (such as cmd.exe or powershell.exe).
+
+.PARAMETER TargetArgs
+Optional arguments to pass to the target process. Accepts an array of strings
+which are safely quoted if they contain spaces.
+
+.PARAMETER Wait
+If specified, the function will block until the target process finishes. By
+default, the function starts the process and returns immediately.
+
+.PARAMETER TimeoutSeconds
+Maximum time (in seconds) to wait when -Wait is used. Default is 600 seconds.
+
+.EXAMPLE
+# Run a batch file with TrustedInstaller privileges and wait for it
+RunAsTI -TargetPath "$env:TEMP\DisableDefender.bat" -Wait
+
+.EXAMPLE
+# Run a PowerShell script as TrustedInstaller
+RunAsTI -TargetPath "powershell.exe" -TargetArgs "-ExecutionPolicy Bypass -File `"$env:TEMP\script.ps1`"" -Wait
+
+.EXAMPLE
+# Import a .reg file silently as TrustedInstaller
+RunAsTI -TargetPath "regedit.exe" -TargetArgs "/s `"$env:TEMP\settings.reg`"" -Wait
+
+.EXAMPLE
+# Execute a direct command by wrapping it with cmd.exe
+RunAsTI -TargetPath "cmd.exe" -TargetArgs "/c reg add HKLM\SOFTWARE\Test /v Flag /t REG_DWORD /d 1 /f" -Wait
+
+# Execute a direct command by wrapping it with powershell.exe
+RunAsTI -TargetPath "powershell.exe" -TargetArgs "-Command reg add HKLM\...\..." -Wait
+
+.NOTES
+- Requires internet access on first run to download vc_redist and RunAsTI.exe.
+- RunAsTI.exe is sourced from: https://github.com/mbcdev/RunAsTrustedInstaller
+- To run raw one-liner commands, wrap them with cmd.exe or powershell.exe.
+- Tested on Windows 10 and Windows 11.
+#>
+
+function RunAsTI {
+    param(
+        [Parameter(Mandatory=$true,Position=0)][string]$TargetPath,
+        [string[]]$TargetArgs = @(),
+        [switch]$Wait,
+        [int]$TimeoutSeconds = 600
+    )
+
+    # ensure VC++ runtime
+    $vcUrl  = 'https://aka.ms/vs/17/release/vc_redist.x64.exe'
+    $vcFile = Join-Path $env:TEMP 'vcredist_x64.exe'
+    if (-not (Test-Path $vcFile)) {
+        Invoke-WebRequest -Uri $vcUrl -OutFile $vcFile
+        Start-Process -FilePath $vcFile -ArgumentList '/passive','/norestart' -Wait
+    }
+
+    # ensure RunAsTI
+    $runAsUrl = 'https://github.com/mbcdev/RunAsTrustedInstaller/releases/latest/download/RunAsTI.exe'
+    $runAsExe = Join-Path $env:TEMP 'RunAsTI.exe'
+    if (-not (Test-Path $runAsExe)) {
+        Invoke-WebRequest -Uri $runAsUrl -OutFile $runAsExe
+    }
+
+    # build quoted target + args
+    $quotedTarget = '"{0}"' -f $TargetPath
+    if ($TargetArgs.Count -gt 0) {
+        $quotedTarget += ' ' + ($TargetArgs | ForEach-Object { if ($_ -match '\s') { '"{0}"' -f $_ } else { $_ } } -join ' ')
+    }
+
+    # if batch, run via cmd.exe /c
+    if ($TargetPath -match '\.bat$|\.cmd$') {
+        $cmdLine = "cmd.exe /c $quotedTarget"
+    } else {
+        $cmdLine = $quotedTarget
+    }
+
+    # start RunAsTI (it will launch the target as TrustedInstaller)
+    $p = Start-Process -FilePath $runAsExe -ArgumentList $cmdLine -PassThru *> $null
+
+    if ($Wait) {
+        $deadline  = (Get-Date).AddSeconds($TimeoutSeconds)
+        $targetBase = [System.IO.Path]::GetFileName($TargetPath)
+
+        # wait until a process referencing the target appears (short timeout)
+        while ((Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+               Where-Object { $_.CommandLine -and $_.CommandLine -like "*$targetBase*" }) -eq $null) {
+            if (Get-Date -gt $deadline) { break }
+            Start-Sleep -Milliseconds 200
+        }
+
+        # then wait until it disappears
+        while ((Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+               Where-Object { $_.CommandLine -and $_.CommandLine -like "*$targetBase*" }) -ne $null) {
+            if (Get-Date -gt $deadline) { break }
+            Start-Sleep -Seconds 1
+        }
+    }
+
+    return $p
+}
+
+function Get-FileFromWeb {
+    param($URL, $File)
+    $resp = [System.Net.HttpWebRequest]::Create($URL).GetResponse()
+    if ($resp.StatusCode -in 401, 403, 404) { return }
+    if (!(Split-Path $File)) { $File = Join-Path (Get-Location) $File }
+    $dir = [System.IO.Path]::GetDirectoryName($File)
+    if (!(Test-Path $dir)) { [void][System.IO.Directory]::CreateDirectory($dir) }
+    $buf = [byte[]]::new(1MB)
+    $r = $resp.GetResponseStream()
+    $w = [System.IO.File]::Open($File, 'Create')
+    while (($cnt = $r.Read($buf, 0, $buf.Length)) -gt 0) { $w.Write($buf, 0, $cnt) }
+    $r.Close(); $w.Close(); $resp.Close()
 }
 
 $Host.UI.RawUI.WindowTitle = ''
@@ -655,6 +779,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
