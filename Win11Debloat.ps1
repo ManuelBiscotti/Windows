@@ -552,6 +552,23 @@ function Remove-Apps {
 	} 
 
  	# Windows Stuff
+  	# Bloatware Killer Task
+	try {
+		$dir="$env:ProgramData\Bloatware"
+		New-Item $dir -ItemType Directory -Force  *> $null
+		$script=@'
+for ($i = 1; $i -le 3; $i++) {
+    "MoUsoCoreWorker","UserOOBEBroker","SearchApp","ConnectedUserExperiences","ctfmon","CrossDeviceResume","MicrosoftEdgeUpdate","","ONENOTEM" | % { Get-Process $_ -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+    "MSDTC","VSS" | % { Stop-Service $_ -Force -ErrorAction SilentlyContinue }
+    Start-Sleep -Seconds 1
+}
+'@
+		$script | Set-Content "$dir\KillBloatware.ps1" -Encoding UTF8 -Force *> $null
+		$trigger=New-ScheduledTaskTrigger -AtStartup
+		$action=New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$dir\KillBloatware.ps1`""
+		Register-ScheduledTask -TaskName "KillBloatwareAtStartup" -Action $action -Trigger $trigger -RunLevel Highest -User "SYSTEM" -Force *> $null
+	} catch {
+	}  
   	# Ensure policy key exists and disable Bing search suggestions in the Start menu search box
 	New-Item -Path "HKCU:\Software\Policies\Microsoft\Windows\Explorer" -Force | Out-Null; Set-ItemProperty -Path "HKCU:\Software\Policies\Microsoft\Windows\Explorer" -Name "DisableSearchBoxSuggestions" -Value 1 -Type DWord | Out-Null 
 	# Disable OneDrive, Edge, Brave and Google tasks
@@ -649,9 +666,6 @@ function Remove-Apps {
 		$dst="$env:LOCALAPPDATA\Packages\Microsoft.Windows.StartMenuExperienceHost_cw5n1h2txyewy\LocalState\start2.bin"
   		if (!(Test-Path (Split-Path $dst))){New-Item -Path (Split-Path $dst) -ItemType Directory -Force}
   		iwr 'https://github.com/Raphire/Win11Debloat/raw/refs/heads/master/Assets/Start/start2.bin' -OutFile $dst -UseBasicParsing
-		# Restore New Text Document context menu item
-		iwr "https://github.com/vishnusai-karumuri/Registry-Fixes/raw/refs/heads/master/Restore_New_Text_Document_context_menu_item.reg" -OutFile "$env:TEMP\Restore_New_Text_Document_context_menu_item.reg"
-  		Start-Process regedit.exe -ArgumentList "/s `"$env:TEMP\Restore_New_Text_Document_context_menu_item.reg`"" -Wait
 	 	# Rename Windows Media Player Legacy Start menu shortcut if it exists
 		Rename-Item -Path "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Accessories\Windows Media Player Legacy.lnk" -NewName "Windows Media Player.lnk" -Force
 		# Install legacy Snipping Tool and Paint apps	
@@ -674,10 +688,14 @@ function Remove-Apps {
 		$shortcut = $shell.CreateShortcut("C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Accessories\Paint.lnk")
 		$shortcut.TargetPath = "C:\Program Files\Windows NT\Accessories\mspaint1.exe"
 		$shortcut.Save()	
+  		# NOTEPAD
 		# Create Notepad Start menu shortcut
 		$shortcut = $shell.CreateShortcut("C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Accessories\Notepad.lnk")
 		$shortcut.TargetPath = "$env:SystemRoot\System32\notepad.exe"
-		$shortcut.Save()	
+		$shortcut.Save()
+  		# Restore New Text Document context menu item
+		iwr "https://github.com/vishnusai-karumuri/Registry-Fixes/raw/refs/heads/master/Restore_New_Text_Document_context_menu_item.reg" -OutFile "$env:TEMP\Restore_New_Text_Document_context_menu_item.reg"
+  		Start-Process regedit.exe -ArgumentList "/s `"$env:TEMP\Restore_New_Text_Document_context_menu_item.reg`"" -Wait	
  	}
 }else{ 
 }
@@ -3351,6 +3369,11 @@ E0,F6,C5,D5,0E,CA,50,00,00
 	}	
 	# Disables automatic disk defragmentation
 	schtasks /Change /DISABLE /TN "\Microsoft\Windows\Defrag\ScheduledDefrag" | Out-Null
+ 	# Allow double-click of .ps1 files via powershell.exe
+	if (-not (Test-Path $regPath)) {
+    	New-Item -Path 'HKCR:\Applications\powershell.exe\shell\open\command' -Force | Out-Null
+	}
+	Set-ItemProperty -Path 'HKCR:\Applications\powershell.exe\shell\open\command' -Name '(default)' -Value 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoLogo -ExecutionPolicy Unrestricted -File "%1"'
  	# Download blanc.ico into C:\Windows
 	Get-FileFromWeb -URL "https://github.com/benzaria/remove_shortcut_arrow/raw/refs/heads/main/blanc.ico" -File "C:\\Windows\\blanc.ico"
 	Set-Content -Path "$env:TEMP\RegistryOptimize.reg" -Value $MultilineComment -Force
@@ -4933,6 +4956,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
