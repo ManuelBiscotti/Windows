@@ -10717,7 +10717,7 @@ if ($ShutUp10) {
 }
 
 # Run PRIVACY.SEXY script
-if ($ShutUp10) {
+if ($PrivacyIsSexy) {
 	Run-PrivacySexy
 }
 
@@ -10784,6 +10784,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
