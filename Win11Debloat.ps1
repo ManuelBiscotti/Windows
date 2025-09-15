@@ -33,13 +33,26 @@ param (
 )
 
 function Create-RestorePoint {
-	# Create restore point
-	Write-Output "Creating a restore point..."
-	Enable-ComputerRestore -Drive "$env:SystemDrive" | Out-Null
-    if(!(gp "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" -Name "SystemRestorePointCreationFrequency")){
-        sp "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" -Name "SystemRestorePointCreationFrequency" -Value 0 -Type DWord -Force | Out-Null
+    <#
+    .SYNOPSIS
+        Creates a system restore point if one has not already been created today.
+    .DESCRIPTION
+        Ensures System Restore is enabled on the system drive, adjusts registry settings
+        to allow multiple restore points per day, and creates one if needed.
+    #>
+
+    Write-Output "Creating a restore point..."
+
+    # Enable System Restore on system drive (ignore errors if already enabled)
+    Enable-ComputerRestore -Drive "$env:SystemDrive" -ErrorAction SilentlyContinue | Out-Null
+
+    # Allow multiple restore points per day
+    if (-not (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" -Name "SystemRestorePointCreationFrequency" -ErrorAction SilentlyContinue)) {
+        Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" -Name "SystemRestorePointCreationFrequency" -Value 0 -Type DWord -Force | Out-Null
     }
-    if(!(Get-ComputerRestorePoint|?{$_.CreationTime.Date -eq (Get-Date).Date})){
+
+    # Create restore point if none exists for today
+    if (-not (Get-ComputerRestorePoint | Where-Object { $_.CreationTime.Date -eq (Get-Date).Date })) {
         Checkpoint-Computer -Description "Restore Point" -RestorePointType "MODIFY_SETTINGS" | Out-Null
     }
 }
@@ -50,63 +63,87 @@ function Activate-Windows {
 }
 
 function Pause-Updates {
-	# Fix Windows Update
- 	Write-Output "Fixing Windows Update..."
-	$bat = "$env:TEMP\Fix Updates.bat"
- 	iwr "https://raw.githubusercontent.com/ShadowWhisperer/Fix-WinUpdates/refs/heads/main/Fix%20Updates.bat" -OutFile $bat
-	Start-Process cmd.exe -ArgumentList "/c echo.|`"$bat`"" -WindowStyle Normal -Wait
- 	shutdown /a
-	
- 	# Extend updates delay to beyond 35 days
- 	Write-Output "Disabling automatic updates..."
-	Write-Output "Extending updates delay to beyond 35 days..."
- 	iwr "https://github.com/Aetherinox/pause-windows-updates/raw/refs/heads/main/windows-updates-pause.reg" -OutFile "$env:TEMP\windows-updates-pause.reg"
-	reg.exe import "$env:TEMP\windows-updates-pause.reg" *> $null
-	
- 	# Pause updates until 7/11/3000
-	Write-Output "Pausing updates until 3000..."
- 	$pe="3000-07-11T12:00:00Z"
-	$ps=(Get-Date).ToString("yyyy-MM-ddT00:00:00Z")
- 	$uk=@("PauseUpdatesExpiryTime",$pe),("PauseUpdatesStartTime",$ps),("PauseFeatureUpdatesStartTime",$ps),("PauseFeatureUpdatesEndTime",$pe),("PauseQualityUpdatesStartTime",$ps),("PauseQualityUpdatesEndTime",$pe)
-	$p="HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings"
- 	if(!(Test-Path $p)){New-Item $p -Force};$uk|%{Set-ItemProperty -Path $p -Name $_[0] -Value $_[1] -Type String}
-	
- 	# Disable driver offering through Windows Update 
-	Write-Output "Disabling driver offering through Windows Update..."
- 	If (!(Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Device Metadata")) {New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Device Metadata" -Force | Out-Null}
-	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Device Metadata" -Name "PreventDeviceMetadataFromNetwork" -Type DWord -Value 1
-	If (!(Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching")) {New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching" -Force | Out-Null}
-	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching" -Name "DontPromptForWindowsUpdate" -Type DWord -Value 1
-	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching" -Name "DontSearchWindowsUpdate" -Type DWord -Value 1
-	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching" -Name "DriverUpdateWizardWuSearchEnabled" -Type DWord -Value 0
-	If (!(Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate")) {New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" | Out-Null}
-	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate" -Name "ExcludeWUDriversInQualityUpdate" -Type DWord -Value 1
-	
- 	# Disable Windows Update automatic restart
-	Write-Output "Disabling Windows Update automatic restart..."
- 	If (!(Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU")) {New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Force | Out-Null}
-	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "NoAutoRebootWithLoggedOnUsers" -Type DWord -Value 1
-	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU" -Name "AUPowerManagement" -Type DWord -Value 0
-	
- 	# Feature updates delayed by 2 years
- 	# Security updates installled after 4 days
-	Write-Output "Delaying Feature updates delayed by 2 years..."
-	Write-Output "Delaying Security updates installled after 4 days..."
- 	If (!(Test-Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings")) {New-Item -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" -Force | Out-Null}
-	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" -Name "BranchReadinessLevel" -Type DWord -Value 20
-	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" -Name "DeferFeatureUpdatesPeriodInDays" -Type DWord -Value 365
-	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings" -Name "DeferQualityUpdatesPeriodInDays" -Type DWord -Value 4
+    Write-Output "Fixing Windows Update..."
 
-	# Disable automatic Store updates
- 	Write-Output "Disabling automatic Store updates..."
-	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\WindowsStore" -Name "AutoDownload" -Value 4 -Type DWord -Force
-	Set-ItemProperty -Path "HKCU:\Software\Policies\Microsoft\WindowsStore" -Name "DisableOSUpgrade" -Value 1 -Type DWord -Force
-	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\WindowsStore" -Name "DisableOSUpgrade" -Value 1 -Type DWord -Force
+    # download helper batch
+    $bat = Join-Path $env:TEMP 'Fix Updates.bat'
+    Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/ShadowWhisperer/Fix-WinUpdates/refs/heads/main/Fix%20Updates.bat' -OutFile $bat -UseBasicParsing
 
-	# Disable map updates
- 	Write-Output "Disabling map updates..."
-	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Maps" -Name "AutoDownloadAndUpdateMapData" -Value 0 -Type DWord -Force
-	Set-ItemProperty -Path "HKLM:\SOFTWARE\Wow6432Node\Policies\Microsoft\Windows\Maps" -Name "AutoDownloadAndUpdateMapData" -Value 0 -Type DWord -Force
+    # run batch in cmd, wait, run in same window
+    Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "`"$bat`"" -NoNewWindow -Wait
+
+    # cancel any pending shutdown (ignore errors)
+    try { shutdown /a } catch {}
+
+    # extend updates delay beyond 35 days (import reg)
+    Write-Output "Disabling automatic updates (registry)..."
+    $reg = Join-Path $env:TEMP 'windows-updates-pause.reg'
+    Invoke-WebRequest -Uri 'https://github.com/Aetherinox/pause-windows-updates/raw/refs/heads/main/windows-updates-pause.reg' -OutFile $reg -UseBasicParsing
+    Start-Process -FilePath 'reg.exe' -ArgumentList 'import', "`"$reg`"" -NoNewWindow -Wait | Out-Null
+
+    # Pause updates until 3000
+    Write-Output "Pausing updates until year 3000..."
+    $pe = '3000-07-11T12:00:00Z'
+    $ps = (Get-Date).ToString('yyyy-MM-ddT00:00:00Z')
+    $pairs = @{
+        PauseUpdatesExpiryTime         = $pe
+        PauseUpdatesStartTime          = $ps
+        PauseFeatureUpdatesStartTime   = $ps
+        PauseFeatureUpdatesEndTime     = $pe
+        PauseQualityUpdatesStartTime   = $ps
+        PauseQualityUpdatesEndTime     = $pe
+    }
+    $uxPath = 'HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings'
+    if (-not (Test-Path $uxPath)) { New-Item -Path $uxPath -Force | Out-Null }
+    foreach ($name in $pairs.Keys) {
+        Set-ItemProperty -Path $uxPath -Name $name -Value $pairs[$name] -Type String -Force
+    }
+
+    # Disable driver offering via Windows Update
+    Write-Output "Disabling driver offering via Windows Update..."
+    $mdPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Device Metadata'
+    if (-not (Test-Path $mdPath)) { New-Item -Path $mdPath -Force | Out-Null }
+    Set-ItemProperty -Path $mdPath -Name 'PreventDeviceMetadataFromNetwork' -Type DWord -Value 1 -Force
+
+    $drvPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DriverSearching'
+    if (-not (Test-Path $drvPath)) { New-Item -Path $drvPath -Force | Out-Null }
+    Set-ItemProperty -Path $drvPath -Name 'DontPromptForWindowsUpdate' -Type DWord -Value 1 -Force
+    Set-ItemProperty -Path $drvPath -Name 'DontSearchWindowsUpdate' -Type DWord -Value 1 -Force
+    Set-ItemProperty -Path $drvPath -Name 'DriverUpdateWizardWuSearchEnabled' -Type DWord -Value 0 -Force
+
+    $wuPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate'
+    if (-not (Test-Path $wuPath)) { New-Item -Path $wuPath -Force | Out-Null }
+    Set-ItemProperty -Path $wuPath -Name 'ExcludeWUDriversInQualityUpdate' -Type DWord -Value 1 -Force
+
+    # Disable automatic restart for updates
+    Write-Output "Disabling Windows Update automatic restart..."
+    $auPath = Join-Path $wuPath 'AU'
+    if (-not (Test-Path $auPath)) { New-Item -Path $auPath -Force | Out-Null }
+    Set-ItemProperty -Path $auPath -Name 'NoAutoRebootWithLoggedOnUsers' -Type DWord -Value 1 -Force
+    Set-ItemProperty -Path $auPath -Name 'AUPowerManagement' -Type DWord -Value 0 -Force
+
+    # Defer feature/quality updates
+    Write-Output "Configuring update deferrals..."
+    if (-not (Test-Path $uxPath)) { New-Item -Path $uxPath -Force | Out-Null }
+    Set-ItemProperty -Path $uxPath -Name 'BranchReadinessLevel' -Type DWord -Value 20 -Force
+    Set-ItemProperty -Path $uxPath -Name 'DeferFeatureUpdatesPeriodInDays' -Type DWord -Value 365 -Force
+    Set-ItemProperty -Path $uxPath -Name 'DeferQualityUpdatesPeriodInDays' -Type DWord -Value 4 -Force
+
+    # Disable automatic Store updates
+    Write-Output "Disabling automatic Store updates..."
+    if (-not (Test-Path 'HKLM:\SOFTWARE\Policies\Microsoft\WindowsStore')) { New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\WindowsStore' -Force | Out-Null }
+    Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\WindowsStore' -Name 'AutoDownload' -Value 4 -Type DWord -Force
+    Set-ItemProperty -Path 'HKCU:\Software\Policies\Microsoft\WindowsStore' -Name 'DisableOSUpgrade' -Value 1 -Type DWord -Force
+    Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\WindowsStore' -Name 'DisableOSUpgrade' -Value 1 -Type DWord -Force
+
+    # Disable map updates
+    Write-Output "Disabling map updates..."
+    if (-not (Test-Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Maps')) { New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Maps' -Force | Out-Null }
+    Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Maps' -Name 'AutoDownloadAndUpdateMapData' -Value 0 -Type DWord -Force
+    if (-not (Test-Path 'HKLM:\SOFTWARE\Wow6432Node\Policies\Microsoft\Windows\Maps')) { New-Item -Path 'HKLM:\SOFTWARE\Wow6432Node\Policies\Microsoft\Windows\Maps' -Force | Out-Null }
+    Set-ItemProperty -Path 'HKLM:\SOFTWARE\Wow6432Node\Policies\Microsoft\Windows\Maps' -Name 'AutoDownloadAndUpdateMapData' -Value 0 -Type DWord -Force
+
+    Write-Output "Pause-Updates completed."
 }
 
 function Install-CPlusPlus { 
@@ -213,6 +250,8 @@ function Repair-Winget {
 }
 
 function CTT-WinUtilAutomation {
+	Repair-Winget 
+
 <#
 	Optional:
 	// Run Disk Cleanup
@@ -290,12 +329,10 @@ $json = @'
 	    if ($line -ne $null) {
 	        Write-Host $line
 	        if ($line -match "Tweaks are Finished") {
-	            Write-Host ">>> Marker found! Closing process..."
 	            $p.Kill()
 	            break
 	        }
 	    } else {
-	        Start-Sleep -Milliseconds 200
 	    }
 	}
 }
@@ -947,12 +984,10 @@ reg delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v SecurityHealt
 powershell -NoProfile -Command "try { Invoke-WebRequest 'https://github.com/instead1337/Defender-Switcher/releases/latest/download/DefenderSwitcher.ps1' -OutFile '%TEMP%\DefenderSwitcher.ps1' -UseBasicParsing } catch { }"
 powershell -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\DefenderSwitcher.ps1" -disable_av
 '@
-
 	# Save batch file
 	Set-Content -Path "$env:TEMP\DisableDefender.bat" -Value $batchCode -Encoding ASCII
-
 	# Execute with RunAsTI
-	RunAsTI -TargetPath "$env:TEMP\DisableDefender.bat" -Wait
+	RunAsTIExe -TargetPath "$env:TEMP\DisableDefender.bat" -Wait
 }
 
 function Disable-Mitigations {
@@ -4217,7 +4252,11 @@ Windows Registry Editor Version 5.00
 '@
 	Set-Content -Path "$env:TEMP\ServicesOff.reg" -Value $MultilineComment -Force
 	# disable services RunAsTI
-	RunAsTI -TargetPath "regedit.exe" -TargetArgs "/s `"$env:TEMP\ServicesOff.reg`"" -Wait
+	$ServicesOff = @'
+Regedit.exe /S "$env:TEMP\ServicesOff.reg"
+'@
+	RunAsTI powershell "-nologo -windowstyle hidden -command $ServicesOff"
+	Timeout /T 5 | Out-Null
 }
 
 function Windows-Cleanup {
@@ -4345,7 +4384,36 @@ function Windows-Cleanup {
 	Write-Host "Cleanup completed successfully!" -ForegroundColor Green				
 }
 
-
+function RunAsTI ($cmd,$arg) { $id='RunAsTI'; $key="Registry::HKU\$(((whoami /user)-split' ')[-1])\Volatile Environment"; $code=@'
+ $I=[int32]; $M=$I.module.gettype("System.Runtime.Interop`Services.Mar`shal"); $P=$I.module.gettype("System.Int`Ptr"); $S=[string]
+ $D=@(); $T=@(); $DM=[AppDomain]::CurrentDomain."DefineDynami`cAssembly"(1,1)."DefineDynami`cModule"(1); $Z=[uintptr]::size
+ 0..5|% {$D += $DM."Defin`eType"("AveYo_$_",1179913,[ValueType])}; $D += [uintptr]; 4..6|% {$D += $D[$_]."MakeByR`efType"()}
+ $F='kernel','advapi','advapi', ($S,$S,$I,$I,$I,$I,$I,$S,$D[7],$D[8]), ([uintptr],$S,$I,$I,$D[9]),([uintptr],$S,$I,$I,[byte[]],$I)
+ 0..2|% {$9=$D[0]."DefinePInvok`eMethod"(('CreateProcess','RegOpenKeyEx','RegSetValueEx')[$_],$F[$_]+'32',8214,1,$S,$F[$_+3],1,4)}
+ $DF=($P,$I,$P),($I,$I,$I,$I,$P,$D[1]),($I,$S,$S,$S,$I,$I,$I,$I,$I,$I,$I,$I,[int16],[int16],$P,$P,$P,$P),($D[3],$P),($P,$P,$I,$I)
+ 1..5|% {$k=$_; $n=1; $DF[$_-1]|% {$9=$D[$k]."Defin`eField"('f' + $n++, $_, 6)}}; 0..5|% {$T += $D[$_]."Creat`eType"()}
+ 0..5|% {nv "A$_" ([Activator]::CreateInstance($T[$_])) -fo}; function F ($1,$2) {$T[0]."G`etMethod"($1).invoke(0,$2)}
+ $TI=(whoami /groups)-like'*1-16-16384*'; $As=0; if(!$cmd) {$cmd='control';$arg='admintools'}; if ($cmd-eq'This PC'){$cmd='file:'}
+ if (!$TI) {'TrustedInstaller','lsass','winlogon'|% {if (!$As) {$9=sc.exe start $_; $As=@(get-process -name $_ -ea 0|% {$_})[0]}}
+ function M ($1,$2,$3) {$M."G`etMethod"($1,[type[]]$2).invoke(0,$3)}; $H=@(); $Z,(4*$Z+16)|% {$H += M "AllocHG`lobal" $I $_}
+ M "WriteInt`Ptr" ($P,$P) ($H[0],$As.Handle); $A1.f1=131072; $A1.f2=$Z; $A1.f3=$H[0]; $A2.f1=1; $A2.f2=1; $A2.f3=1; $A2.f4=1
+ $A2.f6=$A1; $A3.f1=10*$Z+32; $A4.f1=$A3; $A4.f2=$H[1]; M "StructureTo`Ptr" ($D[2],$P,[boolean]) (($A2 -as $D[2]),$A4.f2,$false)
+ $Run=@($null, "powershell -win 1 -nop -c iex `$env:R; # $id", 0, 0, 0, 0x0E080600, 0, $null, ($A4 -as $T[4]), ($A5 -as $T[5]))
+ F 'CreateProcess' $Run; return}; $env:R=''; rp $key $id -force; $priv=[diagnostics.process]."GetM`ember"('SetPrivilege',42)[0]
+ 'SeSecurityPrivilege','SeTakeOwnershipPrivilege','SeBackupPrivilege','SeRestorePrivilege' |% {$priv.Invoke($null, @("$_",2))}
+ $HKU=[uintptr][uint32]2147483651; $NT='S-1-5-18'; $reg=($HKU,$NT,8,2,($HKU -as $D[9])); F 'RegOpenKeyEx' $reg; $LNK=$reg[4]
+ function L ($1,$2,$3) {sp 'HKLM:\Software\Classes\AppID\{CDCBCFCA-3CDC-436f-A4E2-0E02075250C2}' 'RunAs' $3 -force -ea 0
+  $b=[Text.Encoding]::Unicode.GetBytes("\Registry\User\$1"); F 'RegSetValueEx' @($2,'SymbolicLinkValue',0,6,[byte[]]$b,$b.Length)}
+ function Q {[int](gwmi win32_process -filter 'name="explorer.exe"'|?{$_.getownersid().sid-eq$NT}|select -last 1).ProcessId}
+ $11bug=($((gwmi Win32_OperatingSystem).BuildNumber)-eq'22000')-AND(($cmd-eq'file:')-OR(test-path -lit $cmd -PathType Container))
+ if ($11bug) {'System.Windows.Forms','Microsoft.VisualBasic' |% {[Reflection.Assembly]::LoadWithPartialName("'$_")}}
+ if ($11bug) {$path='^(l)'+$($cmd -replace '([\+\^\%\~\(\)\[\]])','{$1}')+'{ENTER}'; $cmd='control.exe'; $arg='admintools'}
+ L ($key-split'\\')[1] $LNK ''; $R=[diagnostics.process]::start($cmd,$arg); if ($R) {$R.PriorityClass='High'; $R.WaitForExit()}
+ if ($11bug) {$w=0; do {if($w-gt40){break}; sleep -mi 250;$w++} until (Q); [Microsoft.VisualBasic.Interaction]::AppActivate($(Q))}
+ if ($11bug) {[Windows.Forms.SendKeys]::SendWait($path)}; do {sleep 7} while(Q); L '.Default' $LNK 'Interactive User'
+'@; $V='';'cmd','arg','id','key'|%{$V+="`n`$$_='$($(gv $_ -val)-replace"'","''")';"}; sp $key $id $($V,$code) -type 7 -force -ea 0
+ start powershell -args "-win 1 -nop -c `n$V `$env:R=(gi `$key -ea 0).getvalue(`$id)-join''; iex `$env:R" -verb runas
+} # lean & mean snippet by AveYo, 2022.01.28
 
 <#
 .SYNOPSIS
@@ -4399,7 +4467,7 @@ RunAsTI -TargetPath "powershell.exe" -TargetArgs "-Command reg add HKLM\...\..."
 - Tested on Windows 10 and Windows 11.
 #>
 
-function RunAsTI {
+function RunAsTIExe {
     param(
         [Parameter(Mandatory=$true,Position=0)][string]$TargetPath,
         [string[]]$TargetArgs = @(),
@@ -4611,6 +4679,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
