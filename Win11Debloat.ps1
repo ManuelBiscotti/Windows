@@ -8,6 +8,9 @@ param (
   	[switch]$DisablePowerSaving,
     [switch]$ActivateWindows,
     [switch]$PauseUpdates,
+	[switch]$DisableUpdates,
+ 	[switch]$EnableUpdates,
+  	[switch]$FixUpdates,
     [switch]$Runtimes,
     [switch]$CPlusPlus,
     [switch]$DirectX,
@@ -152,21 +155,20 @@ function Activate-Windows {
 	iex "& {$((irm https://get.activated.win))} /HWID"
 }
 
-function Pause-Updates {
+function Fix-Updates {
     Write-Output "Fixing Windows Update..."
 
     # download helper batch
 	$bat = "$env:TEMP\Fix Updates.bat"
  	iwr "https://raw.githubusercontent.com/ShadowWhisperer/Fix-WinUpdates/refs/heads/main/Fix%20Updates.bat" -OutFile $bat
 	Start-Process cmd.exe -ArgumentList "/c echo.|`"$bat`"" -WindowStyle Normal -Wait
- 	shutdown /a
-    
-	# run batch in cmd, wait, run in same window
-    Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "`"$bat`"" -NoNewWindow -Wait
-
     # cancel any pending shutdown (ignore errors)
-    try { shutdown /a } catch {}
+    try { shutdown /a } catch {}	
+}
 
+function Pause-Updates {
+	Fix-Updates
+ 
     # extend updates delay beyond 35 days (import reg)
     Write-Output "Disabling automatic updates (registry)..."
     $reg = Join-Path $env:TEMP 'windows-updates-pause.reg'
@@ -236,6 +238,38 @@ function Pause-Updates {
     Set-ItemProperty -Path 'HKLM:\SOFTWARE\Wow6432Node\Policies\Microsoft\Windows\Maps' -Name 'AutoDownloadAndUpdateMapData' -Value 0 -Type DWord -Force
 
     Write-Output "Pause-Updates completed."
+}
+
+function Disable-Updates {
+	# Disable Updates
+	$batch = Join-Path $env:TEMP 'disable-updates.bat'
+	iwr 'https://github.com/tsgrgo/windows-update-disabler/raw/refs/heads/main/disable%20updates.bat' -OutFile $batch 
+	
+	(Get-Content $batch) |
+	  Where-Object {
+	    $_ -notmatch 'if not "%1"=="admin"' -and
+	    $_ -notmatch 'if not "%2"=="system"' -and
+	    $_ -notmatch '^\s*pause\s*$'
+	  } |
+	  Set-Content -Path $batch -Encoding ASCII
+	
+	RunAsTIExe -TargetPath $batch -Wait
+}
+
+function Enable-Updates {
+	# Enable Updates
+	$batch = Join-Path $env:TEMP 'enable-updates.bat'
+	iwr 'https://github.com/tsgrgo/windows-update-disabler/raw/refs/heads/main/enable%20updates.bat' -OutFile $batch 
+	
+	(Get-Content $batch) |
+	  Where-Object {
+	    $_ -notmatch 'if not "%1"=="admin"' -and
+	    $_ -notmatch 'if not "%2"=="system"' -and
+	    $_ -notmatch '^\s*pause\s*$'
+	  } |
+	  Set-Content -Path $batch -Encoding ASCII
+	
+	RunAsTIExe -TargetPath $batch -Wait
 }
 
 function Install-CPlusPlus { 
@@ -10334,22 +10368,22 @@ Maximum time (in seconds) to wait when -Wait is used. Default is 600 seconds.
 
 .EXAMPLE
 # Run a batch file with TrustedInstaller privileges and wait for it
-RunAsTI -TargetPath "$env:TEMP\DisableDefender.bat" -Wait
+RunAsTIExe -TargetPath "$env:TEMP\DisableDefender.bat" -Wait
 
 .EXAMPLE
 # Run a PowerShell script as TrustedInstaller
-RunAsTI -TargetPath "powershell.exe" -TargetArgs "-ExecutionPolicy Bypass -File `"$env:TEMP\script.ps1`"" -Wait
+RunAsTIExe -TargetPath "powershell.exe" -TargetArgs "-ExecutionPolicy Bypass -File `"$env:TEMP\script.ps1`"" -Wait
 
 .EXAMPLE
 # Import a .reg file silently as TrustedInstaller
-RunAsTI -TargetPath "regedit.exe" -TargetArgs "/s `"$env:TEMP\settings.reg`"" -Wait
+RunAsTIExe -TargetPath "regedit.exe" -TargetArgs "/s `"$env:TEMP\settings.reg`"" -Wait
 
 .EXAMPLE
 # Execute a direct command by wrapping it with cmd.exe
-RunAsTI -TargetPath "cmd.exe" -TargetArgs "/c reg add HKLM\SOFTWARE\Test /v Flag /t REG_DWORD /d 1 /f" -Wait
+RunAsTIExe -TargetPath "cmd.exe" -TargetArgs "/c reg add HKLM\SOFTWARE\Test /v Flag /t REG_DWORD /d 1 /f" -Wait
 
 # Execute a direct command by wrapping it with powershell.exe
-RunAsTI -TargetPath "powershell.exe" -TargetArgs "-Command reg add HKLM\...\..." -Wait
+RunAsTIExe -TargetPath "powershell.exe" -TargetArgs "-Command reg add HKLM\...\..." -Wait
 
 .NOTES
 - Requires internet access on first run to download vc_redist and RunAsTI.exe.
@@ -10370,7 +10404,7 @@ function RunAsTIExe {
     $vcUrl  = 'https://aka.ms/vs/17/release/vc_redist.x64.exe'
     $vcFile = Join-Path $env:TEMP 'vcredist_x64.exe'
     if (-not (Test-Path $vcFile)) {
-        Invoke-WebRequest -Uri $vcUrl -OutFile $vcFile
+        Get-FileFromWeb -URL $vcUrl -OutFile $vcFile
         Start-Process -FilePath $vcFile -ArgumentList '/passive','/norestart' -Wait
     }
 
@@ -10601,6 +10635,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
