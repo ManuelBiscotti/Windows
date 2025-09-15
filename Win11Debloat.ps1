@@ -10702,7 +10702,7 @@ if ($DisableTelemetry) {
 	}
 
 	# Win11Debloat Disable Telemetry
-	& ([scriptblock]::Create((irm "https://debloat.raphi.re/"))) -DisableTelemetry
+	& ([scriptblock]::Create((irm "https://debloat.raphi.re/"))) -Silent -DisableTelemetry
  
 	Install-Simplewall
 }
@@ -10785,6 +10785,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
