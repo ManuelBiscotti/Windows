@@ -23,8 +23,10 @@ param (
     [switch]$ShutUp10,
     [switch]$PrivacyIsSexy,
     [switch]$DisableSecurity,
+	[switch]$PasswordNeverExpires,
     [switch]$DisbaleDefender,
-    [switch]$DisableMitigations
+    [switch]$DisableMitigations,
+	[switch]$Cleanup
 )
 
 function Activate-Windows {
@@ -495,8 +497,13 @@ function Remove-Apps {
 	$s.TargetPath="$env:SystemRoot\System32\SystemPropertiesAdvanced.exe"
 	$s.IconLocation="$env:SystemRoot\System32\SystemPropertiesAdvanced.exe"
 	$s.Save()
-
- 	# Windows 10 Stuff
+	# Remove Startup apps
+ 	Remove-Item -Recurse -Force "$env:AppData\Microsoft\Windows\Start Menu\Programs\Startup" -ErrorAction SilentlyContinue | Out-Null
+	Remove-Item -Recurse -Force "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp" -ErrorAction SilentlyContinue | Out-Null
+	New-Item -Path "$env:AppData\Microsoft\Windows\Start Menu\Programs\Startup" -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
+	New-Item -Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp" -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
+ 	
+  	# Windows 10 Stuff
  	if ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild -le 19045) {
 		# uninstall Microsoft Update Health Tools W10
 		cmd /c "MsiExec.exe /X{1FC1A6C2-576E-489A-9B4A-92D21F542136} /qn >nul 2>&1"	
@@ -602,7 +609,7 @@ function Remove-Apps {
 		$shortcut.TargetPath = "$env:SystemRoot\System32\notepad.exe"
 		$shortcut.Save()	
  	}
-}else{   
+}else{ 
 }
 
 function Install-Store {
@@ -877,6 +884,11 @@ N001	+	# Disable Network Connectivity Status Indicator (Category: Miscellaneous)
 
 function Run-PrivacySexy {
 
+}
+
+function Set-PasswordNeverExpires {
+	# Set account password to never expires
+	Get-LocalUser | ForEach-Object { Set-LocalUser -Name $_.Name -PasswordNeverExpires $true | Out-Null }	
 }
 
 function Disable-Defender {
@@ -4107,7 +4119,35 @@ E0,F6,C5,D5,0E,CA,50,00,00
 "Hash"="FvJcqeZpmOE="
 "ProgId"="txtfile"
 '@
+	# Disable BitLocker
+	Write-Output "Disabling BitLocker..."
+	# Disable BitLocker on C:
+	Disable-BitLocker -MountPoint "C:" 2>&1 | Out-Null -ErrorAction SilentlyContinue
+	# Disable Device Encryption via registry
+	New-Item -Path "HKLM:\System\CurrentControlSet\Control" -Name "BitLocker" -Force 2>&1 | Out-Null -ErrorAction SilentlyContinue
+	Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\BitLocker" -Name "PreventDeviceEncryption" -Type DWord -Value 1
+	# Disable EFS (Encrypting File System)
+	fsutil behavior set disableencryption 1 | Out-Null
+	# Additional BitLocker policy: Disable External DMA Under Lock
+	New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft" -Name "FVE" -Force | Out-Null
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\FVE" -Name "DisableExternalDMAUnderLock" -Type DWord -Value 1
 	# Disable Startup apps
+ 	Write-Output "Disabling Startup apps..."
+ 	cmd /c "reg delete `"HKCU\Software\Microsoft\Windows\CurrentVersion\RunNotification`" /f >nul 2>&1"
+	reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\RunNotification" /f | Out-Null
+	cmd /c "reg delete `"HKCU\Software\Microsoft\Windows\CurrentVersion\RunOnce`" /f >nul 2>&1"
+	reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\RunOnce" /f | Out-Null
+	cmd /c "reg delete `"HKCU\Software\Microsoft\Windows\CurrentVersion\Run`" /f >nul 2>&1"
+	reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /f | Out-Null
+	cmd /c "reg delete `"HKLM\Software\Microsoft\Windows\CurrentVersion\RunOnce`" /f >nul 2>&1"
+	reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\RunOnce" /f | Out-Null
+	cmd /c "reg delete `"HKLM\Software\Microsoft\Windows\CurrentVersion\Run`" /f >nul 2>&1"
+	reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" /f | Out-Null
+	cmd /c "reg delete `"HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\RunOnce`" /f >nul 2>&1"
+	reg add "HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\RunOnce" /f | Out-Null
+	cmd /c "reg delete `"HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run`" /f >nul 2>&1"
+	reg add "HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run" /f | Out-Null
+	cmd /c "reg delete `"HKLM\Software\Microsoft\Active Setup\Installed Components\{9459C573-B17A-45AE-9F64-1857B5D58CEE}`" /f >nul 2>&1"
 	$startupApps = Get-WmiObject -Class Win32_StartupCommand | Select-Object -ExpandProperty Caption
 	foreach ($app in $startupApps) {
 	    if ([string]::IsNullOrWhiteSpace($app)) { continue }
@@ -4123,19 +4163,155 @@ E0,F6,C5,D5,0E,CA,50,00,00
 	        }
 	    }
 	} 	
-	# Grouping svchost.exe processes
+	# Group svchost.exe processes
+ 	Write-Output "Grouping svchost.exe processes..."
 	$ram = (Get-CimInstance -ClassName Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum).Sum / 1kb; Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control" -Name "SvcHostSplitThresholdInKB" -Type DWord -Value $ram -Force
-	# Download blanc.ico into C:\Windows
+	# Enable MSI Mode on all supported Drivers
+	Write-Output "Enabling MSI Mode on all supported Drivers..."
+	$gpuDevices = Get-PnpDevice -Class Display
+	foreach ($gpu in $gpuDevices) {
+		$instanceID = $gpu.InstanceId
+		reg add "HKLM\SYSTEM\ControlSet001\Enum\$instanceID\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties" /v "MSISupported" /t REG_DWORD /d "1" /f | Out-Null
+	}
+	# Fix VMware Tools if present
+	if (Test-Path "C:\Program Files\VMware\VMware Tools\vmtoolsd.exe") { 
+ 		Write-Output "Fixing VMware Tools..."
+  		Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "VMware User Process" -Value '"C:\Program Files\VMware\VMware Tools\vmtoolsd.exe" -n vmusr' | Out-Null
+	}	
+
+ 	# Download blanc.ico into C:\Windows
 	Get-FileFromWeb -URL "https://github.com/benzaria/remove_shortcut_arrow/raw/refs/heads/main/blanc.ico" -File "C:\\Windows\\blanc.ico"
 	Set-Content -Path "$env:TEMP\RegistryOptimize.reg" -Value $MultilineComment -Force
-	# Fix VMware Tools if present
-	if (Test-Path "C:\Program Files\VMware\VMware Tools\vmtoolsd.exe") { Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "VMware User Process" -Value '"C:\Program Files\VMware\VMware Tools\vmtoolsd.exe" -n vmusr' | Out-Null }	
- 	
   	# edit reg file
 	$path = "$env:TEMP\RegistryOptimize.reg"
 	(Get-Content $path) -replace "\?","$" | Out-File $path
 	# import reg file
 	Regedit.exe /S "$env:TEMP\RegistryOptimize.reg"
+}
+
+function Windows-Cleanup {
+	# Define all cleanup options
+	$options = @(
+	    'Active Setup Temp Folders'
+	    'Thumbnail Cache'
+	    'Delivery Optimization Files'
+	    'D3D Shader Cache'
+	    'Downloaded Program Files'
+	    'Internet Cache Files'
+	    'Setup Log Files'
+	    'Temporary Files'
+	    'Windows Error Reporting Files'
+	    'Offline Pages Files'
+	    'Recycle Bin'
+	    'Temporary Setup Files'
+	    'Update Cleanup'
+	    'Upgrade Discarded Files'
+	    'Windows Defender'
+	    'Windows ESD installation files'
+	    'Windows Reset Log Files'
+	    'Windows Upgrade Log Files'
+	    'Previous Installations'
+	    'Old ChkDsk Files'
+	    'Feedback Hub Archive log files'
+	    'Diagnostic Data Viewer database files'
+	    'Device Driver Packages'
+	)
+	
+	# Display disk space before cleaning
+	$driveletter = $env:SystemDrive -replace ':', ''
+	$drive = Get-PSDrive $driveletter
+	$usedInGB = [math]::Round($drive.Used / 1GB, 4)
+	Write-Host 'BEFORE CLEANING' -ForegroundColor Red
+	Write-Host "Used space on $($drive.Name):\ $usedInGB GB" -ForegroundColor Red
+	
+	# Perform all cleanup operations automatically
+	Write-Host 'Clearing Event Viewer Logs...'
+	wevtutil el | Foreach-Object { wevtutil cl "$_" >$null 2>&1 } 
+	
+	Write-Host 'Clearing Windows Log Files...'
+	# Clear Distributed Transaction Coordinator logs
+	Remove-Item -Path $env:SystemRoot\DtcInstall.log -Force -ErrorAction SilentlyContinue 
+	# Clear Optional Component Manager and COM+ components logs
+	Remove-Item -Path $env:SystemRoot\comsetup.log -Force -ErrorAction SilentlyContinue 
+	# Clear Pending File Rename Operations logs
+	Remove-Item -Path $env:SystemRoot\PFRO.log -Force -ErrorAction SilentlyContinue 
+	# Clear Windows Deployment Upgrade Process Logs
+	Remove-Item -Path $env:SystemRoot\setupact.log -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path $env:SystemRoot\setuperr.log -Force -ErrorAction SilentlyContinue 
+	# Clear Windows Setup Logs
+	Remove-Item -Path $env:SystemRoot\setupapi.log -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path $env:SystemRoot\Panther\* -Force -Recurse -ErrorAction SilentlyContinue 
+	Remove-Item -Path $env:SystemRoot\inf\setupapi.app.log -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path $env:SystemRoot\inf\setupapi.dev.log -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path $env:SystemRoot\inf\setupapi.offline.log -Force -ErrorAction SilentlyContinue 
+	# Clear Windows System Assessment Tool logs
+	Remove-Item -Path $env:SystemRoot\Performance\WinSAT\winsat.log -Force -ErrorAction SilentlyContinue 
+	# Clear Password change events
+	Remove-Item -Path $env:SystemRoot\debug\PASSWD.LOG -Force -ErrorAction SilentlyContinue 
+	# Clear DISM (Deployment Image Servicing and Management) Logs
+	Remove-Item -Path $env:SystemRoot\Logs\CBS\CBS.log -Force -ErrorAction SilentlyContinue  
+	Remove-Item -Path $env:SystemRoot\Logs\DISM\DISM.log -Force -ErrorAction SilentlyContinue  
+	# Clear Server-initiated Healing Events Logs
+	Remove-Item -Path "$env:SystemRoot\Logs\SIH\*" -Force -ErrorAction SilentlyContinue 
+	# Common Language Runtime Logs
+	Remove-Item -Path "$env:LocalAppData\Microsoft\CLR_v4.0\UsageTraces\*" -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path "$env:LocalAppData\Microsoft\CLR_v4.0_32\UsageTraces\*" -Force -ErrorAction SilentlyContinue 
+	# Network Setup Service Events Logs
+	Remove-Item -Path "$env:SystemRoot\Logs\NetSetup\*" -Force -ErrorAction SilentlyContinue 
+	# Disk Cleanup tool (Cleanmgr.exe) Logs
+	Remove-Item -Path "$env:SystemRoot\System32\LogFiles\setupcln\*" -Force -ErrorAction SilentlyContinue 
+	# Clear Windows update and SFC scan logs
+	Remove-Item -Path $env:SystemRoot\Temp\CBS\* -Force -ErrorAction SilentlyContinue 
+	# Clear Windows Update Medic Service logs
+	takeown /f $env:SystemRoot\Logs\waasmedic /r *>$null
+	icacls $env:SystemRoot\Logs\waasmedic /grant administrators:F /t *>$null
+	Remove-Item -Path $env:SystemRoot\Logs\waasmedic -Recurse -ErrorAction SilentlyContinue 
+	# Clear Cryptographic Services Traces
+	Remove-Item -Path $env:SystemRoot\System32\catroot2\dberr.txt -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path $env:SystemRoot\System32\catroot2.log -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path $env:SystemRoot\System32\catroot2.jrs -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path $env:SystemRoot\System32\catroot2.edb -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path $env:SystemRoot\System32\catroot2.chk -Force -ErrorAction SilentlyContinue 
+	# Windows Update Logs
+	Remove-Item -Path "$env:SystemRoot\Traces\WindowsUpdate\*" -Force -ErrorAction SilentlyContinue 
+	# Miscellaneous folder cleanup
+	'C:\XboxGames',
+	'C:\.GamingRoot', 
+	'C:\inetpub',
+	'C:\PerfLogs',
+	'C:\Program Files\Microsoft Update Health Tools',
+	'C:\ProgramData\Microsoft OneDrive' | ForEach-Object {
+    	Remove-Item $_ -Force -Recurse
+	}
+ 
+	Write-Host 'Clearing TEMP Files...'
+	# Cleanup temp files
+	$temp1 = 'C:\Windows\Temp'
+	$temp2 = $env:TEMP
+	$tempFiles = (Get-ChildItem -Path $temp1 , $temp2 -Recurse -Force).FullName
+	foreach ($file in $tempFiles) {
+	    Remove-Item -Path $file -Recurse -Force -ErrorAction SilentlyContinue
+	}
+	
+	Write-Host 'Running Disk Cleanup...'
+	# Set all cleanup options in registry
+	$key = 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches'
+	foreach ($item in $options) {
+	    reg.exe add "$key\$item" /v StateFlags0069 /t REG_DWORD /d 00000002 /f >$null 2>&1
+	}
+	# Run Disk Cleanup
+	Start-Process cleanmgr.exe -ArgumentList '/d C: /VERYLOWDISK'
+ 	while(-not (Get-Process cleanmgr)){sleep 1}; do{$p=Get-Process|? MainWindowTitle -eq 'Disk Space Notification'} until($p);$p|%{ $_.CloseMainWindow()
+  	if(-not $_.HasExited){ $_.Kill() } } *>$null
+	Start-Process powershell -ArgumentList '-NoProfile -Command "Dism.exe /Online /Cleanup-Image /StartComponentCleanup /ResetBase"' -Wait
+
+	# Display disk space after cleaning
+	$drive = Get-PSDrive $driveletter
+	$usedInGB = [math]::Round($drive.Used / 1GB, 4)
+	Write-Host 'AFTER CLEANING' -ForegroundColor Green
+	Write-Host "Used space on $($drive.Name):\ $usedInGB GB" -ForegroundColor Green
+
+	Write-Host "Cleanup completed successfully!" -ForegroundColor Green				
 }
 
 
@@ -4358,8 +4534,29 @@ if ($ShutUp10) {
 
 # DISABLE SECURITY
 if ($DisableSecurity) {
+	Set-PasswordNeverExpires
 	Disable-Defender
  	Disable-Mitigations
+}
+
+# SET ACCOUNT PASSWORD TO NEVER EXPIRES
+if ($PasswordNeverExpires) {
+	Set-PasswordNeverExpires
+}
+
+# DISABLE DEFENDER
+if ($DisableDefender) {
+	Disable-Defender
+}
+
+# DISABLE MITITGATIONS
+if ($DisableMitigations) {
+	Disable-Mitigations
+}
+
+# CLEANUP
+if ($Cleanup) {
+	Windows-Cleanup
 }
 
 Write-Output ""
@@ -4368,6 +4565,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
