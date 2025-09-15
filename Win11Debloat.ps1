@@ -35,8 +35,9 @@ param (
  	[switch]$DisableServices,
     [switch]$DisableSecurity,
 	[switch]$PasswordNeverExpires,
-    [switch]$DisbaleDefender,
+    [switch]$DisableDefender,
     [switch]$DisableMitigations,
+	[switch]$ResetDefender,
 	[switch]$StartAllBack,
  	[switch]$7Zip,
  	[switch]$Spotify,
@@ -10784,6 +10785,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
