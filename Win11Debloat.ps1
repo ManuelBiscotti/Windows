@@ -29,6 +29,7 @@ param (
 	[switch]$PasswordNeverExpires,
     [switch]$DisbaleDefender,
     [switch]$DisableMitigations,
+	[switch]$StartAllBack,
 	[switch]$Cleanup
 )
 
@@ -349,7 +350,6 @@ function Run-Win11Debloat {
 	    -RemoveW11Outlook `
 	    -RemoveDevApps `
 	    -RemoveGamingApps `
-	    -ForceRemoveEdge `
 	    -DisableDVR `
 	    -DisableStartRecommended `
 	    -DisableStartPhoneLink `
@@ -4262,6 +4262,238 @@ Regedit.exe /S "$env:TEMP\ServicesOff.reg"
 	Timeout /T 5 | Out-Null
 }
 
+function Install-StartAllBack {
+	try {
+		$dir="$env:ProgramData\Bloatware"
+		New-Item $dir -ItemType Directory -Force  *> $null
+		$script=@'
+for ($i = 1; $i -le 3; $i++) {
+    "RuntimeBroker","MoUsoCoreWorker","UserOOBEBroker","SearchApp","ConnectedUserExperiences","ctfmon","CrossDeviceResume","MicrosoftEdgeUpdate","","ONENOTEM" | % { Get-Process $_ -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+    "MSDTC","VSS" | % { Stop-Service $_ -Force -ErrorAction SilentlyContinue }
+    Start-Sleep -Seconds 1
+}
+'@
+		$script | Set-Content "$dir\KillBloatware.ps1" -Encoding UTF8 -Force *> $null
+		$trigger=New-ScheduledTaskTrigger -AtStartup
+		$action=New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$dir\KillBloatware.ps1`""
+		Register-ScheduledTask -TaskName "KillBloatwareAtStartup" -Action $action -Trigger $trigger -RunLevel Highest -User "SYSTEM" -Force *> $null
+	} catch {
+	}
+
+	if ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild -le 19045) {
+		$exe="$env:TEMP\StartIsBackPlusPlus_setup.exe"; iwr "https://startisback.sfo3.cdn.digitaloceanspaces.com/StartIsBackPlusPlus_setup.exe" -OutFile $exe
+		start $exe -ArgumentList "/elevated /silent" -Wait
+		Start-Process explorer
+					
+	$MultilineComment = @"
+Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\SOFTWARE\StartIsBack]
+"CurrentVersion"="2.9.20"
+"WinBuild"=dword:00004a65
+"WinLangID"=dword:00000409
+"ModernIconsColorized"=dword:00000000
+"WelcomeShown"=dword:00000002
+"Start_LargeMFUIcons"=dword:00000001
+"StartMetroAppsMFU"=dword:00000001
+"StartScreenShortcut"=dword:00000000
+"Start_LargeAllAppsIcons"=dword:00000000
+"StartMetroAppsFolder"=dword:00000001
+"Start_SortFoldersFirst"=dword:00000000
+"Start_NotifyNewApps"=dword:00000000
+"Start_AutoCascade"=dword:00000000
+"Start_AskCortana"=dword:00000000
+"Start_RightPaneIcons"=dword:00000002
+"Start_ShowUser"=dword:00000001
+"Start_ShowMyDocs"=dword:00000001
+"Start_ShowMyPics"=dword:00000001
+"Start_ShowMyMusic"=dword:00000001
+"Start_ShowVideos"=dword:00000000
+"Start_ShowDownloads"=dword:00000001
+"Start_ShowSkyDrive"=dword:00000000
+"StartMenuFavorites"=dword:00000000
+"Start_ShowRecentDocs"=dword:00000000
+"Start_ShowNetPlaces"=dword:00000000
+"Start_ShowNetConn"=dword:00000000
+"Start_ShowMyComputer"=dword:00000001
+"Start_ShowControlPanel"=dword:00000001
+"Start_ShowPCSettings"=dword:00000001
+"Start_AdminToolsRoot"=dword:00000000
+"Start_ShowPrinters"=dword:00000000
+"Start_ShowSetProgramAccessAndDefaults"=dword:00000000
+"Start_ShowCommandPrompt"=dword:00000000
+"Start_ShowRun"=dword:00000001
+"Start_MinMFU"=dword:00000009
+"Start_JumpListItems"=dword:0000000a
+"AutoUpdates"=dword:00000000
+"Disabled"=dword:00000000
+"StartIsApps"=dword:00000000
+"NoXAMLPrelaunch"=dword:00000001
+"TerminateOnClose"=dword:00000001
+"AllProgramsFlyout"=dword:00000000
+"CombineWinX"=dword:00000001
+"HideUserFrame"=dword:00000001
+"TaskbarLargerIcons"=dword:00000000
+"TaskbarSpacierIcons"=dword:fffffffe
+"TaskbarJumpList"=dword:00000001
+"HideOrb"=dword:00000000
+"HideSecondaryOrb"=dword:00000000
+"StartMenuMonitor"=dword:00000001
+"ImmersiveMenus"=dword:ffffffff
+"WinkeyFunction"=dword:00000000
+"MetroHotkeyFunction"=dword:00000000
+"MetroHotKey"=dword:0000000a
+"OrbBitmap"="Windows 10"
+"TaskbarStyle"="C:\\Program Files (x86)\\StartIsBack\\Styles\\Windows 10.msstyles"
+"AlterStyle"="C:\\Program Files (x86)\\StartIsBack\\Styles\\Plain10.msstyles"
+"AppsFolderIcon"=hex(2):73,00,68,00,65,00,6c,00,6c,00,33,00,32,00,2e,00,64,00,\
+  6c,00,6c,00,2c,00,33,00,00,00
+"SettingsVersion"=dword:00000005
+
+[HKEY_CURRENT_USER\SOFTWARE\StartIsBack\Cache]
+"IdealHeight.6"=dword:00000000
+"IdealHeight.9"=dword:00020009
+"IdealWidth.9"="Control Panel"
+"@
+	Set-Content -Path "$env:TEMP\StartIsBack.reg" -Value $MultilineComment -Force
+	# edit reg file				
+	$path = "$env:TEMP\StartIsBack.reg"				
+	(Get-Content $path) -replace "\?","$" | Out-File $path				
+	# import reg file				
+	Regedit.exe /S "$env:TEMP\StartIsBack.reg"				
+	}				
+
+	elseif ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild -ge 22000) {
+		$Dest="C:\Program Files\StartAllBack\Orbs\rog.png"
+		if (!(Test-Path (Split-Path $Dest))) { New-Item -Path (Split-Path $Dest) -ItemType Directory -Force | Out-Null }
+		iwr "https://github.com/ManueITest/Windows/raw/main/rog.png" -OutFile $Dest	    
+		# Define target path
+		$SABPath = Join-Path $env:USERPROFILE "Desktop\Post Install\StartAllBack Utility\SABActivator.exe"		
+		# Ensure parent folder exists
+		$parent = Split-Path $SABPath
+		if (-not (Test-Path $parent)) {
+			New-Item -Path $parent -ItemType Directory -Force | Out-Null
+		}	    
+		# Download file
+		Invoke-WebRequest "https://github.com/Aetherinox/utility-startallback/raw/refs/heads/main/bin/Release/app.publish/SABActivator.exe" -OutFile $SABPath
+
+	$batchCode = @'
+@echo off
+setlocal EnableDelayedExpansion
+
+powershell -Command "Invoke-WebRequest 'https://www.startallback.com/download.php/StartAllBack_setup.exe' -OutFile '%TEMP%\StartAllBack_setup.exe'"
+start "" /wait "%TEMP%\StartAllBack_setup.exe" /silent
+
+@echo off
+:: StartAllBack Settings
+reg add "HKCU\Software\StartIsBack" /f
+reg add "HKCU\Software\StartIsBack" /v AutoUpdates /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v WinBuild /t REG_DWORD /d 26100 /f
+reg add "HKCU\Software\StartIsBack" /v WinLangID /t REG_DWORD /d 1033 /f
+reg add "HKCU\Software\StartIsBack" /v SettingsVersion /t REG_DWORD /d 6 /f
+reg add "HKCU\Software\StartIsBack" /v WelcomeShown /t REG_DWORD /d 3 /f
+reg add "HKCU\Software\StartIsBack" /v UpdateCheck /t REG_BINARY /d a2,06,b2,19,3d,0a,dc,01 /f
+reg add "HKCU\Software\StartIsBack" /v FrameStyle /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v AlterStyle /t REG_SZ /d "" /f
+reg add "HKCU\Software\StartIsBack" /v TaskbarStyle /t REG_SZ /d "" /f
+reg add "HKCU\Software\StartIsBack" /v SysTrayStyle /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v BottomDetails /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v Start_LargeAllAppsIcons /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v AllProgramsFlyout /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v StartMetroAppsFolder /t REG_DWORD /d 1 /f
+reg add "HKCU\Software\StartIsBack" /v Start_SortOverride /t REG_DWORD /d 10 /f
+reg add "HKCU\Software\StartIsBack" /v Start_NotifyNewApps /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v Start_AutoCascade /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v Start_LargeSearchIcons /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v Start_AskCortana /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v HideUserFrame /t REG_DWORD /d 1 /f
+reg add "HKCU\Software\StartIsBack" /v Start_RightPaneIcons /t REG_DWORD /d 2 /f
+reg add "HKCU\Software\StartIsBack" /v Start_ShowUser /t REG_DWORD /d 1 /f
+reg add "HKCU\Software\StartIsBack" /v Start_ShowMyDocs /t REG_DWORD /d 1 /f
+reg add "HKCU\Software\StartIsBack" /v Start_ShowMyPics /t REG_DWORD /d 1 /f
+reg add "HKCU\Software\StartIsBack" /v Start_ShowMyMusic /t REG_DWORD /d 1 /f
+reg add "HKCU\Software\StartIsBack" /v Start_ShowVideos /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v Start_ShowDownloads /t REG_DWORD /d 1 /f
+reg add "HKCU\Software\StartIsBack" /v Start_ShowSkyDrive /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v StartMenuFavorites /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v Start_ShowRecentDocs /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v Start_ShowNetPlaces /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v Start_ShowNetConn /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v Start_ShowMyComputer /t REG_DWORD /d 1 /f
+reg add "HKCU\Software\StartIsBack" /v Start_ShowControlPanel /t REG_DWORD /d 1 /f
+reg add "HKCU\Software\StartIsBack" /v Start_ShowPCSettings /t REG_DWORD /d 1 /f
+reg add "HKCU\Software\StartIsBack" /v Start_AdminToolsRoot /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v Start_ShowPrinters /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v Start_ShowSetProgramAccessAndDefaults /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v Start_ShowTerminal /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v Start_ShowCommandPrompt /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v Start_ShowRun /t REG_DWORD /d 1 /f
+reg add "HKCU\Software\StartIsBack" /v TaskbarSpacierIcons /t REG_DWORD /d 4294967294 /f
+reg add "HKCU\Software\StartIsBack" /v TaskbarOneSegment /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v TaskbarCenterIcons /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v FatTaskbar /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v TaskbarTranslucentEffect /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v Start_MinMFU /t REG_DWORD /d 9 /f
+reg add "HKCU\Software\StartIsBack" /v NavBarGlass /t REG_DWORD /d 0 /f
+reg add "HKCU\Software\StartIsBack" /v TaskbarAlpha /t REG_DWORD /d 128 /f
+reg add "HKCU\Software\StartIsBack" /v SysTrayClockFormat /t REG_DWORD /d 3 /f
+:: End StartAllBack Settings
+
+:: cleanup + reboot
+shutdown -r -t 3
+
+:: Delete current user's temp
+del /q /f /s "%TEMP%\*.*"
+rd /s /q "%TEMP%"
+
+:: Delete Windows temp
+del /q /f /s "C:\Windows\Temp\*.*"
+rd /s /q "C:\Windows\Temp"
+
+:: Recreate empty temp folders
+mkdir "%TEMP%" >nul 2>&1
+mkdir "C:\Windows\Temp" >nul 2>&1
+
+:: removes the scheduled task after it runs and deletes the batch file itself.
+schtasks /Delete /TN OneTime_StartAllBack_Install /F
+del "%~f0"
+
+endlocal
+exit
+'@
+	$batchPath = Join-Path $env:USERPROFILE "Desktop\Install_StartAllBack.bat"
+	Set-Content -Path $batchPath -Value $batchCode -Encoding ASCII
+	
+	# Create a scheduled task that runs once at next logon
+	$taskName = "OneTime_StartAllBack_Install"
+	$batchPath = Join-Path $env:USERPROFILE "Desktop\Install_StartAllBack.bat"
+	
+	# Create scheduled task to run once at next logon
+	$action = New-ScheduledTaskAction -Execute $batchPath
+	$trigger = New-ScheduledTaskTrigger -AtLogOn
+	Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Description "One-time StartAllBack installer" -User $env:USERNAME -RunLevel Highest -Force | Out-Null
+	} else {
+	}		
+}
+
+function Install-7Zip {
+	Write-Output "Installing 7-Zip..."
+	# install 7zip
+	iwr -Uri ((Invoke-RestMethod "https://api.github.com/repos/ip7z/7zip/releases/latest").assets | Where-Object { $_.name -like "*x64.exe" } | Select-Object -First 1).browser_download_url -OutFile (Join-Path $env:TEMP "7z-x64.exe")
+ 	Start-Process "$env:TEMP\7z-x64.exe" -ArgumentList '/S' -Wait
+	# 7zip file association
+	$7Zexe = "$env:ProgramFiles\7-Zip\7zFM.exe"
+ 	if(Test-Path $7Zexe){
+ 		'7z','xz','bzip2','gzip','tar','zip','wim','apfs','ar','arj','cab','chm','cpio','cramfs','dmg','ext','fat','gpt','hfs','ihex',
+   		'iso','lzh','lzma','mbr','msi','nsis','ntfs','qcow2','rar','rpm','squashfs','udf','uefi','vdi','vhd','vhdx','vmdk','xar','z'|%{cmd /c "assoc .$_=7zFM.exe" >$null}
+ 		cmd /c 'ftype 7zFM.exe="C:\Program Files\7-Zip\7zFM.exe" "%1" "%*"' >$null
+	}					
+}
+
+function Install-Spotify {
+	iex "& { $(iwr -useb 'https://spotx-official.github.io/run.ps1') } -m -sp-over -new_theme -canvashome_off -adsections_off -podcasts_off -block_update_on -DisableStartup -cl 500 -no_shortcut"
+}
+
 function Windows-Cleanup {
 	# Define all cleanup options
 	$options = @(
@@ -4671,6 +4903,21 @@ if ($DisableMitigations) {
 	Disable-Mitigations
 }
 
+# INSTALL STARTALLBACK
+if ($StartAllBack) {
+	Install-StartAllBAck
+}
+
+# INSTALL 7-ZIP
+if ($7Zip) {
+	Install-7Zip
+}
+
+# INSTALL SPOTIFY
+if ($Spotify) {
+	Install-Spotify
+}
+
 # CLEANUP
 if ($Cleanup) {
 	Windows-Cleanup
@@ -4682,6 +4929,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
