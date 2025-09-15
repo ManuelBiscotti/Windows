@@ -35,6 +35,16 @@ param (
 	[switch]$Cleanup
 )
 
+$Host.UI.RawUI.WindowTitle = ''
+$Host.UI.RawUI.BackgroundColor = 'Black'
+$Host.UI.RawUI.ForegroundColor = 'Blue'
+$Host.PrivateData.ProgressBackgroundColor = 'Black'
+$Host.PrivateData.ProgressForegroundColor = 'Blue'
+Clear-Host
+
+$ProgressPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'SilentlyContinue'
+
 function Create-RestorePoint {
     <#
     .SYNOPSIS
@@ -4828,16 +4838,6 @@ function Get-FileFromWeb {
     $r.Close(); $w.Close(); $resp.Close()
 }
 
-$Host.UI.RawUI.WindowTitle = ''
-$Host.UI.RawUI.BackgroundColor = 'Black'
-$Host.UI.RawUI.ForegroundColor = 'Blue'
-$Host.PrivateData.ProgressBackgroundColor = 'Black'
-$Host.PrivateData.ProgressForegroundColor = 'Blue'
-Clear-Host
-
-$ProgressPreference = 'SilentlyContinue'
-$ErrorActionPreference = 'SilentlyContinue'
-
 # CREATE RESTORE POINT
 if ($RestorePoint) {
 	Create-RestorePoint
@@ -4980,6 +4980,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
