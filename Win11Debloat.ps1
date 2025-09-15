@@ -25,10 +25,11 @@ param (
     [switch]$RemoveWindowsAI,
     [switch]$RemoveApps,
     [switch]$InstallStore,	
-    [switch]$PrivacyTweaks,
+    [switch]$DisableTelemetry,
     [switch]$WPD,
     [switch]$ShutUp10,
     [switch]$PrivacyIsSexy,
+	[switch]$Simplewall,
 	[switch]$OptimizeNetwork,
 	[switch]$OptimizeRegistry,
  	[switch]$DisableServices,
@@ -7167,13 +7168,13 @@ Windows Registry Editor Version 5.00
 
 
 ; DISABLE WINDOWS SECURITY SETTINGS
-; cloud delivered protection
-[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Spynet]
-"SpyNetReporting"=dword:00000000
+; disable cloud delivered protection
+; [HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Spynet]
+; "SpyNetReporting"=dword:00000000
 
-; automatic sample submission
-[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Spynet]
-"SubmitSamplesConsent"=dword:00000000
+; disable automatic sample submission
+; [HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender\Spynet]
+; "SubmitSamplesConsent"=dword:00000000
 
 ; disable firewall notifications
 [HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows Defender Security Center\Notifications]
@@ -10549,12 +10550,60 @@ if ($RemoveEdge) {
     Remove-Edge
 }
 
-# Privacy Tweaks
-if ($PrivacyTweaks) {
-    Write-Output "Applying Privacy Tweaks..."
+# DISABLE TELEMETRY
+if ($DisableTelemetry) {
+    Write-Output "Disabling Telemetry..."
     Run-WPD
     Run-ShutUp10
     Run-PrivacySexy
+
+ 	# CTT WinUtil Disable Telemetry
+  	# CTT WinUtil Disable Powershell 7 Telemetry
+	$json = @'
+{
+    "WPFTweaks":  [
+                      "WPFTweaksTele",
+                      "WPFTweaksPowershell7Tele"
+                   ]
+}
+'@
+	$config = "$env:TEMP\tweaks.json"
+	$script = "$env:TEMP\winutil.ps1"
+	
+	Set-Content -Path $config -Value $json -Encoding ASCII
+	iwr "https://github.com/ChrisTitusTech/winutil/releases/latest/download/winutil.ps1" -OutFile $script
+	
+	# Use Start-Process with redirected output
+	$outFile = "$env:TEMP\winutil_log.txt"
+	$psi = New-Object System.Diagnostics.ProcessStartInfo
+	$psi.FileName = "powershell.exe"
+	$psi.Arguments = "-NoProfile -Sta -ExecutionPolicy Bypass -File `"$script`" -Config `"$config`" -Run"
+	$psi.RedirectStandardOutput = $true
+	$psi.RedirectStandardError  = $true
+	$psi.UseShellExecute = $false
+	$psi.CreateNoWindow = $true
+	
+	$p = New-Object System.Diagnostics.Process
+	$p.StartInfo = $psi
+	$p.Start() | Out-Null
+	
+	$reader = $p.StandardOutput
+	while (-not $p.HasExited) {
+	    $line = $reader.ReadLine()
+	    if ($line -ne $null) {
+	        Write-Host $line
+	        if ($line -match "Tweaks are Finished") {
+	            $p.Kill()
+	            break
+	        }
+	    } else {
+	    }
+	}
+
+	# Win11Debloat Disable Telemetry
+	& ([scriptblock]::Create((irm "https://debloat.raphi.re/"))) -DisableTelemetry
+ 
+	Install-Simplewall
 }
 
 # Run Windows Privacy Dashboard Automation
@@ -10635,6 +10684,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
