@@ -4572,7 +4572,7 @@ if ($PauseUpdates) {
 
 # INSTALL RUNTIMES
 if ($Runtimes) {
-	Write-Output "Installing Runtimes..." -ForegroundColor Green
+	Write-Output "Installing Runtimes..." 
 	Install-CPlusPlus
  	Install-DirectX
   	Install-NET35
@@ -4600,7 +4600,7 @@ if ($CTTWinUtil) {
 
 # REMOVE BLOATWARE
 if ($RemoveBloatware) {
-    Write-Output "Removing Bloatware..." -ForegroundColor Green
+    Write-Output "Removing Bloatware..."
     Uninstall-OneDrive
     Remove-Edge
     Remove-WindowsAI
@@ -4682,6 +4682,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
