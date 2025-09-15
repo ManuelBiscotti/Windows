@@ -335,6 +335,9 @@ $json = @'
 	    } else {
 	    }
 	}
+ 
+ 	# Rename Powershell 7 (x64) start menu shortcut
+ 	Rename-Item "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\PowerShell\PowerShell 7 (x64).lnk" -NewName "PowerShell 7.lnk" -Force
 }
 
 function Run-Win11Debloat {
@@ -4679,6 +4682,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
