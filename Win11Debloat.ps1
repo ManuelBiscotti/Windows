@@ -502,7 +502,7 @@ function Remove-Apps {
 	Remove-Item -Recurse -Force "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp" -ErrorAction SilentlyContinue | Out-Null
 	New-Item -Path "$env:AppData\Microsoft\Windows\Start Menu\Programs\Startup" -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
 	New-Item -Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp" -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
- 	
+
   	# Windows 10 Stuff
  	if ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild -le 19045) {
 		# uninstall Microsoft Update Health Tools W10
@@ -4178,10 +4178,12 @@ E0,F6,C5,D5,0E,CA,50,00,00
  		Write-Output "Fixing VMware Tools..."
   		Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "VMware User Process" -Value '"C:\Program Files\VMware\VMware Tools\vmtoolsd.exe" -n vmusr' | Out-Null
 	}	
-
+	# Disables automatic disk defragmentation
+	schtasks /Change /DISABLE /TN "\Microsoft\Windows\Defrag\ScheduledDefrag" | Out-Null
  	# Download blanc.ico into C:\Windows
 	Get-FileFromWeb -URL "https://github.com/benzaria/remove_shortcut_arrow/raw/refs/heads/main/blanc.ico" -File "C:\\Windows\\blanc.ico"
 	Set-Content -Path "$env:TEMP\RegistryOptimize.reg" -Value $MultilineComment -Force
+ 	
   	# edit reg file
 	$path = "$env:TEMP\RegistryOptimize.reg"
 	(Get-Content $path) -replace "\?","$" | Out-File $path
@@ -4565,6 +4567,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
