@@ -67,10 +67,12 @@ function Pause-Updates {
     Write-Output "Fixing Windows Update..."
 
     # download helper batch
-    $bat = Join-Path $env:TEMP 'Fix Updates.bat'
-    Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/ShadowWhisperer/Fix-WinUpdates/refs/heads/main/Fix%20Updates.bat' -OutFile $bat -UseBasicParsing
-
-    # run batch in cmd, wait, run in same window
+	$bat = "$env:TEMP\Fix Updates.bat"
+ 	iwr "https://raw.githubusercontent.com/ShadowWhisperer/Fix-WinUpdates/refs/heads/main/Fix%20Updates.bat" -OutFile $bat
+	Start-Process cmd.exe -ArgumentList "/c echo.|`"$bat`"" -WindowStyle Normal -Wait
+ 	shutdown /a
+    
+	# run batch in cmd, wait, run in same window
     Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "`"$bat`"" -NoNewWindow -Wait
 
     # cancel any pending shutdown (ignore errors)
@@ -4929,6 +4931,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
