@@ -589,6 +589,10 @@ for ($i = 1; $i -le 3; $i++) {
 	Remove-Item -Recurse -Force "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp" -ErrorAction SilentlyContinue | Out-Null
 	New-Item -Path "$env:AppData\Microsoft\Windows\Start Menu\Programs\Startup" -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
 	New-Item -Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp" -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
+	# Prevent Print Spooler to start automatically with windows
+	Set-ItemProperty -Path 'HKLM:\SYSTEM\ControlSet001\Services\Spooler' -Name 'Start' -Value 3
+	# Disable Windows Search Indexing
+	Set-ItemProperty -Path 'HKLM:\SYSTEM\ControlSet001\Services\WSearch' -Name 'Start' -Value 4
 
   	# Windows 10 Stuff
  	if ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild -le 19045) {
@@ -3215,6 +3219,22 @@ E0,F6,C5,D5,0E,CA,50,00,00
 [HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\PushToInstall]
 "DisablePushToInstall"=dword:00000001
 
+; Prevent Print Spooler to start automatically with windows
+[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\Spooler]
+"Start"=dword:00000003
+
+; Disable Windows Search Indexing
+[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\WSearch]
+"Start"=dword:00000004
+
+; Allow double-click execution of .ps1 files (Windows PowerShell)
+[HKEY_CLASSES_ROOT\Applications\powershell.exe\shell\open\command]
+@="C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoLogo -ExecutionPolicy Unrestricted -File \"%1\""
+
+; Allow double-click execution of .ps1 files (PowerShell 7)
+[HKEY_CLASSES_ROOT\Applications\pwsh.exe\shell\open\command]
+@="C:\\Program Files\\PowerShell\\7\\pwsh.exe -NoLogo -ExecutionPolicy Unrestricted -File \"%1\""
+
 
 
 
@@ -3373,8 +3393,12 @@ E0,F6,C5,D5,0E,CA,50,00,00
 	if (-not (Test-Path $regPath)) {
     	New-Item -Path 'HKCR:\Applications\powershell.exe\shell\open\command' -Force | Out-Null
 	}
-	Set-ItemProperty -Path 'HKCR:\Applications\powershell.exe\shell\open\command' -Name '(default)' -Value 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoLogo -ExecutionPolicy Unrestricted -File "%1"'
- 	# Download blanc.ico into C:\Windows
+ 	Set-ItemProperty -Path 'HKCR:\Applications\powershell.exe\shell\open\command' -Name '(default)' -Value 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoLogo -ExecutionPolicy Unrestricted -File "%1"'
+ 	# Allow double-click execution of .ps1 files (PowerShell 7)
+	$regPathPwsh = 'HKCR:\Applications\pwsh.exe\shell\open\command'
+	if (-not (Test-Path $regPathPwsh)) { New-Item -Path $regPathPwsh -Force | Out-Null }
+	Set-ItemProperty -Path $regPathPwsh -Name '(default)' -Value 'C:\Program Files\PowerShell\7\pwsh.exe -NoLogo -ExecutionPolicy Unrestricted -File "%1"'  
+  	# Download blanc.ico into C:\Windows
 	Get-FileFromWeb -URL "https://github.com/benzaria/remove_shortcut_arrow/raw/refs/heads/main/blanc.ico" -File "C:\\Windows\\blanc.ico"
 	Set-Content -Path "$env:TEMP\RegistryOptimize.reg" -Value $MultilineComment -Force
  	
@@ -4956,6 +4980,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
