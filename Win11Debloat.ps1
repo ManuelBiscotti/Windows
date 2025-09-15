@@ -30,6 +30,8 @@ param (
     [switch]$DisbaleDefender,
     [switch]$DisableMitigations,
 	[switch]$StartAllBack,
+ 	[switch]$7Zip,
+ 	[switch]$Spotify,
 	[switch]$Cleanup
 )
 
@@ -4931,6 +4933,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
