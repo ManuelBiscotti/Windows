@@ -19,7 +19,7 @@ param (
     [switch]$Winget,
     [switch]$CTTWinUtil,
     [switch]$Win11Debloat,
-    [switch]$RemoveBloatware,
+    [switch]$Debloat,
     [switch]$UninstallOneDrive,
     [switch]$RemoveEdge,
     [switch]$RemoveWindowsAI,
@@ -680,8 +680,8 @@ function Remove-Apps {
 		New-Item $dir -ItemType Directory -Force  *> $null
 		$script=@'
 for ($i = 1; $i -le 3; $i++) {
-    "MoUsoCoreWorker","UserOOBEBroker","SearchApp","ConnectedUserExperiences","ctfmon","CrossDeviceResume","MicrosoftEdgeUpdate","","ONENOTEM" | % { Get-Process $_ -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
-    "MSDTC","VSS" | % { Stop-Service $_ -Force -ErrorAction SilentlyContinue }
+    "MoUsoCoreWorker","UserOOBEBroker","WinStore.App","msedge","TextInputHost","SearchApp","ConnectedUserExperiences","ctfmon","CrossDeviceResume","MicrosoftEdgeUpdate","","ONENOTEM" | % { Get-Process $_ -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+    "MSDTC","VSS","uhssvc","Spooler","WSearch" | % { Stop-Service $_ -Force -ErrorAction SilentlyContinue }
     Start-Sleep -Seconds 1
 }
 '@
@@ -707,10 +707,10 @@ for ($i = 1; $i -le 3; $i++) {
 	$s.IconLocation="$env:SystemRoot\System32\SystemPropertiesAdvanced.exe"
 	$s.Save()
 	# Remove Startup apps
- 	Remove-Item -Recurse -Force "$env:AppData\Microsoft\Windows\Start Menu\Programs\Startup" -ErrorAction SilentlyContinue | Out-Null
-	Remove-Item -Recurse -Force "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp" -ErrorAction SilentlyContinue | Out-Null
-	New-Item -Path "$env:AppData\Microsoft\Windows\Start Menu\Programs\Startup" -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
-	New-Item -Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp" -ItemType Directory -ErrorAction SilentlyContinue | Out-Null
+ 	Remove-Item -Recurse -Force "$env:AppData\Microsoft\Windows\Start Menu\Programs\Startup" | Out-Null
+	Remove-Item -Recurse -Force "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp" | Out-Null
+	New-Item -Path "$env:AppData\Microsoft\Windows\Start Menu\Programs\Startup" -ItemType Directory | Out-Null
+	New-Item -Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp" -ItemType Directory | Out-Null
 	# Prevent Print Spooler to start automatically with windows
 	Set-ItemProperty -Path 'HKLM:\SYSTEM\ControlSet001\Services\Spooler' -Name 'Start' -Value 3
 	# Disable Windows Search Indexing
@@ -10060,8 +10060,8 @@ function Install-StartAllBack {
 		New-Item $dir -ItemType Directory -Force  *> $null
 		$script=@'
 for ($i = 1; $i -le 3; $i++) {
-    "RuntimeBroker","MoUsoCoreWorker","UserOOBEBroker","SearchApp","ConnectedUserExperiences","ctfmon","CrossDeviceResume","MicrosoftEdgeUpdate","","ONENOTEM" | % { Get-Process $_ -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
-    "MSDTC","VSS" | % { Stop-Service $_ -Force -ErrorAction SilentlyContinue }
+    "RuntimeBroker","MoUsoCoreWorker","UserOOBEBroker","WinStore.App","msedge","TextInputHost","SearchApp","ConnectedUserExperiences","ctfmon","CrossDeviceResume","MicrosoftEdgeUpdate","","ONENOTEM" | % { Get-Process $_ -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+    "MSDTC","VSS","uhssvc","Spooler","WSearch" | % { Stop-Service $_ -Force -ErrorAction SilentlyContinue }
     Start-Sleep -Seconds 1
 }
 '@
@@ -10629,8 +10629,8 @@ if ($CTTWinUtil) {
 }
 
 # REMOVE BLOATWARE
-if ($RemoveBloatware) {
-    Write-Output "Removing Bloatware..."
+if ($Debloat) {
+    Write-Output "Debloating Windows..."
     Uninstall-OneDrive
     Remove-Edge
     Remove-WindowsAI
@@ -10654,10 +10654,6 @@ if ($RemoveEdge) {
 # DISABLE TELEMETRY
 if ($DisableTelemetry) {
     Write-Output "Disabling Telemetry..."
-    Run-WPD
-    Run-ShutUp10
-    Run-PrivacySexy
-
  	# CTT WinUtil Disable Telemetry
   	# CTT WinUtil Disable Powershell 7 Telemetry
 	$json = @'
@@ -10703,7 +10699,10 @@ if ($DisableTelemetry) {
 
 	# Win11Debloat Disable Telemetry
 	& ([scriptblock]::Create((irm "https://debloat.raphi.re/"))) -Silent -DisableTelemetry
- 
+
+	Run-WPD
+    Run-ShutUp10
+    Run-PrivacySexy
 	Install-Simplewall
 }
 
@@ -10785,6 +10784,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
