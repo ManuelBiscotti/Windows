@@ -7071,7 +7071,7 @@ reg add "HKLM\SYSTEM\CurrentControlSet\Services\SecurityHealthService" /v Start 
 reg delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v SecurityHealth /f > nul 2>&1
 
 :: Download and run DefenderSwitcher
-powershell -NoProfile -Command "try { Invoke-WebRequest 'https://github.com/instead1337/Defender-Switcher/releases/latest/download/DefenderSwitcher.ps1' -OutFile '%TEMP%\DefenderSwitcher.ps1' -UseBasicParsing } catch { }"
+powershell -NoProfile -Command "try { Invoke-WebRequest 'https://github.com/instead1337/Defender-Switcher/raw/refs/heads/main/DefenderSwitcher.ps1' -OutFile '%TEMP%\DefenderSwitcher.ps1' -UseBasicParsing } catch { }"
 powershell -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\DefenderSwitcher.ps1" -disable_av
 '@
 	# Save batch file
@@ -11181,6 +11181,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
