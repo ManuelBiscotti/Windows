@@ -11099,8 +11099,6 @@ if ($DisableTelemetry) {
     Run-ShutUp10
 
     Run-PrivacySexy
-	
-	Install-Simplewall
 }
 
 # Run Windows Privacy Dashboard Automation
@@ -11116,6 +11114,10 @@ if ($ShutUp10) {
 # Run PRIVACY.SEXY script
 if ($PrivacyIsSexy) {
 	Run-PrivacySexy
+}
+
+if ($Simplewall) {
+	Install-Simplewall
 }
 
 # OPTIMIZE NETWORK
@@ -11181,6 +11183,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
