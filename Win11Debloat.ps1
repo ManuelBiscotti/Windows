@@ -899,7 +899,7 @@ P025	+	# Disable Windows tracking of app starts (Category: App Privacy)
 P033	+	# Disable app access to diagnostics information (Category: App Privacy)
 P023	+	# Disable app access to diagnostics information (Category: App Privacy)
 P056	-	# Disable app access to device location (Category: App Privacy)
-P057	-	# Disable app access to device location (Category: App Privacy)
+P057	+	# Disable app access to device location (Category: App Privacy)
 P012	+	# Disable app access to camera (Category: App Privacy)
 P034	-	# Disable app access to camera (Category: App Privacy)
 P013	+	# Disable app access to microphone (Category: App Privacy)
@@ -10717,8 +10717,7 @@ if ($RemoveEdge) {
 # DISABLE TELEMETRY
 if ($DisableTelemetry) {
     Write-Output "Disabling Telemetry..."
- 	# CTT WinUtil Disable Telemetry
-  	# CTT WinUtil Disable Powershell 7 Telemetry
+ 	# CTT WinUtil Tweaks
 	$json = @'
 {
     "WPFTweaks":  [
@@ -10771,7 +10770,7 @@ if ($DisableTelemetry) {
 	    }
 	}
 
-	# Win11Debloat Disable Telemetry
+	# Win11Debloat Tweaks
 	& ([scriptblock]::Create((irm "https://debloat.raphi.re/"))) `
 	    -Silent `
 	    -DisableStartRecommended `
@@ -10794,10 +10793,6 @@ if ($DisableTelemetry) {
 	Run-WPD
  
     Run-ShutUp10
-
-	# Disable Location
-	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location" -Name "Value" -Value "Deny"
-	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\CPSS\Store\UserLocationOverridePrivacySetting" -Name "Value" -Value 0 -Type DWord
 
     Run-PrivacySexy
 	
@@ -10882,6 +10877,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
