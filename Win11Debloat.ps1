@@ -11735,7 +11735,7 @@ if ($PauseUpdates) {
 
 # INSTALL RUNTIMES
 if ($Runtimes) {
-	Write-Host "Installing Runtimes..." 
+	Write-Host "Installing Runtimes..." -ForegroundColor Green
 	Install-CPlusPlus
  	Install-DirectX
   	Install-NET35
@@ -11765,7 +11765,7 @@ if ($CTTWinUtil) {
 
 # REMOVE BLOATWARE
 if ($Debloat) {
-    Write-Output "Debloating Windows..."
+    Write-Host "Debloating Windows..." -ForegroundColor Green
     Uninstall-OneDrive
     Remove-Edge
     Remove-WindowsAI
@@ -11788,7 +11788,7 @@ if ($RemoveEdge) {
 
 # DISABLE TELEMETRY
 if ($DisableTelemetry) {
-    Write-Output "Disabling Telemetry..."
+    Write-Host "Disabling Telemetry..." -ForegroundColor Green
  	# CTT WinUtil Tweaks
 	$json = @'
 {
@@ -11905,6 +11905,7 @@ if ($DisableServices) {
 
 # DISABLE SECURITY
 if ($DisableSecurity) {
+	Write-Host "Disabling Security..." -ForegroundColor Green
 	Set-PasswordNeverExpires
 	Disable-Defender
  	Disable-Mitigations
@@ -11966,6 +11967,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
