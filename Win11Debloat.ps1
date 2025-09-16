@@ -159,12 +159,13 @@ function Activate-Windows {
 
 function Fix-Updates {
     Write-Output "Fixing Windows Update..."
-
-    # download helper batch
+	
+    # download and run batch script
 	$bat = "$env:TEMP\Fix Updates.bat"
  	iwr "https://raw.githubusercontent.com/ShadowWhisperer/Fix-WinUpdates/refs/heads/main/Fix%20Updates.bat" -OutFile $bat
 	Start-Process cmd.exe -ArgumentList "/c echo.|`"$bat`"" -WindowStyle Normal -Wait
-    # cancel any pending shutdown (ignore errors)
+ 
+    # cancel any pending shutdown
     try { shutdown /a } catch {}	
 }
 
@@ -6806,6 +6807,10 @@ reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager" /v "ProtectionMo
 	cmd.exe /c "`"$batPath`""
 }
 
+function Reset-DefenderSettings {
+
+}
+
 function Optimize-Registry {
 	$MultilineComment = @'
 Windows Registry Editor Version 5.00
@@ -10785,6 +10790,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
