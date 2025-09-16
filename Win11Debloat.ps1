@@ -28,7 +28,7 @@ param (
     [switch]$Winget,
     [switch]$CTTWinUtil,
     [switch]$Win11Debloat,
-    [switch]$Debloat,
+    [switch]$DebloatWindows,
     [switch]$UninstallOneDrive,
     [switch]$RemoveEdge,
     [switch]$RemoveWindowsAI,
@@ -1351,6 +1351,8 @@ function CTT-WinUtilAutomation {
 	"WPFTweaksHiber"
 	// Disable Full Screen optimization
 	"WPFTweaksDisableFSO"
+	// Powershell 7
+    "WPFTweaksPowershell7"
 #>
 $json = @'
 {
@@ -1388,7 +1390,6 @@ $json = @'
                       "WPFTweaksUTC",
                       "WPFTweaksRecallOff",
                       "WPFTweaksDisableBGapps",
-                      "WPFTweaksPowershell7",
                       "WPFTweaksServices"				  				
                    ]
 }
@@ -1492,7 +1493,38 @@ function Uninstall-OneDrive {
 # REMOVE MICROSOFT EDGE FUNCTION
 function Remove-Edge {
     Write-Output "Removing Edge..."
+	# Remove Edge and Webview2
+	# Get-FileFromWeb -URL "https://github.com/ShadowWhisperer/Remove-MS-Edge/raw/refs/heads/main/Batch/Both.bat" -File "$env:TEMP\Both.bat"
+	# Start-Process "cmd.exe" -ArgumentList "/c echo Y | `"%TEMP%\Both.bat`""
+	# Fallback Edge only
     iex "&{$(irm https://cdn.jsdelivr.net/gh/he3als/EdgeRemover@main/get.ps1)} -UninstallEdge -RemoveEdgeData -NonInteractive -Wait"
+	# find edgeupdate.exe
+	$edgeupdate = @(); "LocalApplicationData", "ProgramFilesX86", "ProgramFiles" | ForEach-Object {
+	$folder = [Environment]::GetFolderPath($_)
+	$edgeupdate += Get-ChildItem "$folder\Microsoft\EdgeUpdate\*.*.*.*\MicrosoftEdgeUpdate.exe" -rec -ea 0
+	}
+	# find edgeupdate & allow uninstall regedit
+	$global:REG = "HKCU:\SOFTWARE", "HKLM:\SOFTWARE", "HKCU:\SOFTWARE\Policies", "HKLM:\SOFTWARE\Policies", "HKCU:\SOFTWARE\WOW6432Node", "HKLM:\SOFTWARE\WOW6432Node", "HKCU:\SOFTWARE\WOW6432Node\Policies", "HKLM:\SOFTWARE\WOW6432Node\Policies"
+	foreach ($location in $REG) { Remove-Item "$location\Microsoft\EdgeUpdate" -recurse -force -ErrorAction SilentlyContinue }
+	# uninstall edgeupdate
+	foreach ($path in $edgeupdate) {
+	if (Test-Path $path) { Start-Process -Wait $path -Args "/unregsvc" | Out-Null }
+	do { Start-Sleep 3 } while ((Get-Process -Name "setup", "MicrosoftEdge*" -ErrorAction SilentlyContinue).Path -like "*\Microsoft\Edge*")
+	if (Test-Path $path) { Start-Process -Wait $path -Args "/uninstall" | Out-Null }
+	do { Start-Sleep 3 } while ((Get-Process -Name "setup", "MicrosoftEdge*" -ErrorAction SilentlyContinue).Path -like "*\Microsoft\Edge*")
+	}
+	# remove edgewebview regedit
+	cmd /c "reg delete `"HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft EdgeWebView`" /f >nul 2>&1"
+	cmd /c "reg delete `"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft EdgeWebView`" /f >nul 2>&1"
+	# remove folders edge edgecore edgeupdate edgewebview temp
+	Remove-Item -Recurse -Force "$env:SystemDrive\Program Files (x86)\Microsoft" -ErrorAction SilentlyContinue | Out-Null
+	# remove edge shortcuts
+	Remove-Item -Recurse -Force "$env:SystemDrive\Windows\System32\config\systemprofile\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\Microsoft Edge.lnk" -ErrorAction SilentlyContinue | Out-Null
+	Remove-Item -Recurse -Force "$env:USERPROFILE\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\Microsoft Edge.lnk" -ErrorAction SilentlyContinue | Out-Null
+	Remove-Item -Recurse -Force "$env:USERPROFILE\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Microsoft Edge.lnk" -ErrorAction SilentlyContinue | Out-Null
+	Remove-Item -Recurse -Force "$env:USERPROFILE\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Tombstones\Microsoft Edge.lnk" -ErrorAction SilentlyContinue | Out-Null
+	Remove-Item -Recurse -Force "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Microsoft Edge.lnk" -ErrorAction SilentlyContinue | Out-Null
+	Remove-Item -Recurse -Force "$env:SystemDrive\Users\Public\Desktop\Microsoft Edge.lnk" -ErrorAction SilentlyContinue | Out-Null
 }
 
 # REMOVE WINDOWS AI FEATURES FUNCTION
@@ -1644,7 +1676,7 @@ function Remove-Apps {
 		New-Item $dir -ItemType Directory -Force  *> $null
 		$script=@'
 for ($i = 1; $i -le 3; $i++) {
-    "MoUsoCoreWorker","UserOOBEBroker","WinStore.App","msedge","TextInputHost","SearchApp","ConnectedUserExperiences","ctfmon","CrossDeviceResume","MicrosoftEdgeUpdate","","ONENOTEM" | % { Get-Process $_ -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+    "OneDrive","WidgetService","Widgets","AggregatorHost","MoUsoCoreWorker","UserOOBEBroker","WinStore.App","msedge","TextInputHost","SearchApp","ConnectedUserExperiences","ctfmon","CrossDeviceResume","MicrosoftEdgeUpdate","msedgewebview2","ONENOTEM" | % { Get-Process $_ -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
     "MSDTC","VSS","uhssvc","Spooler","WSearch" | % { Stop-Service $_ -Force -ErrorAction SilentlyContinue }
     Start-Sleep -Seconds 1
 }
@@ -7709,10 +7741,6 @@ function Disable-Defender {
 	# Create batch file
 	$batchCode = @'
 @echo off
-
-:: Disable UAC
-reg add "HKLM\Software\Microsoft\Windows\CurrentVersion\Policies\System" /v "EnableLUA" /t REG_DWORD /d "0" /f > nul 2>&1
-
 :: Disable Firewall
 netsh advfirewall set allprofiles state off > nul 2>&1
 
@@ -7731,7 +7759,7 @@ reg add "HKLM\SYSTEM\CurrentControlSet\Services\SecurityHealthService" /v Start 
 reg delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v SecurityHealth /f > nul 2>&1
 
 :: Download and run DefenderSwitcher
-powershell -NoProfile -Command "try { Invoke-WebRequest 'https://github.com/instead1337/Defender-Switcher/raw/refs/heads/main/DefenderSwitcher.ps1' -OutFile '%TEMP%\DefenderSwitcher.ps1' -UseBasicParsing } catch { }"
+powershell -NoProfile -Command "try { Invoke-WebRequest 'https://github.com/instead1337/Defender-Switcher/releases/latest/download/DefenderSwitcher.ps1' -OutFile '%TEMP%\DefenderSwitcher.ps1' -UseBasicParsing } catch { }"
 powershell -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\DefenderSwitcher.ps1" -disable_av
 '@
 	# Save batch file
@@ -7740,8 +7768,40 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\DefenderSwitcher.ps1
 	RunAsTIExe -TargetPath "$env:TEMP\DisableDefender.bat" -Wait
 }
 
+function Enable-Defender {
+	Write-Output "Enabling Defender..."
+	# Create batch file
+	$batchCode = @'
+@echo off
+:: Enable Firewall
+netsh advfirewall set allprofiles state on
+reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.SecurityAndMaintenance" /v "Enabled" /t REG_DWORD /d "1" /f > nul 2>&1
+
+:: Enable VBS
+DISM /Online /Enable-Feature /FeatureName:Microsoft-Hyper-V-All /NoRestart > nul
+bcdedit /set hypervisorlaunchtype auto
+bcdedit /set vsmlaunchtype auto
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\DeviceGuard" /v EnableVirtualizationBasedSecurity /t REG_DWORD /d 1 /f > nul 2>&1
+
+:: Enable SecurityHealthService
+reg add "HKLM\SYSTEM\CurrentControlSet\Services\SecurityHealthService" /v Start /t REG_DWORD /d 2 /f > nul 2>&1
+
+:: Add SecurityHealth in Startup
+reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run" /v "SecurityHealth" /t REG_BINARY /d 040000000000000000000000 /f > nul 2>&1
+reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "SecurityHealth" /t REG_EXPAND_SZ /d "%%windir%%\system32\SecurityHealthSystray.exe" /f > nul 2>&1
+
+:: Download and run DefenderSwitcher
+powershell -NoProfile -Command "try { Invoke-WebRequest 'https://github.com/instead1337/Defender-Switcher/releases/latest/download/DefenderSwitcher.ps1' -OutFile '%TEMP%\DefenderSwitcher.ps1' -UseBasicParsing } catch { }"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%TEMP%\DefenderSwitcher.ps1" -enable_av
+'@
+	# Save batch file
+	Set-Content -Path "$env:TEMP\EnableDefender.bat" -Value $batchCode -Encoding ASCII
+	# Execute with RunAsTI
+	RunAsTIExe -TargetPath "$env:TEMP\EnableDefender.bat" -Wait
+}
+
 function Disable-Mitigations {
-	    Write-Output "Disabling Mitigations..."
+	Write-Output "Disabling Mitigations..."
 	$batchCode = @'
 @echo off
 setlocal EnableDelayedExpansion
@@ -7780,6 +7840,40 @@ reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" /v "Mitig
 reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager" /v "ProtectionMode" /t REG_DWORD /d "0" /f > nul
 '@
 	$batPath = "$env:TEMP\DisableAllMitigations.bat"
+	Set-Content -Path $batPath -Value $batchCode -Encoding ASCII
+	cmd.exe /c "`"$batPath`""
+}
+
+function Default-Mitigations {
+	Write-Output "Default Mitigations..."
+	$batchCode = @'
+@echo off
+
+:: Enable Spectre and Meltdown
+reg delete "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" /v "FeatureSettingsOverride" /f > nul 2>&1
+reg delete "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" /v "FeatureSettingsOverrideMask" /f > nul 2>&1
+
+:: Enable Structured Exception Handling Overwrite Protection (SEHOP)
+reg delete "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" /v "DisableExceptionChainValidation" /f > nul 2>&1
+
+:: Set default mitigations
+reg delete "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" /v "MitigationAuditOptions" /f > nul 2>&1
+reg delete "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" /v "MitigationOptions" /f > nul 2>&1
+
+:: Set Data Execution Prevention (DEP) only for operating system components
+:: https://docs.microsoft.com/en-us/windows/win32/memory/data-execution-prevention
+:: https://learn.microsoft.com/en-us/windows-hardware/drivers/devtest/bcdedit--set#verification-settings
+bcdedit /set nx OptIn > nul
+
+:: Enable file system mitigations
+reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager" /v "ProtectionMode" /t REG_DWORD /d "1" /f > nul
+
+:: Default Hyper-V Settings
+reg delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization" /v "MinVmVersionForCpuBasedMitigations" /f > nul 2>&1
+
+exit /b
+'@
+	$batPath = "$env:TEMP\DefaultMitigations.bat"
 	Set-Content -Path $batPath -Value $batchCode -Encoding ASCII
 	cmd.exe /c "`"$batPath`""
 }
@@ -11179,7 +11273,7 @@ function Install-StartAllBack {
 		New-Item $dir -ItemType Directory -Force  *> $null
 		$script=@'
 for ($i = 1; $i -le 3; $i++) {
-    "RuntimeBroker","MoUsoCoreWorker","UserOOBEBroker","WinStore.App","msedge","TextInputHost","SearchApp","ConnectedUserExperiences","ctfmon","CrossDeviceResume","MicrosoftEdgeUpdate","","ONENOTEM" | % { Get-Process $_ -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+    "OneDrive","WidgetService","Widgets","AggregatorHost","RuntimeBroker","MoUsoCoreWorker","UserOOBEBroker","WinStore.App","msedge","TextInputHost","SearchApp","ConnectedUserExperiences","ctfmon","CrossDeviceResume","MicrosoftEdgeUpdate","msedgewebview2","ONENOTEM" | % { Get-Process $_ -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
     "MSDTC","VSS","uhssvc","Spooler","WSearch" | % { Stop-Service $_ -Force -ErrorAction SilentlyContinue }
     Start-Sleep -Seconds 1
 }
@@ -11695,6 +11789,7 @@ if ($RestorePoint) {
 
 # INSTALL BRAVE
 if ($InstallBrave) {
+	Repair-Winget
 	Install-Brave
 }
 
@@ -11704,7 +11799,32 @@ if ($DebloatBrave) {
 
 # INSTALL LIBREWOLF
 if ($InstallLibreWolf) {
+	Repair-Winget
 	Install-LibreWolf
+}
+
+# INSTALL CHROME
+if ($InstallChrome) {
+	Repair-Winget
+	Install-Chrome
+}
+
+# DEBLOAT CHROME
+if ($DebloatChrome) {
+	Repair-Winget
+	Debloat-Chrome
+}
+
+# INSTALL FIREFOX
+if ($InstallFirefox) {
+	Repair-Winget	
+	Install-Firefox
+}
+
+# DEBLOAT FIREFOX
+if ($DebloatFirefox) {
+	Repair-Winget
+	Debloat-Firefox
 }
 
 # POWER SETTINGS
@@ -11733,10 +11853,12 @@ if ($PauseUpdates) {
 	Pause-Updates
 }
 
+# DISABLE UPDATES
 if ($DisableUpdates) {
 	Disable-Updates
 }
 
+# ENABLE UPDATES
 if ($EnableUpdates) {
 	Enable-Updates
 }
@@ -11766,20 +11888,21 @@ if ($Win11Debloat) {
 
 # RUN WINUTIL AUTOMATION
 if ($CTTWinUtil) {
-	Repair-Winget
- 	winget.exe update --id "Microsoft.PowerShell" --exact --source winget --accept-source-agreements --disable-interactivity --silent --include-unknown --accept-package-agreements --force
+	# Repair-Winget
+ 	# winget.exe update --id "Microsoft.PowerShell" --exact --source winget --accept-source-agreements --disable-interactivity --silent --include-unknown --accept-package-agreements --force
 	CTT-WinUtilAutomation
 }
 
 # REMOVE BLOATWARE
-if ($Debloat) {
-    Write-Output "Debloating Windows..." -ForegroundColor Green
+if ($DebloatWindows) {
+    Write-Host "Debloating Windows..." -ForegroundColor Green
     Uninstall-OneDrive
     Remove-Edge
     Remove-WindowsAI
     Remove-Apps
 }
 
+# INSTALL MICROSOFT STORE
 if ($InstallStore) {
 	Install-Store
 }
@@ -11917,6 +12040,20 @@ if ($DisableSecurity) {
 	Set-PasswordNeverExpires
 	Disable-Defender
  	Disable-Mitigations
+	Write-Output "Disabling UAC..."
+	# Disable UAC
+	
+}
+
+# Enable SECURITY
+if ($EnableSecurity) {
+	Write-Host "Enabling Security..." -ForegroundColor Green
+
+	Enable-Defender
+ 	Default-Mitigations
+	Write-Output "Enabling UAC..."
+	# Enable UAC
+	Set-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System" -Name "EnableLUA" -Value 1 -Type DWord | Out-Null
 }
 
 # SET ACCOUNT PASSWORD TO NEVER EXPIRES
@@ -11927,6 +12064,11 @@ if ($PasswordNeverExpires) {
 # DISABLE DEFENDER
 if ($DisableDefender) {
 	Disable-Defender
+}
+
+# ENABLE DEFENDER
+if ($EnableDefender) {
+	Enable-Defender
 }
 
 # DISABLE MITITGATIONS
