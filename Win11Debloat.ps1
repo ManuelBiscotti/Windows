@@ -6,6 +6,10 @@ param (
  	[switch]$InstallBrave,
   	[switch]$DebloatBrave,
    	[switch]$InstallLibreWolf,
+	[switch]$InstallChrome,
+ 	[switch]$DebloatChrome,
+  	[switch]$InstallFirefox,
+   	[switch]$DebloatFirefox,
  	[switch]$PowerSettings,
   	[switch]$ActivateUltimatePlan,
    	[switch]$ImportCommunityPlans,
@@ -11961,6 +11965,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
