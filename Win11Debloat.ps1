@@ -171,7 +171,7 @@ function Disable-PowerSaving {
 		}
 	}
 
-	Write-Host "	Disabling Power Saving Features..."
+	Write-Host "Disabling Power Saving Features..."
  
 	# DISABLE CPU POWER SAVING
  	# Disable power throttling
@@ -683,8 +683,6 @@ function Repair-Winget {
 }
 
 function CTT-WinUtilAutomation {
-	Repair-Winget 
-
 <#
 	Optional:
 	// Run Disk Cleanup
@@ -10992,6 +10990,7 @@ if ($Win11Debloat) {
 
 # RUN WINUTIL AUTOMATION
 if ($CTTWinUtil) {
+	Repair-Winget 
 	CTT-WinUtilAutomation
 }
 
@@ -11181,6 +11180,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
