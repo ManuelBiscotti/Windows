@@ -3,6 +3,9 @@
 [CmdletBinding()]
 param (
 	[switch]$RestorePoint,
+ 	[switch]$InstallBrave,
+  	[switch]$DebloatBrave,
+   	[switch]$InstallLibreWolf,
  	[switch]$PowerSettings,
   	[switch]$ActivateUltimatePlan,
    	[switch]$ImportCommunityPlans,
@@ -40,6 +43,9 @@ param (
     [switch]$DisableDefender,
     [switch]$DisableMitigations,
 	[switch]$ResetDefenderSettings,
+ 	[switch]$BCDEditTweaks,
+  	[switch]$PersonalizeWindows,
+   	[switch]$PowerRun,
 	[switch]$StartAllBack,
  	[switch]$7Zip,
  	[switch]$Spotify,
@@ -79,6 +85,655 @@ function Create-RestorePoint {
     if (-not (Get-ComputerRestorePoint | Where-Object { $_.CreationTime.Date -eq (Get-Date).Date })) {
         Checkpoint-Computer -Description "Restore Point" -RestorePointType "MODIFY_SETTINGS" | Out-Null
     }
+}
+
+function Install-Brave {
+	Write-Host "Installing Brave..." -ForegroundColor Green
+    # Define all possible Brave installation paths
+    $paths = @(
+        "$env:ProgramFiles\BraveSoftware\Brave-Browser\Application\brave.exe",
+        "$env:LocalAppData\BraveSoftware\Brave-Browser\Application\brave.exe"
+    )
+
+    # Helper function to filter existing paths
+    function Get-ExistingPaths([string[]]$p) {
+        $p | Where-Object { Test-Path -Path $_ -PathType Leaf }
+    }
+
+    $done = $false
+    $existing = Get-ExistingPaths $paths
+
+    # If Brave already exists, attempt to upgrade
+    if ($existing.Count -gt 0) {
+        Write-Host "Brave found:"
+        $existing | ForEach-Object { Write-Host " - $_"; Write-Host " " }
+
+        # Upgrade via Chocolatey if available
+        if (Get-Command choco.exe) {
+            choco.exe upgrade brave -y -r --no-progress --quiet | Out-Null
+        }
+
+        # Upgrade via Winget if available
+        if (Get-Command winget.exe) {
+            winget.exe upgrade --id "Brave.Brave" --exact --source winget --accept-source-agreements --disable-interactivity --silent --accept-package-agreements --quiet | Out-Null
+        }
+
+        if ((Get-ExistingPaths $paths).Count -gt 0) { $done = $true }
+    }
+
+    # Install via Winget if not done yet
+    if (-not $done -and (Get-Command winget.exe)) {
+        winget.exe install --id "Brave.Brave" --exact --source winget --accept-source-agreements --disable-interactivity --silent --accept-package-agreements --force
+        Start-Sleep -Seconds 3
+        if ((Get-ExistingPaths $paths).Count -gt 0) { $done = $true }
+    }
+	
+    # Install via Chocolatey if not done yet
+    if (-not $done -and (Get-Command choco.exe)) {
+        choco.exe install brave -y -r -f
+        Start-Sleep -Seconds 3
+        if ((Get-ExistingPaths $paths).Count -gt 0) { $done = $true }
+    }
+
+    # Direct download and install if all else fails #>
+    if (-not $done) {
+        $installer = "$env:TEMP\BraveBrowserSetup.exe"
+        Get-FileFromWeb -URL "https://laptop-updates.brave.com/download/BraveBrowserSetup.exe" -File $installer
+        $proc = Start-Process -FilePath $installer -Wait -PassThru
+
+        if (($proc.ExitCode -eq 0) -or ((Get-ExistingPaths $paths).Count -gt 0)) {
+            $done = $true
+        }
+
+        if (Test-Path $installer) { Remove-Item -Path $installer -Force }
+    }
+
+    # Notify user if installation failed
+    if (-not $done) {
+        Write-Host "Brave install/upgrade failed via all methods."
+    }
+}
+
+function Debloat-Brave {
+    # Debloat Brave after installation
+    Write-Output "Debloating Brave..." 	
+	$batchCode = @"
+@echo off
+	
+taskkill /f /im "BraveUpdate.exe" >nul 2>&1
+taskkill /f /im "brave_installer-x64.exe" >nul 2>&1
+taskkill /f /im "BraveCrashHandler.exe" >nul 2>&1
+taskkill /f /im "BraveCrashHandler64.exe" >nul 2>&1
+taskkill /f /im "BraveCrashHandlerArm64.exe" >nul 2>&1
+taskkill /f /im "BraveUpdateBroker.exe" >nul 2>&1
+taskkill /f /im "BraveUpdateCore.exe" >nul 2>&1
+taskkill /f /im "BraveUpdateOnDemand.exe" >nul 2>&1
+taskkill /f /im "BraveUpdateSetup.exe" >nul 2>&1
+taskkill /f /im "BraveUpdateComRegisterShell64" >nul 2>&1
+taskkill /f /im "BraveUpdateComRegisterShellArm64" >nul 2>&1
+	
+rmdir /s /q "C:\Program Files (x86)\BraveSoftware\Update" >nul 2>&1
+	
+schtasks /delete /f /tn BraveSoftwareUpdateTaskMachineCore{2320C90E-9617-4C25-88E0-CC10B8F3B6BB} >nul 2>&1
+schtasks /delete /f /tn BraveSoftwareUpdateTaskMachineUA{FD1FD78D-BD51-4A16-9F47-EE6518C2D038} >nul 2>&1
+	
+reg delete "HKLM\Software\Microsoft\Active Setup\Installed Components\{AFE6A462-C574-4B8A-AF43-4CC60DF4563B}" /f >nul 2>&1
+reg delete "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Logon\{56CA197F-543C-40DC-953C-B9C6196C92A5}" /f >nul 2>&1
+reg delete "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Plain\{0948A341-8E1E-479F-A667-6169E4D5CB2A}" /f >nul 2>&1
+reg delete "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tasks\{0948A341-8E1E-479F-A667-6169E4D5CB2A}" /f >nul 2>&1
+reg delete "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tasks\{56CA197F-543C-40DC-953C-B9C6196C92A5}" /f >nul 2>&1
+reg delete "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tree\BraveSoftwareUpdateTaskMachineCore" /f >nul 2>&1
+reg delete "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tree\BraveSoftwareUpdateTaskMachineUA" /f >nul 2>&1
+	
+sc config brave start=disabled >nul 2>&1
+sc config bravem start=disabled >nul 2>&1
+sc config BraveElevationService start=disabled >nul 2>&1	
+"@
+	$batPath = "$env:TEMP\Brave.bat"
+	Set-Content -Path $batPath -Value $batchCode -Encoding ASCII
+	Start-Process -FilePath $batPath -Wait
+	Remove-Item $batPath -Force
+	
+$MultilineComment = @"	
+Windows Registry Editor Version 5.00	
+
+; Debloat Brave using Chromium policies. Auto-generated using https://github.com/yashgorana/chrome-debloat
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\BraveSoftware\Brave]
+"BraveNewsDisabled"=dword:00000001
+"BraveP3AEnabled"=dword:00000000
+"BraveSpeedreaderEnabled"=dword:00000000
+"BraveStatsPingEnabled"=dword:00000000
+"BraveTalkDisabled"=dword:00000001
+"BraveVPNDisabled"=dword:00000001
+"BraveWalletDisabled"=dword:00000001
+"BraveWaybackMachineEnabled"=dword:00000000
+"BraveWebDiscoveryEnabled"=dword:00000000
+; "DefaultBrowserSettingEnabled"=dword:00000000
+"TorDisabled"=dword:00000001
+"BraveRewardsDisabled"=dword:00000001
+"BraveWalletDisabled"=dword:00000001
+"BraveVPNDisabled"=dword:00000001
+"BraveAIChatEnabled"=dword:00000000
+"BraveSyncUrl"=""
+"DefaultGeolocationSetting"=dword:00000002
+"DefaultNotificationsSetting"=dword:00000002
+"DefaultLocalFontsSetting"=dword:00000002
+"DefaultSensorsSetting"=dword:00000002
+"DefaultSerialGuardSetting"=dword:00000002
+"CloudReportingEnabled"=dword:00000000
+"DriveDisabled"=dword:00000001
+"PasswordManagerEnabled"=dword:00000000
+"PasswordSharingEnabled"=dword:00000000
+"PasswordLeakDetectionEnabled"=dword:00000000
+"QuickAnswersEnabled"=dword:00000000
+; "SafeBrowsingExtendedReportingEnabled"=dword:00000000
+; "SafeBrowsingSurveysEnabled"=dword:00000000
+; "SafeBrowsingDeepScanningEnabled"=dword:00000000
+"DeviceActivityHeartbeatEnabled"=dword:00000000
+"DeviceMetricsReportingEnabled"=dword:00000000
+"HeartbeatEnabled"=dword:00000000
+"LogUploadEnabled"=dword:00000000
+"ReportAppInventory"=""
+"ReportDeviceActivityTimes"=dword:00000000
+"ReportDeviceAppInfo"=dword:00000000
+"ReportDeviceSystemInfo"=dword:00000000
+"ReportDeviceUsers"=dword:00000000
+"ReportWebsiteTelemetry"=""
+"AlternateErrorPagesEnabled"=dword:00000000
+"AutofillCreditCardEnabled"=dword:00000000
+"BackgroundModeEnabled"=dword:00000000
+"BrowserGuestModeEnabled"=dword:00000000
+"BrowserSignin"=dword:00000000
+"BuiltInDnsClientEnabled"=dword:00000000
+"MetricsReportingEnabled"=dword:00000000
+"ParcelTrackingEnabled"=dword:00000000
+"RelatedWebsiteSetsEnabled"=dword:00000000
+"ShoppingListEnabled"=dword:00000000
+"SyncDisabled"=dword:00000001
+"ExtensionManifestV2Availability"=dword:00000002
+
+; install extensions
+; [HKEY_LOCAL_MACHINE\SOFTWARE\Policies\BraveSoftware\Brave\ExtensionInstallForcelist]
+; "1"="cjpalhdlnbpafiamejdnhcphjbkeiagm" ; ublock origin
+; "2"="eimadpbcbfnmbkopoojfekhnkhdbieeh" ; dark reader
+; "3"="jplgfhpmjnbigmhklmmbgecoobifkmpa" ; proton vpn	
+; "4"="nngceckbapebfimnlniiiahkandclblb" ; bitwarden
+; "5"="ejkiikneibegknkgimmihdpcbcedgmpo" ; volume booster
+
+; SlimBrave https://github.com/ltx0101/SlimBrave/tree/main
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\BraveSoftware\Brave]
+"UrlKeyedAnonymizedDataCollectionEnabled"=dword:00000000
+"FeedbackSurveysEnabled"=dword:00000000
+"SafeBrowsingProtectionLevel"=dword:00000000
+"AutofillAddressEnabled"=dword:00000000
+"WebRtcIPHandling"="disable_non_proxied_udp"
+"QuicAllowed"=dword:00000000
+"BlockThirdPartyCookies"=dword:00000001
+"EnableDoNotTrack"=dword:00000001
+"ForceGoogleSafeSearch"=dword:00000001
+"IPFSEnabled"=dword:00000000
+"DnsOverHttpsMode"="off"
+"BraveShieldsDisabledForUrls"="[""https://*"",""http://*""]"
+"MediaRecommendationsEnabled"=dword:00000000
+"AlwaysOpenPdfExternally"=dword:00000001
+"TranslateEnabled"=dword:00000000
+"SpellcheckEnabled"=dword:00000000
+"PromotionsEnabled"=dword:00000000
+"SearchSuggestEnabled"=dword:00000000
+"PrintingEnabled"=dword:00000000
+"DeveloperToolsDisabled"=dword:00000001
+
+; brave-debullshitinator https://github.com/MulesGaming/brave-debloatinator
+[HKEY_LOCAL_MACHINE\Software\Policies\BraveSoftware\Brave]
+"NewTabPageLocation"="https://search.brave.com"
+"NewTabPageContentEnabled"=dword:00000000
+
+[-HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tree\BraveSoftwareUpdateTaskMachineCore]
+
+[-HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tree\BraveSoftwareUpdateTaskMachineUA]		
+"@
+	Set-Content -Path "$env:TEMP\Brave.reg" -Value $MultilineComment -Force				
+	# edit reg file				
+	$path = "$env:TEMP\Brave.reg"				
+	(Get-Content $path) -replace "\?","$" | Out-File $path				
+	# import reg file				
+	Regedit.exe /S "$env:TEMP\Brave.reg"
+}
+
+function Install-LibreWolf {
+	Write-Host "Installing LibreWolf..." -ForegroundColor Green
+    $l = "$env:ProgramFiles\LibreWolf\librewolf.exe"
+    if (-not (Test-Path $l)) {
+        $done = $false
+
+        # Direct download from GitLab
+        if (-not $done) {
+            try {
+                # Correct GitLab API endpoint for the latest release
+                $projectId = "44042130"  # LibreWolf Windows project ID
+                $apiUrl = "https://gitlab.com/api/v4/projects/$projectId/releases/permalink/latest"
+
+                $rel = Invoke-RestMethod -Uri $apiUrl -Headers @{ 'User-Agent' = 'pwsh' }
+
+                # Find the Windows x86_64 setup.exe asset
+                $link = $rel.assets.links | Where-Object {
+                    ($_.name -match 'windows-x86_64-setup\.exe') -or ($_.url -match 'windows-x86_64-setup\.exe')
+                } | Select-Object -First 1
+
+                if ($link) {
+                    $dlUrl = $link.url
+                    $exePath = "$env:TEMP\librewolf-windows_x86_64-setup.exe"
+
+                    # Download the installer
+                    Get-FileFromWeb -URL $dlUrl -File $exePath -UserAgent 'pwsh'
+
+                    # Install silently
+                    Start-Process -FilePath $exePath -ArgumentList "/S" -Wait
+
+                    # Clean up the installer
+                    Remove-Item $exePath -Force
+					
+					if (Test-Path $l) { $done = $true }
+                } else {
+                    Write-Host "Could not find Windows x86_64 setup asset in the latest release."
+                    Start-Sleep 3
+                }
+            } catch {
+                Write-Host "Direct download failed: $_"
+                Start-Sleep 3
+            }
+        }
+
+        # Try Winget if direct download didn't work
+        if (-not $done -and (Get-Command winget)) {
+            try {
+                winget.exe install --id "LibreWolf.LibreWolf" --exact --source winget --accept-source-agreements --disable-interactivity --silent --accept-package-agreements --force
+                if (Test-Path $l) { $done = $true }
+            } catch {
+                Write-Host "Winget installation failed: $_"
+                Start-Sleep 3
+            }
+        }
+		
+        # Try Chocolatey
+        if (-not $done -and (Get-Command choco)) {
+            try {
+                choco.exe install -y -r -f
+                if (Test-Path $l) { $done = $true }
+            } catch {
+                Write-Host "Chocolatey installation failed: $_"
+                Start-Sleep 3
+            }
+        }
+		
+    }
+	
+	if (Test-Path $l) {			                        		                        
+	    if (Get-Command winget) { winget.exe upgrade --id "LibreWolf.LibreWolf" --exact --source winget --accept-source-agreements --silent --accept-package-agreements --quiet | Out-Null }			                        
+	    $s = "$env:USERPROFILE\Desktop\LibreWolf.lnk"			                        
+	    $wshell = New-Object -ComObject WScript.Shell   # <-- renamed from $W to avoid $w clash			                        
+	    $lnk = $wshell.CreateShortcut($s)			                        
+	    $lnk.TargetPath = $l			                        
+	    $lnk.Save()			                        
+	}	
+
+	# create librewolf config file
+	$MultilineComment = @"
+defaultPref("browser.startup.homepage", "https://search.brave.com/");
+defaultPref("privacy.clearOnShutdown.history", false);
+defaultPref("privacy.window.maxInnerWidth", 1920);
+defaultPref("privacy.window.maxInnerHeight", 1080);
+defaultPref("browser.newtabpage.activity-stream.section.highlights.includeBookmarks", false);
+defaultPref("browser.safebrowsing.malware.enabled", true);
+defaultPref("browser.safebrowsing.phishing.enabled", true);
+defaultPref("browser.safebrowsing.blockedURIs.enabled", true);
+defaultPref(
+  "browser.safebrowsing.provider.google4.gethashURL",
+  "https://safebrowsing.googleapis.com/v4/fullHashes:find?$ct=application/x-protobuf&key=%GOOGLE_SAFEBROWSING_API_KEY%&$httpMethod=POST"
+);
+defaultPref(
+  "browser.safebrowsing.provider.google4.updateURL",
+  "https://safebrowsing.googleapis.com/v4/threatListUpdates:fetch?$ct=application/x-protobuf&key=%GOOGLE_SAFEBROWSING_API_KEY%&$httpMethod=POST"
+);
+defaultPref(
+  "browser.safebrowsing.provider.google.gethashURL",
+  "https://safebrowsing.google.com/safebrowsing/gethash?client=SAFEBROWSING_ID&appver=%MAJOR_VERSION%&pver=2.2"
+);
+defaultPref(
+  "browser.safebrowsing.provider.google.updateURL",
+  "https://safebrowsing.google.com/safebrowsing/downloads?client=SAFEBROWSING_ID&appver=%MAJOR_VERSION%&pver=2.2&key=%GOOGLE_SAFEBROWSING_API_KEY%"
+);
+defaultPref("browser.safebrowsing.downloads.enabled", true);
+defaultPref("browser.urlbar.suggest.engines", false);
+defaultPref("browser.urlbar.suggest.bookmark", false);
+defaultPref("browser.urlbar.suggest.history", false);
+defaultPref("browser.urlbar.suggest.openpage", false);
+defaultPref("browser.urlbar.suggest.topsites", false);
+defaultPref("layout.spellcheckDefault", 0);
+defaultPref("general.autoScroll", true);
+defaultPref("middlemouse.paste", false);
+defaultPref("media.autoplay.blocking_policy", 2);
+defaultPref("media.hardwaremediakeys.enabled", false);	
+defaultPref("media.peerconnection.enabled", false);
+defaultPref("media.videocontrols.picture-in-picture.video-toggle.enabled", false);
+defaultPref("places.history.enabled", false);
+defaultPref("privacy.clearOnShutdown.siteSettings", true);
+defaultPref("privacy.cpd.offlineApps", true);
+defaultPref("privacy.cpd.siteSettings", true);	
+defaultPref("privacy.userContext.enabled", false);	
+defaultPref("ui.osk.enabled", false);
+defaultPref("dom.push.connection.enabled", false);
+defaultPref("privacy.resistFingerprinting.letterboxing", true);
+defaultPref("network.http.referer.XOriginPolicy", 2);
+defaultPref("browser.sessionstore.resume_from_crash", false);
+"@
+
+	$path="$env:USERPROFILE\.librewolf"; if(!(Test-Path $path)){New-Item -ItemType Directory -Path $path -Force|Out-Null}; Set-Content -Path "$path\librewolf.overrides.cfg" -Value $MultilineComment -Force
+
+	Remove-Item "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\LibreWolf Private Browsing.lnk" -Force 
+	
+	# Define the shortcut name
+	$shortcutName = "LibreWolf Private Browsing.lnk"
+
+	# Paths to check for the shortcut
+	$pathsToCheck = @(
+		"$env:APPDATA\Microsoft\Windows\Start Menu\Programs\$shortcutName",
+		"$env:ProgramData\Microsoft\Windows\Start Menu\Programs\$shortcutName"
+	)
+
+	# Remove shortcut from all locations
+	foreach ($path in $pathsToCheck) {
+		if (Test-Path $path) {
+			Remove-Item $path -Force -ErrorAction Stop
+		else {
+		}
+	}
+
+	# Additional step: Refresh Start Menu cache (optional)
+	Stop-Process -Name "ShellExperienceHost" -Force -ErrorAction SilentlyContinue
+}
+
+function Install-Chrome {
+	# Google Chrome
+	$chrome = "C:\Program Files\Google\Chrome\Application\chrome.exe"
+	if (-not (Test-Path $chrome)) {
+    	if (Get-Command winget) {
+        	winget.exe install --id Google.Chrome --exact --source winget --accept-source-agreements --disable-interactivity --silent --accept-package-agreements --force 
+    	}
+    	if (-not (Test-Path $chrome) -and (Get-Command choco)) {
+        	choco.exe install GoogleChrome -y -r -f
+    	}
+	}
+	if (Test-Path $chrome) {
+    	if (Get-Command winget) { winget upgrade --id Google.Chrome --accept-package-agreements --accept-source-agreements --quiet | Out-Null }
+    	if (Get-Command choco) { choco upgrade GoogleChrome -y -r --no-progress --quiet | Out-Null }
+	}
+
+	$MultilineComment = @"
+Windows Registry Editor Version 5.00	
+
+; CHROME
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome]
+"StartupBoostEnabled"=dword:00000000
+"HardwareAccelerationModeEnabled"=dword:00000000
+"BackgroundModeEnabled"=dword:00000000
+"HighEfficiencyModeEnabled"=dword:00000001
+"DeviceMetricsReportingEnabled"=dword:00000000
+"MetricsReportingEnabled"=dword:00000000
+"ChromeCleanupReportingEnabled"=dword:00000000
+"UserFeedbackAllowed"=dword:00000000
+"WebRtcEventLogCollectionAllowed"=dword:00000000
+"NetworkPredictionOptions"=dword:00000002 ; Disable DNS prefetching
+"ChromeCleanupEnabled"=dword:00000000
+"DefaultGeolocationSetting"=dword:00000002
+"DefaultNotificationsSetting"=dword:00000002
+"DefaultLocalFontsSetting"=dword:00000002
+"DefaultSensorsSetting"=dword:00000002
+"DefaultSerialGuardSetting"=dword:00000002
+"CloudReportingEnabled"=dword:00000000
+"DriveDisabled"=dword:00000001
+"PasswordManagerEnabled"=dword:00000000
+"PasswordSharingEnabled"=dword:00000000
+"PasswordLeakDetectionEnabled"=dword:00000000
+"QuickAnswersEnabled"=dword:00000000
+; "SafeBrowsingExtendedReportingEnabled"=dword:00000000
+; "SafeBrowsingSurveysEnabled"=dword:00000000
+; "SafeBrowsingDeepScanningEnabled"=dword:00000000
+"DeviceActivityHeartbeatEnabled"=dword:00000000
+"HeartbeatEnabled"=dword:00000000
+"LogUploadEnabled"=dword:00000000
+"ReportAppInventory"=""
+"ReportDeviceActivityTimes"=dword:00000000
+"ReportDeviceAppInfo"=dword:00000000
+"ReportDeviceSystemInfo"=dword:00000000
+"ReportDeviceUsers"=dword:00000000
+"ReportWebsiteTelemetry"=""
+"AlternateErrorPagesEnabled"=dword:00000000
+"AutofillCreditCardEnabled"=dword:00000000
+"BrowserGuestModeEnabled"=dword:00000000
+"BrowserSignin"=dword:00000000
+"BuiltInDnsClientEnabled"=dword:00000000
+"DefaultBrowserSettingEnabled"=dword:00000000
+"ParcelTrackingEnabled"=dword:00000000
+"RelatedWebsiteSetsEnabled"=dword:00000000
+"ShoppingListEnabled"=dword:00000000
+"SyncDisabled"=dword:00000001
+"ExtensionManifestV2Availability"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist]
+"1"="ddkjiahejlhfcafbddmgiahcphecmpfh"
+; "2"="edibdbjcniadpccecjdfdjjppcpchdlm"
+; "3"="eiadekoaikejlgdbkbdfeijglgfdalml"
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\GoogleChromeElevationService]
+"Start"=dword:00000004
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\gupdate]
+"Start"=dword:00000004
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\gupdatem]
+"Start"=dword:00000004
+"@
+	Set-Content -Path "$env:TEMP\Chrome.reg" -Value $MultilineComment -Force				
+	# edit reg file				
+	$path = "$env:TEMP\Chrome.reg"				
+	(Get-Content $path) -replace "\?","$" | Out-File $path				
+	# import reg file				
+	Regedit.exe /S "$env:TEMP\Chrome.reg"
+	
+	# remove logon chrome
+	cmd /c "reg delete `"HKLM\Software\Microsoft\Active Setup\Installed Components\{8A69D345-D564-463c-AFF1-A69D9E530F96}`" /f >nul 2>&1"
+	# disable chrome services
+	Get-Service | Where-Object Name -match 'Google' | ForEach-Object { Set-Service $_.Name -StartupType Disabled; Stop-Service $_.Name -Force | Out-Null }
+}
+
+
+
+
+function Install-Firefox {
+	<#
+		Firefox and Betterfox Auto-Install Script
+		Requires PowerShell 5.1 or later and Winget installed
+		Install Firefox if not already installed
+	#>
+ 
+	# Define all possible Firefox installation paths
+	$paths = @(
+    	"$env:ProgramFiles\Mozilla Firefox\firefox.exe",
+    	"$env:ProgramFiles(x86)\Mozilla Firefox\firefox.exe",
+    	"$env:LocalAppData\Mozilla Firefox\firefox.exe"
+	)
+
+	# Helper function to filter existing paths
+	function Get-ExistingPaths([string[]]$p) {
+    	$p | Where-Object { Test-Path -Path $_ -PathType Leaf }
+	}
+
+	$done = $false
+	$existing = Get-ExistingPaths $paths
+
+	# If Firefox already exists, attempt to upgrade
+	if ($existing.Count -gt 0) {
+    	Write-Host "Firefox found:"
+    	$existing | ForEach-Object { Write-Host " - $_" }
+
+    	# Upgrade via Chocolatey if available
+    	if (Get-Command choco.exe -ErrorAction SilentlyContinue) {
+        	choco.exe upgrade firefox -y -r
+    	}
+
+    	# Upgrade via Winget if available
+    	if (Get-Command winget.exe -ErrorAction SilentlyContinue) {
+        	winget.exe upgrade --id "Mozilla.Firefox" --exact --source winget --accept-source-agreements --accept-package-agreements 
+    	}
+
+    	if ((Get-ExistingPaths $paths).Count -gt 0) { $done = $true }
+	}
+
+	# Install via Winget if not done yet
+	if (-not $done -and (Get-Command winget.exe -ErrorAction SilentlyContinue)) {
+    	winget.exe install --id "Mozilla.Firefox" --exact --source winget --accept-source-agreements --disable-interactivity --silent --accept-package-agreements --force
+    	Start-Sleep -Seconds 3
+    	if ((Get-ExistingPaths $paths).Count -gt 0) { $done = $true }
+	}
+
+	# Install via Chocolatey if not done yet
+	if (-not $done -and (Get-Command choco.exe -ErrorAction SilentlyContinue)) {
+    	choco.exe install firefox -y -f -r
+    	Start-Sleep -Seconds 3
+    	if ((Get-ExistingPaths $paths).Count -gt 0) { $done = $true }
+	}
+
+	# Notify user if installation failed
+	if (-not $done) {
+    	Write-Host "Firefox install/upgrade failed via all methods."
+	}
+
+	# Launch Firefox briefly to create a profile
+	Write-Host "Launching Firefox to create default profile..." -ForegroundColor Green
+	Start-Process "firefox.exe" -ArgumentList "--headless" -PassThru
+	Start-Sleep -Seconds 3
+	Stop-Process -Name "firefox" -Force -ErrorAction SilentlyContinue
+
+	# Find Firefox profile directory
+	$profilesPath = "$env:APPDATA\Mozilla\Firefox\Profiles"
+	$profileDir = Get-ChildItem $profilesPath | Where-Object { $_.Name -match "\.default(-release)?$" } | Select-Object -First 1
+
+	if (-not $profileDir) {
+    	Write-Host "Could not find Firefox profile directory. Exiting." -ForegroundColor Red
+	}
+
+	$profilePath = $profileDir.FullName
+	Write-Host "Found Firefox profile at: $profilePath" -ForegroundColor Green
+
+	# Download Betterfox user.js
+	$betterfoxUrl = "https://raw.githubusercontent.com/yokoffing/Betterfox/main/user.js"
+	$userJsPath = Join-Path $profilePath "user.js"
+
+	Write-Host "Downloading Betterfox configuration..." -ForegroundColor Green
+	try {
+    	Invoke-WebRequest -Uri $betterfoxUrl -OutFile $userJsPath -UseBasicParsing
+    	Write-Host "Betterfox configuration applied successfully." -ForegroundColor Green
+	} catch {
+    	Write-Host "Failed to download Betterfox configuration: $($_.Exception.Message)" -ForegroundColor Red
+	}
+
+	Write-Host "Installation completed successfully!" -ForegroundColor Green
+	Write-Host "Firefox has been installed and Betterfox configuration applied." -ForegroundColor Green
+	Write-Host "Profile location: $profilePath" -ForegroundColor Green
+	Write-Host "You can add custom settings to: $overridesPath" -ForegroundColor Green
+
+	Remove-Item "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Firefox Private Browsing.lnk"
+
+	$batchCode = @'
+@echo off
+
+echo Debloating Firefox
+
+@if exist "C:\Program Files (x86)\Mozilla Maintenance Service\Uninstall.exe" (
+    start "" /wait "C:\Program Files (x86)\Mozilla Maintenance Service\Uninstall.exe" /S >nul 2>&1
+) else (
+    rem File not found, skip silently
+)
+
+:: wmic product where name="Mozilla Maintenance Service" call uninstall /nointeractive >nul 2>&1
+
+del "C:\Program Files\Mozilla Firefox\crashreporter.exe" /f /q >nul 2>&1
+del "C:\Program Files\Mozilla Firefox\crashreporter.ini" /f /q >nul 2>&1
+del "C:\Program Files\Mozilla Firefox\maintenanceservice.exe" /f /q >nul 2>&1
+del "C:\Program Files\Mozilla Firefox\maintenanceservice_installer.exe" /f /q >nul 2>&1
+del "C:\Program Files\Mozilla Firefox\minidump-analyzer.exe" /f /q >nul 2>&1
+del "C:\Program Files\Mozilla Firefox\pingsender.exe" /f /q >nul 2>&1
+:: del "C:\Program Files\Mozilla Firefox\updater.exe" /f /q >nul 2>&1
+
+cd /d "C:\Program Files\Mozilla Firefox">nul 2>&1
+del /f crash*.* >nul 2>&1
+del /f maintenance*.* >nul 2>&1
+del /f install.log >nul 2>&1
+del /f minidump*.* >nul 2>&1
+
+del "C:\Program Files\Mozilla Firefox\crashreporter.exe" /f /q >nul 2>&1
+del "C:\Program Files\Mozilla Firefox\crashreporter.ini" /f /q >nul 2>&1
+del "C:\Program Files\Mozilla Firefox\minidump-analyzer.exe" /f /q >nul 2>&1
+del "C:\Program Files\Mozilla Firefox\pingsender.exe" /f /q >nul 2>&1
+
+Reg.exe delete "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Plain\{88088F95-5F8F-4603-8303-B2881ED6D9FD}" /f >nul 2>&1
+Reg.exe delete "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Plain\{8F3A56F1-410F-41E7-B9CE-4F12A1417CF1}" /f >nul 2>&1
+Reg.exe delete "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tasks\{88088F95-5F8F-4603-8303-B2881ED6D9FD}" /f >nul 2>&1
+Reg.exe delete "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tasks\{8F3A56F1-410F-41E7-B9CE-4F12A1417CF1}" /f >nul 2>&1
+Reg.exe delete "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tree\Mozilla\Firefox Background Update 308046B0AF4A39CB" /f >nul 2>&1
+Reg.exe delete "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tree\Mozilla\Firefox Default Browser Agent 308046B0AF4A39CB" /f >nul 2>&1
+
+cd /d "C:\Program Files\Mozilla Firefox">nul 2>&1
+del /f crash*.* >nul 2>&1
+del /f install.log >nul 2>&1
+del /f minidump*.* >nul 2>&1
+
+@echo off
+:: https://privacy.sexy — v0.13.8 — Fri, 12 Sep 2025 00:16:49 GMT
+:: Ensure PowerShell is available
+
+:: Initialize environment
+setlocal EnableExtensions DisableDelayedExpansion
+
+
+:: ----------------------------------------------------------
+:: Disable Firefox default browser and system data reporting-
+:: ----------------------------------------------------------
+echo --- Disable Firefox default browser and system data reporting
+:: Set the registry value: "HKLM\SOFTWARE\Policies\Mozilla\Firefox!DisableDefaultBrowserAgent"
+PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWARE\Policies\Mozilla\Firefox'; $data =  '1'; reg add 'HKLM\SOFTWARE\Policies\Mozilla\Firefox' /v 'DisableDefaultBrowserAgent' /t 'REG_DWORD' /d "^""$data"^"" /f"
+:: ----------------------------------------------------------
+
+
+:: ----------------------------------------------------------
+:: --------Disable Firefox background browser checks---------
+:: ----------------------------------------------------------
+echo --- Disable Firefox background browser checks
+:: Disable scheduled task(s): `\Mozilla\Firefox Default Browser Agent 308046B0AF4A39CB`
+PowerShell -ExecutionPolicy Unrestricted -Command "$taskPathPattern='\Mozilla\'; $taskNamePattern='Firefox Default Browser Agent 308046B0AF4A39CB'; Write-Output "^""Disabling tasks matching pattern `"^""$taskNamePattern`"^""."^""; $tasks = @(Get-ScheduledTask -TaskPath $taskPathPattern -TaskName $taskNamePattern -ErrorAction Ignore); if (-Not $tasks) { Write-Output "^""Skipping, no tasks matching pattern `"^""$taskNamePattern`"^"" found, no action needed."^""; exit 0; }; $operationFailed = $false; foreach ($task in $tasks) { $taskName = $task.TaskName; if ($task.State -eq [Microsoft.PowerShell.Cmdletization.GeneratedTypes.ScheduledTask.StateEnum]::Disabled) { Write-Output "^""Skipping, task `"^""$taskName`"^"" is already disabled, no action needed."^""; continue; }; try { $task | Disable-ScheduledTask -ErrorAction Stop | Out-Null; Write-Output "^""Successfully disabled task `"^""$taskName`"^""."^""; } catch { Write-Error "^""Failed to disable task `"^""$taskName`"^"": $($_.Exception.Message)"^""; $operationFailed = $true; }; }; if ($operationFailed) { Write-Output 'Failed to disable some tasks. Check error messages above.'; exit 1; }"
+:: Disable scheduled task(s): `\Mozilla\Firefox Default Browser Agent D2CEEC440E2074BD`
+PowerShell -ExecutionPolicy Unrestricted -Command "$taskPathPattern='\Mozilla\'; $taskNamePattern='Firefox Default Browser Agent D2CEEC440E2074BD'; Write-Output "^""Disabling tasks matching pattern `"^""$taskNamePattern`"^""."^""; $tasks = @(Get-ScheduledTask -TaskPath $taskPathPattern -TaskName $taskNamePattern -ErrorAction Ignore); if (-Not $tasks) { Write-Output "^""Skipping, no tasks matching pattern `"^""$taskNamePattern`"^"" found, no action needed."^""; exit 0; }; $operationFailed = $false; foreach ($task in $tasks) { $taskName = $task.TaskName; if ($task.State -eq [Microsoft.PowerShell.Cmdletization.GeneratedTypes.ScheduledTask.StateEnum]::Disabled) { Write-Output "^""Skipping, task `"^""$taskName`"^"" is already disabled, no action needed."^""; continue; }; try { $task | Disable-ScheduledTask -ErrorAction Stop | Out-Null; Write-Output "^""Successfully disabled task `"^""$taskName`"^""."^""; } catch { Write-Error "^""Failed to disable task `"^""$taskName`"^"": $($_.Exception.Message)"^""; $operationFailed = $true; }; }; if ($operationFailed) { Write-Output 'Failed to disable some tasks. Check error messages above.'; exit 1; }"
+:: ----------------------------------------------------------
+
+
+:: ----------------------------------------------------------
+:: --------Disable Firefox telemetry data collection---------
+:: ----------------------------------------------------------
+echo --- Disable Firefox telemetry data collection
+:: Set the registry value: "HKLM\SOFTWARE\Policies\Mozilla\Firefox!DisableTelemetry"
+PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWARE\Policies\Mozilla\Firefox'; $data =  '1'; reg add 'HKLM\SOFTWARE\Policies\Mozilla\Firefox' /v 'DisableTelemetry' /t 'REG_DWORD' /d "^""$data"^"" /f"
+:: ----------------------------------------------------------
+
+
+:: Restore previous environment settings
+endlocal
+:: Exit the script successfully
+exit /b 0
+'@
+	$batPath = "$env:TEMP\ConfigureFirefox.bat"
+	Set-Content -Path $batPath -Value $batchCode -Encoding ASCII
+	Start-Process -FilePath $batPath -Wait
 }
 
 function Activate-UltimatePlan {
@@ -10419,6 +11074,100 @@ Regedit.exe /S "$env:TEMP\ServicesOff.reg"
 	Timeout /T 5 | Out-Null
 }
 
+function BCDEdit-Tweaks {
+	Write-Output "BCDEdit Tweaks..."
+	# disable security / virtualization
+	bcdedit /set nx AlwaysOff | Out-Null              # disable DEP
+	bcdedit /set integrityservices disable | Out-Null # disable code integrity
+	bcdedit /set hypervisorlaunchtype off | Out-Null  # disable hypervisor
+	bcdedit /set vsmlaunchtype Off | Out-Null         # disable VSM
+	bcdedit /set vm No | Out-Null                     # disable virtual memory features
+	
+	# performance tweaks
+	bcdedit /set isolatedcontext No | Out-Null        # disable Credential Guard
+	bcdedit /set useplatformclock no | Out-Null       # disable forced platform clock
+	bcdedit /set tscsyncpolicy Legacy | Out-Null      # legacy TSC sync
+	bcdedit /set disabledynamictick yes | Out-Null    # disable dynamic tick
+	bcdedit /set useplatformtick yes | Out-Null		  # Enable platform tick use the platform timer (usually HPET)
+	
+	# boot tweaks / faster boot
+	bcdedit /set bootmenupolicy Legacy | Out-Null     # legacy boot menu
+	bcdedit /set quietboot yes | Out-Null             # hide boot logo
+	bcdedit /set bootux disabled | Out-Null           # disable boot animation
+	bcdedit /set bootlog no | Out-Null                # disable boot logging
+	bcdedit /timeout 3 | Out-Null                     # boot menu timeout (change to 10 if you dual-boot)
+	bcdedit /event off | Out-Null                     # disable boot event logging
+	bcdedit /bootdebug off | Out-Null                 # disable boot debugging
+	bcdedit /set debug no | Out-Null                  # disable kernel debugging
+	bcdedit /set ems no | Out-Null                    # disable emergency management services
+	bcdedit /set bootems no | Out-Null                # disable EMS during boot
+	bcdedit /set uselegacyapicmode no | Out-Null      # disable legacy APIC
+	bcdedit /set sos no | Out-Null                    # disable driver debug info
+}
+
+function Personalize-Windows {
+	# ACTIVATE CUSTOM CURSOR
+ 	Get-FileFromWeB -URL "https://github.com/ManueITest/Windows/raw/refs/heads/main/Cursor.zip" -File "$env:TEMP\Cursor.zip"
+	Expand-Archive "$env:TEMP\Cursor.zip" -Dest "$env:TEMP" -Force
+	
+	$inf = Join-Path $env:TEMP "install.inf"
+	if (!(Test-Path $inf)) {}
+	
+	$p = Start-Process rundll32 "setupapi.dll,InstallHinfSection DefaultInstall 132 $inf" -WindowStyle Hidden -PassThru
+	
+	Add-Type 'using System;using System.Runtime.InteropServices;public class C{[DllImport("user32.dll")]public static extern bool SystemParametersInfo(uint a,uint b,IntPtr c,uint d);public static void R(){SystemParametersInfo(0x57,0,IntPtr.Zero,0);}}' | Out-Null
+	[C]::R()
+	Start-Sleep -Milliseconds 300
+	
+	1..3 | ForEach-Object {
+	    Get-Process rundll32 | Where-Object { $_.MainWindowTitle -match "Mouse|Cursors|Pointer" } | ForEach-Object {
+	        $_.CloseMainWindow() | Out-Null
+	        Start-Sleep -Milliseconds 200
+	        if (-not $_.HasExited) { Stop-Process $_ -Force }
+	    }
+	
+	    if ($p -and -not $p.HasExited) {
+	        $p.CloseMainWindow() | Out-Null
+	        if (-not $p.WaitForExit(500)) { Stop-Process $p -Force }
+	    }
+	
+	    Get-Process rundll32 | Where-Object { $_.Id -ne $PID } | Stop-Process -Force
+	}
+
+ 	# SET CUSTOM WALLPAPER
+  	# Define paths
+	$picturesFolder = [Environment]::GetFolderPath("MyPictures")
+	$persistentWallpaperPath = Join-Path $picturesFolder "CustomWallpaper.jpg"
+	
+	# Download wallpaper to Pictures folder
+	$url = "https://github.com/ManueITest/Windows/raw/refs/heads/main/Wallpaper.jpg"
+	Get-FileFromWeb $url $persistentWallpaperPath
+	
+	# Set wallpaper using SystemParametersInfo
+	try {
+	    Add-Type @"
+	    using System.Runtime.InteropServices;
+	    public class Wallpaper {
+	        public const int SPI_SETDESKWALLPAPER = 0x0014;
+	        public const int SPIF_UPDATEINIFILE = 0x01;
+	        public const int SPIF_SENDWININICHANGE = 0x02;
+	        [DllImport("user32.dll", CharSet=CharSet.Auto)]
+	        public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+	    }
+"@
+	    Set-ItemProperty "HKCU:\Control Panel\Desktop" -Name "WallpaperStyle" -Value "10"
+	    Set-ItemProperty "HKCU:\Control Panel\Desktop" -Name "TileWallpaper" -Value "0"
+	
+	    [Wallpaper]::SystemParametersInfo(0x0014, 0, $persistentWallpaperPath, 1 -bor 2) | Out-Null
+	} catch {}
+}
+
+function Install-PowerRun {
+	Get-FileFromWeb -URL "https://www.sordum.org/files/downloads.php?power-run" -File "$env:TEMP\PowerRun.zip"
+ 	Expand-Archive -Path "$env:TEMP\PowerRun.zip" -DestinationPath "$env:TEMP" -Force
+  	Move-Item "$env:TEMP\PowerRun\PowerRun_x64.exe" "$env:SystemRoot\System32\PowerRun.exe" -Force
+}
+
 function Install-StartAllBack {
 	try {
 		$dir="$env:ProgramData\Bloatware"
@@ -10939,6 +11688,20 @@ if ($RestorePoint) {
 	Create-RestorePoint
 }
 
+# INSTALL BRAVE
+if ($InstallBrave) {
+	Install-Brave
+}
+
+if ($DebloatBrave) {
+	Debloat-Brave
+}
+
+# INSTALL LIBREWOLF
+function ($InstallLibreWolf) {
+	Install-LibreWolf
+}
+
 # POWER SETTINGS
 if ($PowerSettings) {
 	Activate-UltimatePlan
@@ -11157,6 +11920,21 @@ if ($DisableMitigations) {
 	Disable-Mitigations
 }
 
+# BCDEDIT TWEAKS
+if ($BCDEditTweaks) {
+	BCDEdit-Tweaks
+}
+
+# PERSONALIZE
+if ($PersonalizeWindows) {
+	Personalize-Windows
+}
+
+# INSTALL POWERRUN
+if ($$PowerRun) {
+	Install-PowerRun
+}
+
 # INSTALL STARTALLBACK
 if ($StartAllBack) {
 	Install-StartAllBAck
@@ -11183,6 +11961,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
