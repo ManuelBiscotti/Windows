@@ -49,7 +49,7 @@ param (
 	[switch]$ResetDefenderSettings,
  	[switch]$BCDEditTweaks,
   	[switch]$PersonalizeWindows,
-   	[switch]$PowerRun,
+   	[switch]$,
 	[switch]$StartAllBack,
  	[switch]$7Zip,
  	[switch]$Spotify,
@@ -11167,10 +11167,10 @@ function Personalize-Windows {
 	} catch {}
 }
 
-function Install-PowerRun {
-	Get-FileFromWeb -URL "https://www.sordum.org/files/downloads.php?power-run" -File "$env:TEMP\PowerRun.zip"
- 	Expand-Archive -Path "$env:TEMP\PowerRun.zip" -DestinationPath "$env:TEMP" -Force
-  	Move-Item "$env:TEMP\PowerRun\PowerRun_x64.exe" "$env:SystemRoot\System32\PowerRun.exe" -Force
+function Install- {
+	Get-FileFromWeb -URL "https://www.sordum.org/files/downloads.php?power-run" -File "$env:TEMP\.zip"
+ 	Expand-Archive -Path "$env:TEMP\.zip" -DestinationPath "$env:TEMP" -Force
+  	Move-Item "$env:TEMP\\_x64.exe" "$env:SystemRoot\System32\.exe" -Force
 }
 
 function Install-StartAllBack {
@@ -11936,7 +11936,7 @@ if ($PersonalizeWindows) {
 }
 
 # INSTALL POWERRUN
-if ($$PowerRun) {
+if ($PowerRun) {
 	Install-PowerRun
 }
 
@@ -11966,6 +11966,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
