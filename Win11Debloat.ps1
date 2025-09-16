@@ -49,7 +49,7 @@ param (
 	[switch]$ResetDefenderSettings,
  	[switch]$BCDEditTweaks,
   	[switch]$PersonalizeWindows,
-   	[switch]$,
+   	[switch]$PowerRun,
 	[switch]$StartAllBack,
  	[switch]$7Zip,
  	[switch]$Spotify,
@@ -11967,6 +11967,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
