@@ -37,7 +37,7 @@ param (
 	[switch]$PasswordNeverExpires,
     [switch]$DisableDefender,
     [switch]$DisableMitigations,
-	[switch]$ResetDefender,
+	[switch]$ResetDefenderSettings,
 	[switch]$StartAllBack,
  	[switch]$7Zip,
  	[switch]$Spotify,
@@ -900,14 +900,14 @@ P033	+	# Disable app access to diagnostics information (Category: App Privacy)
 P023	+	# Disable app access to diagnostics information (Category: App Privacy)
 P056	-	# Disable app access to device location (Category: App Privacy)
 P057	-	# Disable app access to device location (Category: App Privacy)
-P012	-	# Disable app access to camera (Category: App Privacy)
-P034	+	# Disable app access to camera (Category: App Privacy)
-P013	-	# Disable app access to microphone (Category: App Privacy)
-P035	+	# Disable app access to microphone (Category: App Privacy)
+P012	+	# Disable app access to camera (Category: App Privacy)
+P034	-	# Disable app access to camera (Category: App Privacy)
+P013	+	# Disable app access to microphone (Category: App Privacy)
+P035	-	# Disable app access to microphone (Category: App Privacy)
 P062	+	# Disable app access to use voice activation (Category: App Privacy)
 P063	+	# Disable app access to use voice activation when device is locked (Category: App Privacy)
 P081	+	# Disable the standard app for the headset button (Category: App Privacy)
-P047	-	# Disable app access to notifications (Category: App Privacy)
+P047	+	# Disable app access to notifications (Category: App Privacy)
 P019	+	# Disable app access to notifications (Category: App Privacy)
 P048	+	# Disable app access to motion (Category: App Privacy)
 P049	+	# Disable app access to movements (Category: App Privacy)
@@ -941,6 +941,16 @@ P058	+	# Disable app access to wireless equipment (Category: App Privacy)
 P059	+	# Disable app access to wireless technology (Category: App Privacy)
 P060	+	# Disable app access to eye tracking (Category: App Privacy)
 P061	+	# Disable app access to eye tracking (Category: App Privacy)
+P071	+	# Disable the ability for apps to take screenshots (Category: App Privacy)
+P072	+	# Disable the ability for apps to take screenshots (Category: App Privacy)
+P073	+	# Disable the ability for desktop apps to take screenshots (Category: App Privacy)
+P074	+	# Disable the ability for apps to take screenshots without borders (Category: App Privacy)
+P075	+	# Disable the ability for apps to take screenshots without borders (Category: App Privacy)
+P076	+	# Disable the ability for desktop apps to take screenshots without margins (Category: App Privacy)
+P077	+	# Disable app access to music libraries (Category: App Privacy)
+P078	+	# Disable app access to music libraries (Category: App Privacy)
+P079	+	# Disable app access to downloads folder (Category: App Privacy)
+P080	+	# Disable app access to downloads folder (Category: App Privacy)
 P024	+	# Prohibit apps from running in the background (Category: App Privacy)
 S001	+	# Disable password reveal button (Category: Security)
 S002	+	# Disable user steps recorder (Category: Security)
@@ -950,6 +960,10 @@ E101	+	# Disable tracking in the web (Category: Microsoft Edge (new version base
 E201	+	# Disable tracking in the web (Category: Microsoft Edge (new version based on Chromium))
 E115	+	# Disable check for saved payment methods by sites (Category: Microsoft Edge (new version based on Chromium))
 E215	+	# Disable check for saved payment methods by sites (Category: Microsoft Edge (new version based on Chromium))
+E116	+	# Disable sending info about websites visited (Category: Microsoft Edge (new version based on Chromium))
+E216	+	# Disable sending info about websites visited (Category: Microsoft Edge (new version based on Chromium))
+E117	+	# Disable sending data about browser usage (Category: Microsoft Edge (new version based on Chromium))
+E217	+	# Disable sending data about browser usage (Category: Microsoft Edge (new version based on Chromium))
 E118	+	# Disable personalizing advertising, search, news and other services (Category: Microsoft Edge (new version based on Chromium))
 E218	+	# Disable personalizing advertising, search, news and other services (Category: Microsoft Edge (new version based on Chromium))
 E107	+	# Disable automatic completion of web addresses in address bar (Category: Microsoft Edge (new version based on Chromium))
@@ -964,12 +978,6 @@ E121	+	# Disable suggestions from local providers (Category: Microsoft Edge (new
 E221	+	# Disable suggestions from local providers (Category: Microsoft Edge (new version based on Chromium))
 E103	+	# Disable search and website suggestions (Category: Microsoft Edge (new version based on Chromium))
 E203	+	# Disable search and website suggestions (Category: Microsoft Edge (new version based on Chromium))
-E123	+	# Disable shopping assistant in Microsoft Edge (Category: Microsoft Edge (new version based on Chromium))
-E223	+	# Disable shopping assistant in Microsoft Edge (Category: Microsoft Edge (new version based on Chromium))
-E124	+	# Disable Edge bar (Category: Microsoft Edge (new version based on Chromium))
-E224	+	# Disable Edge bar (Category: Microsoft Edge (new version based on Chromium))
-E128	+	# Disable Sidebar in Microsoft Edge (Category: Microsoft Edge (new version based on Chromium))
-E228	+	# Disable Sidebar in Microsoft Edge (Category: Microsoft Edge (new version based on Chromium))
 E129	+	# Disable the Microsoft Account Sign-In Button (Category: Microsoft Edge (new version based on Chromium))
 E229	+	# Disable the Microsoft Account Sign-In Button (Category: Microsoft Edge (new version based on Chromium))
 E130	+	# Disable Enhanced Spell Checking (Category: Microsoft Edge (new version based on Chromium))
@@ -1002,7 +1010,24 @@ E004	+	# Disable sites saving protected media licenses on my device (Category: M
 E005	+	# Do not optimize web search results on the task bar for screen reader (Category: Microsoft Edge (legacy version))
 E013	+	# Disable Microsoft Edge launch in the background (Category: Microsoft Edge (legacy version))
 E014	+	# Disable loading the start and new tab pages in the background (Category: Microsoft Edge (legacy version))
-E006	+	# Disable SmartScreen Filter (Category: Microsoft Edge (legacy version))
+E006	-	# Disable SmartScreen Filter (Category: Microsoft Edge (legacy version))
+F002	+	# Disable telemetry for Microsoft Office (Category: Microsoft Office)
+F014	+	# Disable diagnostic data submission (Category: Microsoft Office)
+F015	+	# Disable participation in the Customer Experience Improvement Program (Category: Microsoft Office)
+F016	+	# Disable the display of LinkedIn information (Category: Microsoft Office)
+F001	+	# Disable inline text prediction in mails (Category: Microsoft Office)
+F003	+	# Disable logging for Microsoft Office Telemetry Agent (Category: Microsoft Office)
+F004	+	# Disable upload of data for Microsoft Office Telemetry Agent (Category: Microsoft Office)
+F005	+	# Obfuscate file names when uploading telemetry data (Category: Microsoft Office)
+F007	+	# Disable Microsoft Office surveys (Category: Microsoft Office)
+F008	+	# Disable feedback to Microsoft (Category: Microsoft Office)
+F009	+	# Disable Microsoft's feedback tracking (Category: Microsoft Office)
+F017	+	# Disable Microsoft's feedback tracking (Category: Microsoft Office)
+F006	+	# Disable automatic receipt of updates (Category: Microsoft Office)
+F010	+	# Disable connected experiences in Office (Category: Microsoft Office)
+F011	+	# Disable connected experiences with content analytics (Category: Microsoft Office)
+F012	+	# Disable online content downloading for connected experiences (Category: Microsoft Office)
+F013	+	# Disable optional connected experiences in Office (Category: Microsoft Office)
 Y001	+	# Disable synchronization of all settings (Category: Synchronization of Windows Settings)
 Y002	+	# Disable synchronization of design settings (Category: Synchronization of Windows Settings)
 Y003	+	# Disable synchronization of browser settings (Category: Synchronization of Windows Settings)
@@ -1021,9 +1046,15 @@ C011	+	# Disable cloud search (Category: Cortana (Personal Assistant))
 C014	+	# Disable Cortana above lock screen (Category: Cortana (Personal Assistant))
 C015	+	# Disable the search highlights in the taskbar (Category: Cortana (Personal Assistant))
 C101	+	# Disable the Windows Copilot (Category: Windows AI)
+C201	+	# Disable the Windows Copilot (Category: Windows AI)
+C204	+	# Disable the provision of recall functionality to all users (Category: Windows AI)
+C205	+	# Disable the Image Creator in Microsoft Paint (Category: Windows AI)
+C102	+	# Disable the Copilot button from the taskbar (Category: Windows AI)
 C103	+	# Disable Windows Copilot+ Recall (Category: Windows AI)
 C203	+	# Disable Windows Copilot+ Recall (Category: Windows AI)
-L001	+	# Disable functionality to locate the system (Category: Location Services)
+C206	+	# Disable Cocreator in Microsoft Paint (Category: Windows AI)
+C207	+	# Disable AI-powered image fill in Microsoft Paint (Category: Windows AI)
+L001	-	# Disable functionality to locate the system (Category: Location Services)
 L003	+	# Disable scripting functionality to locate the system (Category: Location Services)
 L004	+	# Disable sensors for locating the system and its orientation (Category: Location Services)
 L005	-	# Disable Windows Geolocation Service (Category: Location Services)
@@ -1052,13 +1083,18 @@ S014	+	# Disable reporting of malware infection information (Category: Microsoft
 K001	+	# Disable Windows Spotlight (Category: Lock Screen)
 K002	+	# Disable fun facts, tips, tricks, and more on your lock screen (Category: Lock Screen)
 K005	+	# Disable notifications on lock screen (Category: Lock Screen)
+D001	+	# Disable access to mobile devices (Category: Mobile Devices)
+D002	+	# Disable Phone Link app (Category: Mobile Devices)
+D003	+	# Disable showing suggestions for using mobile devices with Windows (Category: Mobile Devices)
 D104	+	# Disable connecting the PC to mobile devices (Category: Mobile Devices)
+M025	+	# Disable search with AI in search box (Category: Search)
 M003	+	# Disable extension of Windows search with Bing (Category: Search)
 M015	+	# Disable People icon in the taskbar (Category: Taskbar)
 M016	+	# Disable search box in task bar (Category: Taskbar)
 M017	+	# Disable "Meet now" in the task bar (Category: Taskbar)
 M018	+	# Disable "Meet now" in the task bar (Category: Taskbar)
 M019	+	# Disable news and interests in the task bar (Category: Taskbar)
+M021	+	# Disable widgets in Windows Explorer (Category: Taskbar)
 M022	+	# Disable feedback reminders (Category: Miscellaneous)
 M001	+	# Disable feedback reminders (Category: Miscellaneous)
 M004	+	# Disable automatic installation of recommended Windows Store Apps (Category: Miscellaneous)
@@ -1066,10 +1102,10 @@ M005	+	# Disable tips, tricks, and suggestions while using Windows (Category: Mi
 M024	+	# Disable Windows Media Player Diagnostics (Category: Miscellaneous)
 M026	+	# Disable remote assistance connections to this computer (Category: Miscellaneous)
 M027	+	# Disable remote connections to this computer (Category: Miscellaneous)
+M028	+	# Disable the desktop icon for information on "Windows Spotlight" (Category: Miscellaneous)
 M012	+	# Disable Key Management Service Online Activation (Category: Miscellaneous)
 M013	+	# Disable automatic download and update of map data (Category: Miscellaneous)
 M014	+	# Disable unsolicited network traffic on the offline maps settings page (Category: Miscellaneous)
-M023	+	# Disable installation of PC Health Check (Category: Miscellaneous)
 N001	+	# Disable Network Connectivity Status Indicator (Category: Miscellaneous)
 '@
     Set-Content -Path "$env:TEMP\ooshutup10.cfg" -Value $configCode -Force
@@ -2293,18 +2329,18 @@ PowerShell -ExecutionPolicy Unrestricted -Command "$pathGlobPattern = "^""%SYSTE
 echo --- Disable app access to location
 :: Disable app access (LetAppsAccessLocation) using GPO (re-activation through GUI is not possible)
 :: Set the registry value: "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy!LetAppsAccessLocation"
-PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy'; $data =  '2'; reg add 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy' /v 'LetAppsAccessLocation' /t 'REG_DWORD' /d "^""$data"^"" /f"
+:: PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy'; $data =  '2'; reg add 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy' /v 'LetAppsAccessLocation' /t 'REG_DWORD' /d "^""$data"^"" /f"
 :: Set the registry value: "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy!LetAppsAccessLocation_UserInControlOfTheseApps"
-PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy'; $data =  '\0'; reg add 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy' /v 'LetAppsAccessLocation_UserInControlOfTheseApps' /t 'REG_MULTI_SZ' /d "^""$data"^"" /f"
+:: PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy'; $data =  '\0'; reg add 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy' /v 'LetAppsAccessLocation_UserInControlOfTheseApps' /t 'REG_MULTI_SZ' /d "^""$data"^"" /f"
 :: Set the registry value: "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy!LetAppsAccessLocation_ForceAllowTheseApps"
-PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy'; $data =  '\0'; reg add 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy' /v 'LetAppsAccessLocation_ForceAllowTheseApps' /t 'REG_MULTI_SZ' /d "^""$data"^"" /f"
+:: PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy'; $data =  '\0'; reg add 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy' /v 'LetAppsAccessLocation_ForceAllowTheseApps' /t 'REG_MULTI_SZ' /d "^""$data"^"" /f"
 :: Set the registry value: "HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy!LetAppsAccessLocation_ForceDenyTheseApps"
-PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy'; $data =  '\0'; reg add 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy' /v 'LetAppsAccessLocation_ForceDenyTheseApps' /t 'REG_MULTI_SZ' /d "^""$data"^"" /f"
+:: PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy'; $data =  '\0'; reg add 'HKLM\SOFTWARE\Policies\Microsoft\Windows\AppPrivacy' /v 'LetAppsAccessLocation_ForceDenyTheseApps' /t 'REG_MULTI_SZ' /d "^""$data"^"" /f"
 :: Disable app capability (location) using user privacy settings
 :: Set the registry value: "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location!Value"
-PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location'; $data =  'Deny'; reg add 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location' /v 'Value' /t 'REG_SZ' /d "^""$data"^"" /f"
+:: PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location'; $data =  'Deny'; reg add 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location' /v 'Value' /t 'REG_SZ' /d "^""$data"^"" /f"
 :: Set the registry value: "HKLM\SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration!Status"
-PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration'; $data =  '0'; reg add 'HKLM\SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration' /v 'Status' /t 'REG_DWORD' /d "^""$data"^"" /f"
+:: PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration'; $data =  '0'; reg add 'HKLM\SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration' /v 'Status' /t 'REG_DWORD' /d "^""$data"^"" /f"
 :: Disable app access ({BFA794E4-F964-4FDB-90F6-51056BFE4B44}) in older Windows versions (before 1903)
 :: Set the registry value: "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceAccess\Global\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}!Value"
 PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceAccess\Global\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}'; $data =  'Deny'; reg add 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\DeviceAccess\Global\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}' /v 'Value' /t 'REG_SZ' /d "^""$data"^"" /f"
@@ -2803,11 +2839,11 @@ PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWAR
 :: ----------------------------------------------------------
 echo --- Disable location
 :: Set the registry value: "HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors!DisableLocation"
-PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors'; $data =  '1'; reg add 'HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors' /v 'DisableLocation' /t 'REG_DWORD' /d "^""$data"^"" /f"
+:: PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors'; $data =  '1'; reg add 'HKLM\SOFTWARE\Policies\Microsoft\Windows\LocationAndSensors' /v 'DisableLocation' /t 'REG_DWORD' /d "^""$data"^"" /f"
 :: Set the registry value: "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Sensor\Overrides\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}!Value"
-PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Sensor\Overrides\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}'; $data =  'Deny'; reg add 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Sensor\Overrides\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}' /v 'Value' /t 'REG_SZ' /d "^""$data"^"" /f"
+:: PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Sensor\Overrides\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}'; $data =  'Deny'; reg add 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Sensor\Overrides\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}' /v 'Value' /t 'REG_SZ' /d "^""$data"^"" /f"
 :: Set the registry value: "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Sensor\Overrides\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}!SensorPermissionState"
-PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Sensor\Overrides\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}'; $data =  '0'; reg add 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Sensor\Overrides\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}' /v 'SensorPermissionState' /t 'REG_DWORD' /d "^""$data"^"" /f"
+:: PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Sensor\Overrides\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}'; $data =  '0'; reg add 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Sensor\Overrides\{BFA794E4-F964-4FDB-90F6-51056BFE4B44}' /v 'SensorPermissionState' /t 'REG_DWORD' /d "^""$data"^"" /f"
 :: ----------------------------------------------------------
 
 
@@ -6787,7 +6823,49 @@ reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager" /v "ProtectionMo
 }
 
 function Reset-DefenderSettings {
-
+	Write-Host "Resetting Microsoft Defender settings..." -ForegroundColor Cyan
+	Write-Host "⚠️ If Tamper Protection is ON, disable it in Windows Security app first." -ForegroundColor Red
+	Write-Host "Waiting 60s... (press any key to skip)" -ForegroundColor Cyan
+	
+	# Wait with skip option
+	Timeout /T 60
+	
+	# DEFENDER
+	Write-Host "Resetting Defender policies..." -ForegroundColor Yellow
+	Remove-Item "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender" -Recurse -Force 
+	Remove-Item "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center" -Recurse -Force 
+	
+	# Reset exclusions
+	# Remove-Item "HKLM:\SOFTWARE\Microsoft\Windows Defender\Exclusions" -Recurse -Force 
+	# Remove-Item "HKCU:\SOFTWARE\Microsoft\Windows Defender\Exclusions" -Recurse -Force 
+	
+	# Renable sample submission
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender\Spynet" -Name SubmitSamplesConsent 
+	
+	# SMARTSCREEN
+	Write-Host "Resetting SmartScreen settings..." -ForegroundColor Yellow
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer" -Name "SmartScreenEnabled" -Value "Warn" -Type String
+	
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\System" -Name "EnableSmartScreen" 
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\MicrosoftEdge\PhishingFilter" -Name EnabledV9 
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "SmartScreenEnabled" 
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "SmartScreenPuaEnabled"
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "SmartScreenForTrustedDownloadsEnabled" 
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Edge" -Name "SmartScreenDnsRequestsEnabled" 
+	
+	New-Item -Path "HKCU:\Software\Microsoft\Edge" -Force | Out-Null
+	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Edge" -Name "SmartScreenEnabled" -Value "1" -Type String
+	
+	New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\AppHost" -Force | Out-Null
+	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\AppHost" -Name "EnableWebContentEvaluation" -Value 1 -Type DWord
+	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\AppHost" -Name "PreventOverride" -Value 1 -Type DWord
+	
+	# Reset hidden sections in Windows Security
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Family options" -Name "UILockdown" 
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Account protection" -Name "UILockdown" 
+	Remove-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Device security" -Name "UILockdown" 
+	
+	Write-Host "Reset complete." -ForegroundColor Green
 }
 
 function Optimize-Registry {
@@ -10644,8 +10722,19 @@ if ($DisableTelemetry) {
 	$json = @'
 {
     "WPFTweaks":  [
+                      "WPFTweaksWifi",
+                      "WPFTweaksRazerBlock",
+                      "WPFTweaksDisableWpbtExecution",
+                      "WPFTweaksDisableLMS1",
+                      "WPFTweaksStorage",
+                      "WPFTweaksConsumerFeatures",
                       "WPFTweaksTele",
-                      "WPFTweaksPowershell7Tele"
+                      "WPFTweaksAH",
+                      "WPFTweaksBlockAdobeNet",
+                      "WPFTweaksLoc",
+                      "WPFTweaksPowershell7Tele",
+                      "WPFTweaksRecallOff",
+                      "WPFTweaksDisableCrossDeviceResume"
                    ]
 }
 '@
@@ -10683,11 +10772,35 @@ if ($DisableTelemetry) {
 	}
 
 	# Win11Debloat Disable Telemetry
-	& ([scriptblock]::Create((irm "https://debloat.raphi.re/"))) -Silent -DisableTelemetry
-
+	& ([scriptblock]::Create((irm "https://debloat.raphi.re/"))) `
+	    -Silent `
+	    -DisableStartRecommended `
+	    -DisableTelemetry `
+	    -DisableSuggestions `
+	    -DisableEdgeAds `
+	    -DisableDesktopSpotlight `
+	    -DisableLockscreenTips `
+	    -DisableSettings365Ads `
+	    -DisableBing `
+	    -DisableRecall `
+	    -DisableEdgeAI `
+	    -DisablePaintAI `
+	    -DisableNotepadAI `
+	    -DisableFastStartup `
+	    -DisableModernStandbyNetworking `
+	    -HideChat `
+	    -DisableWidgets `
+	 
 	Run-WPD
+ 
     Run-ShutUp10
+
+	# Disable Location
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\location" -Name "Value" -Value "Deny"
+	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\CPSS\Store\UserLocationOverridePrivacySetting" -Name "Value" -Value 0 -Type DWord
+
     Run-PrivacySexy
+	
 	Install-Simplewall
 }
 
@@ -10769,6 +10882,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
