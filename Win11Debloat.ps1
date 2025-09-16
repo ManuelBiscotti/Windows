@@ -455,6 +455,7 @@ defaultPref("browser.sessionstore.resume_from_crash", false);
 
 	# Additional step: Refresh Start Menu cache (optional)
 	Stop-Process -Name "ShellExperienceHost" -Force -ErrorAction SilentlyContinue
+	}
 }
 
 function Install-Chrome {
@@ -11702,7 +11703,7 @@ if ($DebloatBrave) {
 }
 
 # INSTALL LIBREWOLF
-function ($InstallLibreWolf) {
+if ($InstallLibreWolf) {
 	Install-LibreWolf
 }
 
@@ -11734,7 +11735,7 @@ if ($PauseUpdates) {
 
 # INSTALL RUNTIMES
 if ($Runtimes) {
-	Write-Output "Installing Runtimes..." 
+	Write-Host "Installing Runtimes..." 
 	Install-CPlusPlus
  	Install-DirectX
   	Install-NET35
@@ -11965,6 +11966,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
