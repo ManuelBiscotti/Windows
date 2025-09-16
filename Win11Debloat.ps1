@@ -10990,7 +10990,8 @@ if ($Win11Debloat) {
 
 # RUN WINUTIL AUTOMATION
 if ($CTTWinUtil) {
-	Repair-Winget 
+	Repair-Winget
+ 	winget.exe update --id "Microsoft.PowerShell" --exact --source winget --accept-source-agreements --disable-interactivity --silent --include-unknown --accept-package-agreements --force
 	CTT-WinUtilAutomation
 }
 
@@ -11180,6 +11181,7 @@ Write-Output ""
 
 Write-Output "Script execution completed."
 pause
+
 
 
 
