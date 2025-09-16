@@ -1208,6 +1208,7 @@ function Pause-Updates {
 }
 
 function Disable-Updates {
+	Write-Host "Disabling Upddates..." -ForegroundColor Green
 	# Disable Updates
 	$batch = Join-Path $env:TEMP 'disable-updates.bat'
 	iwr 'https://github.com/tsgrgo/windows-update-disabler/raw/refs/heads/main/disable%20updates.bat' -OutFile $batch 
@@ -1492,12 +1493,18 @@ function Uninstall-OneDrive {
 
 # REMOVE MICROSOFT EDGE FUNCTION
 function Remove-Edge {
-    Write-Output "Removing Edge..."
+    Write-Host "Removing Edge..." -ForegroundColor Green
+    Write-Output "Removing Edge App..."
 	# Remove Edge and Webview2
+	# WORKS PERFECT BUT GET FLAGGED BY AV
+	# Get-FileFromWeb -URL "https://github.com/ShadowWhisperer/Remove-MS-Edge/releases/latest/download/Remove-EdgeWeb.exe" -File "$env:TEMP\Remove-EdgeWeb.exe"; Start-Process "$env:TEMP\Remove-EdgeWeb.exe" -Args "/s" -Wait -NoNewWindow; Remove-Item "$env:TEMP\Remove-EdgeWeb.exe" -Force
+	# UAC ISSUE (SOMETIMES IT ALSO GET FLAGGED BY AV)
 	# Get-FileFromWeb -URL "https://github.com/ShadowWhisperer/Remove-MS-Edge/raw/refs/heads/main/Batch/Both.bat" -File "$env:TEMP\Both.bat"
 	# Start-Process "cmd.exe" -ArgumentList "/c echo Y | `"%TEMP%\Both.bat`""
 	# Fallback Edge only
-    iex "&{$(irm https://cdn.jsdelivr.net/gh/he3als/EdgeRemover@main/get.ps1)} -UninstallEdge -RemoveEdgeData -NonInteractive -Wait"
+    iex "&{$(irm https://cdn.jsdelivr.net/gh/he3als/EdgeRemover@main/get.ps1)} -UninstallEdge -RemoveEdgeData -NonInteractive"
+	Timeout /T 5 | Out-Null
+	Write-Output "Uninstalling EdgeUpdate...."
 	# find edgeupdate.exe
 	$edgeupdate = @(); "LocalApplicationData", "ProgramFilesX86", "ProgramFiles" | ForEach-Object {
 	$folder = [Environment]::GetFolderPath($_)
@@ -1505,14 +1512,15 @@ function Remove-Edge {
 	}
 	# find edgeupdate & allow uninstall regedit
 	$global:REG = "HKCU:\SOFTWARE", "HKLM:\SOFTWARE", "HKCU:\SOFTWARE\Policies", "HKLM:\SOFTWARE\Policies", "HKCU:\SOFTWARE\WOW6432Node", "HKLM:\SOFTWARE\WOW6432Node", "HKCU:\SOFTWARE\WOW6432Node\Policies", "HKLM:\SOFTWARE\WOW6432Node\Policies"
-	foreach ($location in $REG) { Remove-Item "$location\Microsoft\EdgeUpdate" -recurse -force -ErrorAction SilentlyContinue }
+	foreach ($location in $REG) { Remove-Item "$location\Microsoft\EdgeUpdate" -recurse -force}
 	# uninstall edgeupdate
 	foreach ($path in $edgeupdate) {
 	if (Test-Path $path) { Start-Process -Wait $path -Args "/unregsvc" | Out-Null }
-	do { Start-Sleep 3 } while ((Get-Process -Name "setup", "MicrosoftEdge*" -ErrorAction SilentlyContinue).Path -like "*\Microsoft\Edge*")
+	do { Start-Sleep 3 } while ((Get-Process -Name "setup", "MicrosoftEdge*").Path -like "*\Microsoft\Edge*")
 	if (Test-Path $path) { Start-Process -Wait $path -Args "/uninstall" | Out-Null }
-	do { Start-Sleep 3 } while ((Get-Process -Name "setup", "MicrosoftEdge*" -ErrorAction SilentlyContinue).Path -like "*\Microsoft\Edge*")
+	do { Start-Sleep 3 } while ((Get-Process -Name "setup", "MicrosoftEdge*").Path -like "*\Microsoft\Edge*")
 	}
+	Write-Output "Removing EdgeWebview2...."
 	# remove edgewebview regedit
 	cmd /c "reg delete `"HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft EdgeWebView`" /f >nul 2>&1"
 	cmd /c "reg delete `"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft EdgeWebView`" /f >nul 2>&1"
@@ -1562,13 +1570,14 @@ KEPT.
 #>
 function Remove-Apps {
     # Remove Universal Windows Platform Apps
-    Write-Output "Removing Apps..."
+    Write-Output "Removing UWP Apps..."
     Get-AppXPackage -AllUsers | Where-Object { $_.Name -notlike '*NVIDIA*' -and $_.Name -notlike '*CBS*' -and $_.Name -notlike '*DesktopAppInstaller*'} | Remove-AppxPackage
 	
- 	# Uninstall Remote Desktop Connection
+	Disable-Gamebar	
+ 	
+	# Uninstall Remote Desktop Connection
  	Write-Output "Uninstalling Remote Desktop Connection..."
-	
-  
+	 
   	# Activate Windows Photo Viewer
 	Write-Host "Activating Windows Photo Viewer..."
 	'tif','tiff','bmp','dib','gif','jfif','jpe','jpeg','jpg','jxr','png','ico'|%{
@@ -1578,23 +1587,27 @@ function Remove-Apps {
    
     # Remove Windows Capabilities
     Write-Output "Removing Optional features..."
-    "App.StepsRecorder~~~~0.0.1.0",
-	"App.Support.QuickAssist~~~~0.0.1.0",
-	"Browser.InternetExplorer~~~~0.0.11.0",
-	"DirectX.Configuration.Database~~~~0.0.1.0",
-	"Hello.Face.18967~~~~0.0.1.0",
-	"Hello.Face.20134~~~~0.0.1.0",
-	"MathRecognizer~~~~0.0.1.0",
-	"Microsoft.Wallpapers.Extended~~~~0.0.1.0",
-	"Microsoft.Windows.PowerShell.ISE~~~~0.0.1.0",
-	"OneCoreUAP.OneSync~~~~0.0.1.0",
-	"OpenSSH.Client~~~~0.0.1.0",
-	"Print.Fax.Scan~~~~0.0.1.0",
-	"Print.Management.Console~~~~0.0.1.0",
-	"Windows.Kernel.LA57~~~~0.0.1.0",
-	"Microsoft.Windows.WordPad~~~~0.0.1.0",
-	"WMIC~~~~0.0.1.0" | % { Remove-WindowsCapability -Online -Name $_ | Out-Null }
- 
+	@(
+	    "App.StepsRecorder~~~~0.0.1.0"
+	    "App.Support.QuickAssist~~~~0.0.1.0"
+	    "Browser.InternetExplorer~~~~0.0.11.0"
+	    "DirectX.Configuration.Database~~~~0.0.1.0"
+	    "Hello.Face.18967~~~~0.0.1.0"
+	    "Hello.Face.20134~~~~0.0.1.0"
+	    "MathRecognizer~~~~0.0.1.0"
+	    "Microsoft.Wallpapers.Extended~~~~0.0.1.0"
+	    "Microsoft.Windows.PowerShell.ISE~~~~0.0.1.0"
+	    "OneCoreUAP.OneSync~~~~0.0.1.0"
+	    "OpenSSH.Client~~~~0.0.1.0"
+	    "Print.Fax.Scan~~~~0.0.1.0"
+	    "Print.Management.Console~~~~0.0.1.0"
+	    "Windows.Kernel.LA57~~~~0.0.1.0"
+	    "Microsoft.Windows.WordPad~~~~0.0.1.0"
+	    "WMIC~~~~0.0.1.0"
+	) | ForEach-Object {
+	    Remove-WindowsCapability -Online -Name $_ -ErrorAction SilentlyContinue | Out-Null
+	}
+
 	# Remove "Character Map" capability app
  	Write-Output "Removing Character Map..."
     function Set-ForceOwnership($p){
@@ -1649,25 +1662,28 @@ function Remove-Apps {
     }
 	
     # Disable Windows Features
-	'WCF-Services45',
-	'WCF-TCP-PortSharing45',
-	'Printing-PrintToPDFServices-Features',
-	'Printing-XPSServices-Features',
-	'Printing-Foundation-Features',
-	'Printing-Foundation-InternetPrinting-Client',
-	'MSRDC-Infrastructure',
-	'SMB1Protocol',
-	'SMB1Protocol-Client',
-	'SMB1Protocol-Deprecation',
-	'SmbDirect',
-	'Windows-Identity-Foundation',
-	'MicrosoftWindowsPowerShellV2Root',
-	'MicrosoftWindowsPowerShellV2',
-	'WorkFolders-Client',
-	'Microsoft-Hyper-V-All',
-	'Recall' | ForEach-Object { 
-    	Dism /Online /NoRestart /Disable-Feature /FeatureName:$_ | Out-Null 
-	} 
+	@(
+	    'WCF-Services45'
+	    'WCF-TCP-PortSharing45'
+	    'Printing-PrintToPDFServices-Features'
+	    'Printing-XPSServices-Features'
+	    'Printing-Foundation-Features'
+	    'Printing-Foundation-InternetPrinting-Client'
+	    'MSRDC-Infrastructure'
+	    'SMB1Protocol'
+	    'SMB1Protocol-Client'
+	    'SMB1Protocol-Deprecation'
+	    'SmbDirect'
+	    'Windows-Identity-Foundation'
+	    'MicrosoftWindowsPowerShellV2Root'
+	    'MicrosoftWindowsPowerShellV2'
+	    'WorkFolders-Client'
+	    'Microsoft-Hyper-V-All'
+	    'Recall'
+	) | ForEach-Object {
+	    Dism /Online /NoRestart /Disable-Feature /FeatureName:$_ | Out-Null
+	}
+
 
  	# Windows Stuff
   	# Bloatware Killer Task
@@ -1676,7 +1692,7 @@ function Remove-Apps {
 		New-Item $dir -ItemType Directory -Force  *> $null
 		$script=@'
 for ($i = 1; $i -le 3; $i++) {
-    "OneDrive","WidgetService","Widgets","AggregatorHost","MoUsoCoreWorker","UserOOBEBroker","WinStore.App","msedge","TextInputHost","SearchApp","ConnectedUserExperiences","ctfmon","CrossDeviceResume","MicrosoftEdgeUpdate","msedgewebview2","ONENOTEM" | % { Get-Process $_ -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+    "OneDrive","WidgetService","Widgets","AggregatorHost","MoUsoCoreWorker","UserOOBEBroker","WinStore.App","msedge","TextInputHost","SearchApp","ConnectedUserExperiences","CrossDeviceResume","MicrosoftEdgeUpdate","msedgewebview2","ONENOTEM" | % { Get-Process $_ -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
     "MSDTC","VSS","uhssvc","Spooler","WSearch" | % { Stop-Service $_ -Force -ErrorAction SilentlyContinue }
     Start-Sleep -Seconds 1
 }
@@ -1820,6 +1836,127 @@ for ($i = 1; $i -le 3; $i++) {
   		Start-Process regedit.exe -ArgumentList "/s `"$env:TEMP\Restore_New_Text_Document_context_menu_item.reg`"" -Wait	
  	}
 }else{ 
+}
+
+function  Disable-Gamebar {
+	Write-Output "Disbaling Gamebar..."
+	# disable gamebar regedit
+	reg add "HKCU\System\GameConfigStore" /v "GameDVR_Enabled" /t REG_DWORD /d "0" /f | Out-Null
+	reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR" /v "AppCaptureEnabled" /t REG_DWORD /d "0" /f | Out-Null
+	# disable open xbox game bar using game controller regedit
+	reg add "HKCU\Software\Microsoft\GameBar" /v "UseNexusForGameBarEnabled" /t REG_DWORD /d "0" /f | Out-Null
+	# disable gameinput service regedit
+	reg add "HKLM\SYSTEM\ControlSet001\Services\GameInputSvc" /v "Start" /t REG_DWORD /d "4" /f | Out-Null
+	# disable gamedvr and broadcast user service regedit
+	reg add "HKLM\SYSTEM\ControlSet001\Services\BcastDVRUserService" /v "Start" /t REG_DWORD /d "4" /f | Out-Null
+	# disable xbox accessory management service regedit
+	reg add "HKLM\SYSTEM\ControlSet001\Services\XboxGipSvc" /v "Start" /t REG_DWORD /d "4" /f | Out-Null
+	# disable xbox live auth manager service regedit
+	reg add "HKLM\SYSTEM\ControlSet001\Services\XblAuthManager" /v "Start" /t REG_DWORD /d "4" /f | Out-Null
+	# disable xbox live game save service regedit
+	reg add "HKLM\SYSTEM\ControlSet001\Services\XblGameSave" /v "Start" /t REG_DWORD /d "4" /f | Out-Null
+	# disable xbox live networking service regedit
+	reg add "HKLM\SYSTEM\ControlSet001\Services\XboxNetApiSvc" /v "Start" /t REG_DWORD /d "4" /f | Out-Null
+	# disable ms-gamebar notifications with xbox controller plugged in regedit
+	# create reg file
+	$MultilineComment = @"
+Windows Registry Editor Version 5.00	
+	
+; disable ms-gamebar notifications with xbox controller plugged in	
+[HKEY_CLASSES_ROOT\ms-gamebar]	
+"URL Protocol"=""	
+"NoOpenWith"=""	
+@="URL:ms-gamebar"	
+	
+[HKEY_CLASSES_ROOT\ms-gamebar\shell\open\command]	
+@="\"%SystemRoot%\\System32\\systray.exe\""	
+	
+[HKEY_CLASSES_ROOT\ms-gamebarservices]	
+"URL Protocol"=""	
+"NoOpenWith"=""	
+@="URL:ms-gamebarservices"	
+	
+[HKEY_CLASSES_ROOT\ms-gamebarservices\shell\open\command]	
+@="\"%SystemRoot%\\System32\\systray.exe\""	
+	
+[HKEY_CLASSES_ROOT\ms-gamingoverlay]	
+"URL Protocol"=""	
+"NoOpenWith"=""	
+@="URL:ms-gamingoverlay"	
+	
+[HKEY_CLASSES_ROOT\ms-gamingoverlay\shell\open\command]	
+@="\"%SystemRoot%\\System32\\systray.exe\""	
+"@
+	Set-Content -Path "$env:TEMP\MsGamebarNotiOff.reg" -Value $MultilineComment -Force
+	# import reg file
+	Regedit.exe /S "$env:TEMP\MsGamebarNotiOff.reg"
+	# stop gamebar running
+	Stop-Process -Force -Name GameBar -ErrorAction SilentlyContinue | Out-Null
+	# uninstall gamebar & xbox apps
+	Get-AppxPackage -allusers *Microsoft.GamingApp* | Remove-AppxPackage
+	Get-AppxPackage -allusers *Microsoft.Xbox.TCUI* | Remove-AppxPackage
+	Get-AppxPackage -allusers *Microsoft.XboxApp* | Remove-AppxPackage
+	Get-AppxPackage -allusers *Microsoft.XboxGameOverlay* | Remove-AppxPackage
+	Get-AppxPackage -allusers *Microsoft.XboxGamingOverlay* | Remove-AppxPackage
+	Get-AppxPackage -allusers *Microsoft.XboxIdentityProvider* | Remove-AppxPackage
+	Get-AppxPackage -allusers *Microsoft.XboxSpeechToTextOverlay* | Remove-AppxPackage
+}
+
+function Repair-Gamebar {
+	Write-Host "Enabling Gamebar..."
+	# gamebar regedit
+	reg add "HKCU\System\GameConfigStore" /v "GameDVR_Enabled" /t REG_DWORD /d "1" /f | Out-Null
+	reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR" /v "AppCaptureEnabled" /t REG_DWORD /d "1" /f | Out-Null
+	# open xbox game bar using game controller regedit
+	cmd.exe /c "reg delete `"HKCU\Software\Microsoft\GameBar`" /v `"UseNexusForGameBarEnabled`" /f >nul 2>&1"
+	# gameinput service
+	reg add "HKLM\SYSTEM\ControlSet001\Services\GameInputSvc" /v "Start" /t REG_DWORD /d "3" /f | Out-Null
+	# gamedvr and broadcast user service regedit
+	reg add "HKLM\SYSTEM\ControlSet001\Services\BcastDVRUserService" /v "Start" /t REG_DWORD /d "3" /f | Out-Null
+	# xbox accessory management service regedit
+	reg add "HKLM\SYSTEM\ControlSet001\Services\XboxGipSvc" /v "Start" /t REG_DWORD /d "3" /f | Out-Null
+	# xbox live auth manager service regedit
+	reg add "HKLM\SYSTEM\ControlSet001\Services\XblAuthManager" /v "Start" /t REG_DWORD /d "3" /f | Out-Null
+	# xbox live game save service regedit
+	reg add "HKLM\SYSTEM\ControlSet001\Services\XblGameSave" /v "Start" /t REG_DWORD /d "3" /f | Out-Null
+	# xbox live networking service regedit
+	reg add "HKLM\SYSTEM\ControlSet001\Services\XboxNetApiSvc" /v "Start" /t REG_DWORD /d "3" /f | Out-Null
+	# ms-gamebar notifications with xbox controller plugged in regedit
+	# create reg file
+	$MultilineComment = @"
+Windows Registry Editor Version 5.00
+
+; ms-gamebar notifications with xbox controller plugged in regedit
+[-HKEY_CLASSES_ROOT\ms-gamebar]
+[-HKEY_CLASSES_ROOT\ms-gamebarservices]
+[-HKEY_CLASSES_ROOT\ms-gamingoverlay\shell]
+
+[HKEY_CLASSES_ROOT\ms-gamingoverlay]
+"URL Protocol"=""
+@="URL:ms-gamingoverlay"
+"@
+	Set-Content -Path "$env:TEMP\MsGamebarNotiOn.reg" -Value $MultilineComment -Force
+	# import reg file
+	Regedit.exe /S "$env:TEMP\MsGamebarNotiOn.reg"
+	# install store, gamebar & xbox apps
+	Get-AppXPackage -AllUsers *Microsoft.GamingApp* | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register -ErrorAction SilentlyContinue "$($_.InstallLocation)\AppXManifest.xml"}
+	Get-AppXPackage -AllUsers *Microsoft.Xbox.TCUI* | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register -ErrorAction SilentlyContinue "$($_.InstallLocation)\AppXManifest.xml"}
+	Get-AppXPackage -AllUsers *Microsoft.XboxApp* | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register -ErrorAction SilentlyContinue "$($_.InstallLocation)\AppXManifest.xml"}
+	Get-AppXPackage -AllUsers *Microsoft.XboxGameOverlay* | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register -ErrorAction SilentlyContinue "$($_.InstallLocation)\AppXManifest.xml"}
+	Get-AppXPackage -AllUsers *Microsoft.XboxGamingOverlay* | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register -ErrorAction SilentlyContinue "$($_.InstallLocation)\AppXManifest.xml"}
+	Get-AppXPackage -AllUsers *Microsoft.XboxIdentityProvider* | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register -ErrorAction SilentlyContinue "$($_.InstallLocation)\AppXManifest.xml"}
+	Get-AppXPackage -AllUsers *Microsoft.XboxSpeechToTextOverlay* | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register -ErrorAction SilentlyContinue "$($_.InstallLocation)\AppXManifest.xml"}
+	Get-AppXPackage -AllUsers *Microsoft.WindowsStore* | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register -ErrorAction SilentlyContinue "$($_.InstallLocation)\AppXManifest.xml"}
+	Get-AppXPackage -AllUsers *Microsoft.Microsoft.StorePurchaseApp * | Foreach {Add-AppxPackage -DisableDevelopmentMode -Register -ErrorAction SilentlyContinue "$($_.InstallLocation)\AppXManifest.xml"}
+	Write-Host "Installing EdgeWebView2..."
+	# download edge webview installer
+	Get-FileFromWeb -URL "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/304fddef-b073-4e0a-b1ff-c2ea02584017/MicrosoftEdgeWebview2Setup.exe" -File "$env:TEMP\EdgeWebView.exe"
+	# start edge webview installer
+	Start-Process -wait "$env:TEMP\EdgeWebView.exe"
+	# download gamebar repair tool
+	Get-FileFromWeb -URL "https://aka.ms/GamingRepairTool" -File "$env:TEMP\GamingRepairTool.exe"
+	# start gamebar repair too
+	Start-Process -wait "$env:TEMP\GamingRepairTool.exe"
 }
 
 function Install-Store {
@@ -7713,6 +7850,8 @@ Size=538,378
 
 function Optimize-Network {
 	# WINDOWS NETWORK OPTIMIZATIONS
+	Write-Host "Optimizing Network..." -ForegroundColor Green
+	irm "https://github.com/HakanFly/WINDOWS-NETWORK-OPTIMIZATIONS/raw/refs/heads/main/W10ANDW11-NETWORK-TCP-DESUBOPTIMIZATION.ps1" | iex *> $null
 	# Disable Teredo
 	Write-Output "Disabling Teredo..."
 	netsh interface teredo set state disabled | Out-Null
@@ -7727,8 +7866,6 @@ function Optimize-Network {
 	"ms_pacer" | ForEach-Object { Disable-NetAdapterBinding -Name "*" -ComponentID $_ }
 	# keep IPv4 and IPv6 enabled
 	Enable-NetAdapterBinding -Name "*" -ComponentID ms_tcpip; Enable-NetAdapterBinding -Name "*" -ComponentID ms_tcpip6 
-	Write-Output "Optimizing Network..."
-	irm "https://github.com/HakanFly/WINDOWS-NETWORK-OPTIMIZATIONS/raw/refs/heads/main/W10ANDW11-NETWORK-TCP-DESUBOPTIMIZATION.ps1" | iex *> $null
 }
 
 function Set-PasswordNeverExpires {
@@ -7925,6 +8062,7 @@ function Reset-DefenderSettings {
 }
 
 function Optimize-Registry {
+	Write-Host "Optimizing Registry..." -ForegroundColor Green
 	$MultilineComment = @'
 Windows Registry Editor Version 5.00
 
@@ -10231,10 +10369,12 @@ E0,F6,C5,D5,0E,CA,50,00,00
 	            Set-ItemProperty -Path $regPath -Name $appTrimmed -Value $binaryValue -Type Binary -Force
 	        }
 	    }
-	} 	
+	} 
+	
 	# Group svchost.exe processes
  	Write-Output "Grouping svchost.exe processes..."
 	$ram = (Get-CimInstance -ClassName Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum).Sum / 1kb; Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control" -Name "SvcHostSplitThresholdInKB" -Type DWord -Value $ram -Force
+	
 	# Enable MSI Mode on all supported Drivers
 	Write-Output "Enabling MSI Mode on all supported Drivers..."
 	$gpuDevices = Get-PnpDevice -Class Display
@@ -10242,26 +10382,33 @@ E0,F6,C5,D5,0E,CA,50,00,00
 		$instanceID = $gpu.InstanceId
 		reg add "HKLM\SYSTEM\ControlSet001\Enum\$instanceID\Device Parameters\Interrupt Management\MessageSignaledInterruptProperties" /v "MSISupported" /t REG_DWORD /d "1" /f | Out-Null
 	}
+	
 	# Fix VMware Tools if present
 	if (Test-Path "C:\Program Files\VMware\VMware Tools\vmtoolsd.exe") { 
  		Write-Output "Fixing VMware Tools..."
   		Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "VMware User Process" -Value '"C:\Program Files\VMware\VMware Tools\vmtoolsd.exe" -n vmusr' | Out-Null
 	}	
+	
 	# Disables automatic disk defragmentation
+	Write-Output "Disabling automatic disk defragmentation..."
 	schtasks /Change /DISABLE /TN "\Microsoft\Windows\Defrag\ScheduledDefrag" | Out-Null
- 	# Allow double-click of .ps1 files via powershell.exe
+ 	
+	# Allow double-click of .ps1 files
+	Write-Output "Allowing double-click execution of .ps1 files ..."
+	# powershell.exe
 	if (-not (Test-Path $regPath)) {
     	New-Item -Path 'HKCR:\Applications\powershell.exe\shell\open\command' -Force | Out-Null
 	}
- 	Set-ItemProperty -Path 'HKCR:\Applications\powershell.exe\shell\open\command' -Name '(default)' -Value 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoLogo -ExecutionPolicy Unrestricted -File "%1"'
- 	# Allow double-click execution of .ps1 files (PowerShell 7)
+ 	Set-ItemProperty -Path 'HKCR:\Applications\powershell.exe\shell\open\command' -Name '(default)' -Value 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoLogo -ExecutionPolicy Unrestricted -File "%1"'	
+	# PowerShell 7
 	$regPathPwsh = 'HKCR:\Applications\pwsh.exe\shell\open\command'
 	if (-not (Test-Path $regPathPwsh)) { New-Item -Path $regPathPwsh -Force | Out-Null }
 	Set-ItemProperty -Path $regPathPwsh -Name '(default)' -Value 'C:\Program Files\PowerShell\7\pwsh.exe -NoLogo -ExecutionPolicy Unrestricted -File "%1"'  
-  	# Download blanc.ico into C:\Windows
+  	
+	Write-Output "Applying miscellaneous Registry tweaks..."
+	# Download blanc.ico into C:\Windows
 	Get-FileFromWeb -URL "https://github.com/benzaria/remove_shortcut_arrow/raw/refs/heads/main/blanc.ico" -File "C:\\Windows\\blanc.ico"
-	Set-Content -Path "$env:TEMP\RegistryOptimize.reg" -Value $MultilineComment -Force
- 	
+	Set-Content -Path "$env:TEMP\RegistryOptimize.reg" -Value $MultilineComment -Force	
   	# edit reg file
 	$path = "$env:TEMP\RegistryOptimize.reg"
 	(Get-Content $path) -replace "\?","$" | Out-File $path
@@ -11205,6 +11352,31 @@ function BCDEdit-Tweaks {
 }
 
 function Personalize-Windows {
+	# Enable transparency
+	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "EnableTransparency" -Value 1
+	
+	# Enable animations
+	Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "UserPreferencesMask" -Value ([byte[]](0x9E,0x3E,0x07,0x80,0x12,0x00,0x00,0x00))
+	
+	# Enable dark mode (apps + system)
+	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "AppsUseLightTheme" -Value 0
+	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "SystemUsesLightTheme" -Value 0
+	
+	# Align taskbar left
+	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced" -Name "TaskbarAl" -Value 0
+	
+	# Set accent color (light orange, RGB 255,165,0)
+	$lightOrange = 255 + (165 * 256) + (0 * 65536)
+	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\DWM" -Name "AccentColor" -Value $lightOrange
+	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "ColorPrevalence" -Value 1
+	
+	# StartAllBack ROG Orb (W11)
+	$Dest="C:\Program Files\StartAllBack\Orbs\rog.png"
+	if (!(Test-Path (Split-Path $Dest))) { New-Item -Path (Split-Path $Dest) -ItemType Directory -Force | Out-Null }
+	iwr "https://github.com/ManueITest/Windows/raw/main/rog.png" -OutFile $Dest	
+	New-Item -Path "HKCU:\Software\StartIsBack" -Force | Out-Null
+	Set-ItemProperty -Path "HKCU:\Software\StartIsBack" -Name "OrbBitmap" -Value "C:\Program Files\StartAllBack\Orbs\rog.png"
+	
 	# ACTIVATE CUSTOM CURSOR
  	Get-FileFromWeB -URL "https://github.com/ManueITest/Windows/raw/refs/heads/main/Cursor.zip" -File "$env:TEMP\Cursor.zip"
 	Expand-Archive "$env:TEMP\Cursor.zip" -Dest "$env:TEMP" -Force
@@ -11259,6 +11431,15 @@ function Personalize-Windows {
 	
 	    [Wallpaper]::SystemParametersInfo(0x0014, 0, $persistentWallpaperPath, 1 -bor 2) | Out-Null
 	} catch {}
+
+	if ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild -ge 22000) {
+		# DisableRoundCorners
+		iwr "https://github.com/valinet/Win11DisableRoundedCorners/releases/latest/download/Win11DisableOrRestoreRoundedCorners.exe" -OutFile "$env:TEMP\Win11DisableOrRestoreRoundedCorners.exe"
+		Start-Process "$env:TEMP\Win11DisableOrRestoreRoundedCorners.exe"
+	} else { $null }
+	
+	# Restart Explorer to apply changes
+	Start-Process explorer
 }
 
 function Install-PowerRun {
@@ -11273,7 +11454,7 @@ function Install-StartAllBack {
 		New-Item $dir -ItemType Directory -Force  *> $null
 		$script=@'
 for ($i = 1; $i -le 3; $i++) {
-    "OneDrive","WidgetService","Widgets","AggregatorHost","RuntimeBroker","MoUsoCoreWorker","UserOOBEBroker","WinStore.App","msedge","TextInputHost","SearchApp","ConnectedUserExperiences","ctfmon","CrossDeviceResume","MicrosoftEdgeUpdate","msedgewebview2","ONENOTEM" | % { Get-Process $_ -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
+    "OneDrive","WidgetService","Widgets","AggregatorHost","RuntimeBroker","MoUsoCoreWorker","UserOOBEBroker","WinStore.App","msedge","TextInputHost","SearchApp","ConnectedUserExperiences","CrossDeviceResume","MicrosoftEdgeUpdate","msedgewebview2","ONENOTEM" | % { Get-Process $_ -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue }
     "MSDTC","VSS","uhssvc","Spooler","WSearch" | % { Stop-Service $_ -Force -ErrorAction SilentlyContinue }
     Start-Sleep -Seconds 1
 }
@@ -11284,13 +11465,16 @@ for ($i = 1; $i -le 3; $i++) {
 		Register-ScheduledTask -TaskName "KillBloatwareAtStartup" -Action $action -Trigger $trigger -RunLevel Highest -User "SYSTEM" -Force *> $null
 	} catch {
 	}
-
+	
+	# StartIsBack (Windows 10)
 	if ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild -le 19045) {
+		Write-Host "Installing StartIsBack..." -ForegroundColor Green
 		$exe="$env:TEMP\StartIsBackPlusPlus_setup.exe"; iwr "https://startisback.sfo3.cdn.digitaloceanspaces.com/StartIsBackPlusPlus_setup.exe" -OutFile $exe
 		start $exe -ArgumentList "/elevated /silent" -Wait
 		Start-Process explorer
-					
-	$MultilineComment = @"
+
+		Write-Host "Applying Registry tweaks..."
+		$MultilineComment = @"
 Windows Registry Editor Version 5.00
 
 [HKEY_CURRENT_USER\SOFTWARE\StartIsBack]
@@ -11360,125 +11544,222 @@ Windows Registry Editor Version 5.00
 "IdealHeight.9"=dword:00020009
 "IdealWidth.9"="Control Panel"
 "@
-	Set-Content -Path "$env:TEMP\StartIsBack.reg" -Value $MultilineComment -Force
-	# edit reg file				
-	$path = "$env:TEMP\StartIsBack.reg"				
-	(Get-Content $path) -replace "\?","$" | Out-File $path				
-	# import reg file				
-	Regedit.exe /S "$env:TEMP\StartIsBack.reg"				
-	}				
+		Set-Content -Path "$env:TEMP\StartIsBack.reg" -Value $MultilineComment -Force
+		# edit reg file				
+		$path = "$env:TEMP\StartIsBack.reg"				
+		(Get-Content $path) -replace "\?","$" | Out-File $path				
+		# import reg file				
+		Regedit.exe /S "$env:TEMP\StartIsBack.reg"
+		
+		<#
+			Start X Back
+			ABOUT.
+				Developed in collaboration with MAS & ASDCORP
+			LINK.
+				https://github.com/WitherOrNot/StartXBack
+		
+		#>
+		function Patch-Exp($DLL) {
+		    $UserDLL = "$Env:LocalAppData\$DLL"
+		    $SystemDLL64 = "$Env:ProgramFiles\$DLL"
+		    $SystemDLL32 = "${Env:ProgramFiles(x86)}\$DLL"
+		
+		    $Paths = @()
+		
+		    if(Test-Path -Path $UserDLL) { $Paths += ,$UserDLL }
+		    if(Test-Path -Path $SystemDLL64) { $Paths += ,$SystemDLL64 }
+		    if(Test-Path -Path $SystemDLL32) { $Paths += ,$SystemDLL32 }
+		
+		    foreach($Path in $Paths) {
+		        $Backup = "$Path.bak"
+		        if(Test-Path -Path $Backup) {
+		            Write-Host "$Path has already been patched! If you wish to restore the unpatched copy, delete $Path and rename $Path.bak to $Path"
+		        } else {
+		            Write-Host "Patching $Path..."
+		            Copy-Item -Path $Path -Destination $Backup
+		            $Bytes = Get-Content $Path -Raw -Encoding Byte
+		            $String = $Bytes.ForEach('ToString', 'X2') -join ' '
+		            $String = $String -replace '\b52 53 41 31 00 04 00 00 03 00 00 00 80 00 00 00 00 00 00 00 00 00 00 00 01 00 01\b(.*)', '52 53 41 31 00 04 00 00 03 00 00 00 80 00 00 00 00 00 00 00 00 00 00 00 00 00 01$1'
+		            [byte[]]$ModifiedBytes = -split $String -replace '^', '0x'
+		            Set-Content -Path $Path -Value $ModifiedBytes -Encoding Byte
+		            Write-Host "Patched $Path"
+		        }
+		    }
+		}
+		
+		function Install-License($registryPath) {
+		    New-Item $registryPath | Out-Null
+		    Set-ItemProperty -Path $registryPath -Name "LicenseHash" -Value "deadbeefdeadbeefdeadbeefdeadbeef" -ErrorAction SilentlyContinue
+		    Set-ItemProperty -Path $registryPath -Name "ActivationData" -Value "deadbeefdeadbeefdeadbeefdeadbeef4e9934f69c3fd8c3e8502a2fd1ab89c2e78671d38a9b97ba313f5eaba6fd420f" -ErrorAction SilentlyContinue
+		    Write-Host "Installed license at $registryPath"
+		}
+		
+		Write-Host "Killing processes..."
+		cmd.exe /c taskkill /f /im explorer.exe | Out-Null
+		cmd.exe /c taskkill /f /im shellhost.exe | Out-Null
+		Stop-Process -Name StartIsBackCfg
+		Stop-Process -Name StartAllBackCfg
+		Sleep 1
+		
+		Write-Host "Patching DLLs..."
+		Patch-Exp "StartIsBack\StartIsBack32.dll"
+		Patch-Exp "StartIsBack\StartIsBack64.dll"
+		Patch-Exp "StartAllBack\StartAllBackX64.dll"
+		
+		Write-Host "Installing licenses"
+		Install-License "HKCU:\Software\StartIsBack\License"
+		Install-License "HKLM:\Software\StartIsBack\License"
+		
+		# Download x86 DLL
+		iwr "https://github.com/WitherOrNot/StartXBack/releases/download/release/version_x86.dll" `
+		    -OutFile "${env:ProgramFiles(x86)}\StartIsBack\version.dll"
+		
+		Write-Host "Done"
+		Start-Process explorer -Force
+	}			
 
+	# StartAllBack (Windows 11)
 	elseif ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild -ge 22000) {
-		$Dest="C:\Program Files\StartAllBack\Orbs\rog.png"
-		if (!(Test-Path (Split-Path $Dest))) { New-Item -Path (Split-Path $Dest) -ItemType Directory -Force | Out-Null }
-		iwr "https://github.com/ManueITest/Windows/raw/main/rog.png" -OutFile $Dest	    
-		# Define target path
-		$SABPath = Join-Path $env:USERPROFILE "Desktop\Post Install\StartAllBack Utility\SABActivator.exe"		
-		# Ensure parent folder exists
-		$parent = Split-Path $SABPath
-		if (-not (Test-Path $parent)) {
-			New-Item -Path $parent -ItemType Directory -Force | Out-Null
-		}	    
-		# Download file
-		Invoke-WebRequest "https://github.com/Aetherinox/utility-startallback/raw/refs/heads/main/bin/Release/app.publish/SABActivator.exe" -OutFile $SABPath
+		Write-Host "Installing StartAllBack..." -ForegroundColor Green
+		# Download and silently install StartAllBack
+		Write-Output "Downloading latest StartAllBack setup..."
+		$installer = "$env:TEMP\StartAllBack_setup.exe"
+		Get-FileFromWeb -URL "https://www.startallback.com/download.php/StartAllBack_setup.exe" -File $installer
+		Write-Output "Installing StartAllBack silently..."
+		Start-Process -FilePath $installer -ArgumentList "/elevated /silent" -Wait
 
-	$batchCode = @'
-@echo off
-setlocal EnableDelayedExpansion
+		# Stop potential blocking processes
+		Write-Output "Terminating potential blocking processes..."
+		Stop-Process -Name explorer,StartAllBack,StartAllBackCfg -Force
+		
+		# Create reg file
+		$MultilineComment = @'
+Windows Registry Editor Version 5.00
 
-powershell -Command "Invoke-WebRequest 'https://www.startallback.com/download.php/StartAllBack_setup.exe' -OutFile '%TEMP%\StartAllBack_setup.exe'"
-start "" /wait "%TEMP%\StartAllBack_setup.exe" /silent
+[HKEY_CURRENT_USER\Software\StartIsBack]
+"AutoUpdates"=dword:00000000
+"SettingsVersion"=dword:00000006
+"WelcomeShown"=dword:00000003
+"UpdateCheck"=hex:a2,06,b2,19,3d,0a,dc,01
+"FrameStyle"=dword:00000000
+"AlterStyle"=""
+"TaskbarStyle"=""
+"SysTrayStyle"=dword:00000000
+"BottomDetails"=dword:00000000
+"Start_LargeAllAppsIcons"=dword:00000000
+"AllProgramsFlyout"=dword:00000000
+"StartMetroAppsFolder"=dword:00000001
+"Start_SortOverride"=dword:0000000a
+"Start_NotifyNewApps"=dword:00000000
+"Start_AutoCascade"=dword:00000000
+"Start_LargeSearchIcons"=dword:00000000
+"Start_AskCortana"=dword:00000000
+"HideUserFrame"=dword:00000001
+"Start_RightPaneIcons"=dword:00000002
+"Start_ShowUser"=dword:00000001
+"Start_ShowMyDocs"=dword:00000001
+"Start_ShowMyPics"=dword:00000001
+"Start_ShowMyMusic"=dword:00000001
+"Start_ShowVideos"=dword:00000000
+"Start_ShowDownloads"=dword:00000001
+"Start_ShowSkyDrive"=dword:00000000
+"StartMenuFavorites"=dword:00000000
+"Start_ShowRecentDocs"=dword:00000000
+"Start_ShowNetPlaces"=dword:00000000
+"Start_ShowNetConn"=dword:00000000
+"Start_ShowMyComputer"=dword:00000001
+"Start_ShowControlPanel"=dword:00000001
+"Start_ShowPCSettings"=dword:00000001
+"Start_AdminToolsRoot"=dword:00000000
+"Start_ShowPrinters"=dword:00000000
+"Start_ShowSetProgramAccessAndDefaults"=dword:00000000
+"Start_ShowTerminal"=dword:00000000
+"Start_ShowCommandPrompt"=dword:00000000
+"Start_ShowRun"=dword:00000001
+"TaskbarSpacierIcons"=dword:fffffffe
+"TaskbarOneSegment"=dword:00000000
+"TaskbarCenterIcons"=dword:00000000
+"FatTaskbar"=dword:00000000
+"TaskbarTranslucentEffect"=dword:00000000
+"Start_MinMFU"=dword:00000009
+"AppsFolderIcon"=hex(2):73,00,68,00,65,00,6c,00,6c,00,33,00,32,00,2e,00,64,00,\
+  6c,00,6c,00,2c,00,33,00,00,00
+"UpdateInfo"=hex:3c,3f,78,6d,6c,20,76,65,72,73,69,6f,6e,3d,22,31,2e,30,22,3f,\
+  3e,0a,3c,55,70,64,61,74,65,20,4e,61,6d,65,3d,22,53,74,61,72,74,41,6c,6c,42,\
+  61,63,6b,20,33,2e,39,2e,31,33,22,20,44,65,73,63,72,69,70,74,69,6f,6e,3d,22,\
+  22,20,44,6f,77,6e,6c,6f,61,64,55,52,4c,3d,22,68,74,74,70,73,3a,2f,2f,73,74,\
+  61,72,74,69,73,62,61,63,6b,2e,73,66,6f,33,2e,63,64,6e,2e,64,69,67,69,74,61,\
+  6c,6f,63,65,61,6e,73,70,61,63,65,73,2e,63,6f,6d,2f,53,74,61,72,74,41,6c,6c,\
+  42,61,63,6b,5f,33,2e,39,2e,31,33,5f,73,65,74,75,70,2e,65,78,65,22,20,4c,65,\
+  61,72,6e,4d,6f,72,65,55,52,4c,3d,22,68,74,74,70,73,3a,2f,2f,77,77,77,2e,73,\
+  74,61,72,74,61,6c,6c,62,61,63,6b,2e,63,6f,6d,2f,22,2f,3e,0a
+"UpdateInfoHash"=dword:92d3cc3c
+"NavBarGlass"=dword:00000000
+"TaskbarAlpha"=dword:00000080
+"SysTrayClockFormat"=dword:00000003
 
-@echo off
-:: StartAllBack Settings
-reg add "HKCU\Software\StartIsBack" /f
-reg add "HKCU\Software\StartIsBack" /v AutoUpdates /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v WinBuild /t REG_DWORD /d 26100 /f
-reg add "HKCU\Software\StartIsBack" /v WinLangID /t REG_DWORD /d 1033 /f
-reg add "HKCU\Software\StartIsBack" /v SettingsVersion /t REG_DWORD /d 6 /f
-reg add "HKCU\Software\StartIsBack" /v WelcomeShown /t REG_DWORD /d 3 /f
-reg add "HKCU\Software\StartIsBack" /v UpdateCheck /t REG_BINARY /d a2,06,b2,19,3d,0a,dc,01 /f
-reg add "HKCU\Software\StartIsBack" /v FrameStyle /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v AlterStyle /t REG_SZ /d "" /f
-reg add "HKCU\Software\StartIsBack" /v TaskbarStyle /t REG_SZ /d "" /f
-reg add "HKCU\Software\StartIsBack" /v SysTrayStyle /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v BottomDetails /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v Start_LargeAllAppsIcons /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v AllProgramsFlyout /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v StartMetroAppsFolder /t REG_DWORD /d 1 /f
-reg add "HKCU\Software\StartIsBack" /v Start_SortOverride /t REG_DWORD /d 10 /f
-reg add "HKCU\Software\StartIsBack" /v Start_NotifyNewApps /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v Start_AutoCascade /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v Start_LargeSearchIcons /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v Start_AskCortana /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v HideUserFrame /t REG_DWORD /d 1 /f
-reg add "HKCU\Software\StartIsBack" /v Start_RightPaneIcons /t REG_DWORD /d 2 /f
-reg add "HKCU\Software\StartIsBack" /v Start_ShowUser /t REG_DWORD /d 1 /f
-reg add "HKCU\Software\StartIsBack" /v Start_ShowMyDocs /t REG_DWORD /d 1 /f
-reg add "HKCU\Software\StartIsBack" /v Start_ShowMyPics /t REG_DWORD /d 1 /f
-reg add "HKCU\Software\StartIsBack" /v Start_ShowMyMusic /t REG_DWORD /d 1 /f
-reg add "HKCU\Software\StartIsBack" /v Start_ShowVideos /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v Start_ShowDownloads /t REG_DWORD /d 1 /f
-reg add "HKCU\Software\StartIsBack" /v Start_ShowSkyDrive /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v StartMenuFavorites /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v Start_ShowRecentDocs /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v Start_ShowNetPlaces /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v Start_ShowNetConn /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v Start_ShowMyComputer /t REG_DWORD /d 1 /f
-reg add "HKCU\Software\StartIsBack" /v Start_ShowControlPanel /t REG_DWORD /d 1 /f
-reg add "HKCU\Software\StartIsBack" /v Start_ShowPCSettings /t REG_DWORD /d 1 /f
-reg add "HKCU\Software\StartIsBack" /v Start_AdminToolsRoot /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v Start_ShowPrinters /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v Start_ShowSetProgramAccessAndDefaults /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v Start_ShowTerminal /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v Start_ShowCommandPrompt /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v Start_ShowRun /t REG_DWORD /d 1 /f
-reg add "HKCU\Software\StartIsBack" /v TaskbarSpacierIcons /t REG_DWORD /d 4294967294 /f
-reg add "HKCU\Software\StartIsBack" /v TaskbarOneSegment /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v TaskbarCenterIcons /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v FatTaskbar /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v TaskbarTranslucentEffect /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v Start_MinMFU /t REG_DWORD /d 9 /f
-reg add "HKCU\Software\StartIsBack" /v NavBarGlass /t REG_DWORD /d 0 /f
-reg add "HKCU\Software\StartIsBack" /v TaskbarAlpha /t REG_DWORD /d 128 /f
-reg add "HKCU\Software\StartIsBack" /v SysTrayClockFormat /t REG_DWORD /d 3 /f
-:: End StartAllBack Settings
+[HKEY_CURRENT_USER\Software\StartIsBack\Cache]
+"OrbWidth.96"=dword:00000028
+"OrbHeight.96"=dword:00000028
+"IdealHeight.6"=dword:00000000
+"IdealHeight.9"=dword:00020009
+"IdealWidth.9"="Control Panel"
 
-:: cleanup + reboot
-shutdown -r -t 3
+[HKEY_CURRENT_USER\Software\StartIsBack\DarkMagic]
 
-:: Delete current user's temp
-del /q /f /s "%TEMP%\*.*"
-rd /s /q "%TEMP%"
+[HKEY_CURRENT_USER\Software\StartIsBack\Taskbaz]
+"Toolbars"=hex:0c,00,00,00,08,00,00,00,01,00,00,00,00,00,00,00,aa,4f,28,68,48,\
+  6a,d0,11,8c,78,00,c0,4f,d9,18,b4,00,00,00,00,40,0d,00,00,00,00,00,00,28,00,\
+  00,00,00,00,00,00,00,00,00,00,28,00,00,00,00,00,00,00,01,00,00,00
+"Settings"=hex:30,00,00,00,fe,ff,ff,ff,02,00,00,00,03,00,00,00,30,00,00,00,28,\
+  00,00,00,00,00,00,00,d8,02,00,00,00,04,00,00,00,03,00,00,60,00,00,00,01,00,\
+  00,00
 
-:: Delete Windows temp
-del /q /f /s "C:\Windows\Temp\*.*"
-rd /s /q "C:\Windows\Temp"
-
-:: Recreate empty temp folders
-mkdir "%TEMP%" >nul 2>&1
-mkdir "C:\Windows\Temp" >nul 2>&1
-
-:: removes the scheduled task after it runs and deletes the batch file itself.
-schtasks /Delete /TN OneTime_StartAllBack_Install /F
-del "%~f0"
-
-endlocal
-exit
+[HKEY_CURRENT_USER\Software\StartIsBack\Recolor]
 '@
-	$batchPath = Join-Path $env:USERPROFILE "Desktop\Install_StartAllBack.bat"
-	Set-Content -Path $batchPath -Value $batchCode -Encoding ASCII
-	
-	# Create a scheduled task that runs once at next logon
-	$taskName = "OneTime_StartAllBack_Install"
-	$batchPath = Join-Path $env:USERPROFILE "Desktop\Install_StartAllBack.bat"
-	
-	# Create scheduled task to run once at next logon
-	$action = New-ScheduledTaskAction -Execute $batchPath
-	$trigger = New-ScheduledTaskTrigger -AtLogOn
-	Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Description "One-time StartAllBack installer" -User $env:USERNAME -RunLevel Highest -Force | Out-Null
-	} else {
-	}		
+		# Apply registry tweaks
+		Write-Output "Applying registry tweaks"
+		$regFile = "$env:TEMP\StartAllBack.reg"
+		Set-Content -Path $regFile -Value $MultilineComment -Force
+		(Get-Content $regFile) -replace "\?","$" | Out-File $regFile
+		reg import $regFile
+		
+		# StartAllBack activator (for educational purpose only) https://github.com/YT-Advanced/SAB
+		Write-Output "Activating StartAllBack..."
+		# $sab = "$env:TEMP\SAB.ps1"
+		# iwr "https://raw.githubusercontent.com/YT-Advanced/SAB/main/SAB.ps1" -OutFile $sab
+		# powershell -ExecutionPolicy Bypass -File $sab
+	  
+		$DLL = "StartAllBack\StartAllBackX64.dll"
+		$UserDLL = "$Env:LocalAppData\$DLL"
+		$SystemDLL64 = "$Env:ProgramFiles\$DLL"
+		$SystemDLL32 = "${Env:ProgramFiles(x86)}\$DLL"
+		$Paths = @()
+		if(Test-Path -Path $UserDLL) { $Paths += ,$UserDLL }
+		if(Test-Path -Path $SystemDLL64) { $Paths += ,$SystemDLL64 }
+		if(Test-Path -Path $SystemDLL32) { $Paths += ,$SystemDLL32 }
+		
+		foreach($Path in $Paths) {
+			$Backup = "$Path.bak"
+			if(Test-Path -Path $Backup) {
+				Remove-Item -Path $Path -Force
+				Rename-Item -Path $Backup -NewName $Path
+			} else {
+				Copy-Item -Path $Path -Destination $Backup
+				$Bytes = Get-Content $Path -Raw -Encoding Byte # Read as ByteStream
+				$String = $Bytes.ForEach('ToString', 'X') -join ' '
+
+				# Replace 
+				$String = $String -replace '\b48 89 5C 24 8 55 56 57 48 8D AC 24 70 FF FF FF\b(.*)', '67 C7 1 1 0 0 0 B8 1 0 0 0 C3 90 90 90$1'
+		
+				[byte[]]$ModifiedBytes = -split $String -replace '^', '0x'
+				Set-Content -Path $Path -Value $ModifiedBytes -Encoding Byte # Save as ByteStream
+			}
+		}	
+		# Restart Explorer
+		Start-Process explorer -Force
+	}	
+	else { $null }	
 }
 
 function Install-7Zip {
@@ -11902,6 +12183,11 @@ if ($DebloatWindows) {
     Remove-Apps
 }
 
+# REMOVE APPS
+if ($RemoveApps) {
+    Remove-Apps
+}
+
 # INSTALL MICROSOFT STORE
 if ($InstallStore) {
 	Install-Store
@@ -12042,7 +12328,7 @@ if ($DisableSecurity) {
  	Disable-Mitigations
 	Write-Output "Disabling UAC..."
 	# Disable UAC
-	
+	Set-ItemProperty -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\System" -Name "EnableLUA" -Value 0 -Type DWord | Out-Null
 }
 
 # Enable SECURITY
