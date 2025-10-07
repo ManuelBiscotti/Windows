@@ -188,7 +188,7 @@ function Invoke-NETDesktopRunAIO {
 function Invoke-ActivateUltimatePlan {
 	# POWER PLAN ACTIVATION
 	# Activate Ultimate Performance Power Plan
-	Write-Output "Activating Ultimate Performance Power Plan..."
+	Write-Host "Activating Ultimate Performance power plan..." -ForegroundColor Green
 	# Import the Ultimate Performance power plan and create a custom duplicate with a fixed GUID
 	cmd /c "powercfg /duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 99999999-9999-9999-9999-999999999999 >nul 2>&1"
 	# Set the custom Ultimate Performance power plan as the active scheme
@@ -274,7 +274,7 @@ function Invoke-DisablePowerSaving {
 		}
 	}
 
-	Write-Host "Disabling Power Saving Features..."
+	Write-Host "Disabling Power Saving features..." -ForegroundColor Green
 		
 	# DISABLE CPU POWER SAVING
  	# Disable power throttling
@@ -561,15 +561,15 @@ function Invoke-Winget {
     # Ensure TLS 1.2 for secure web requests
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
-    Write-Host "`n=== Checking Chocolatey... ===" -ForegroundColor Cyan
-    if (Get-Command choco.exe -ErrorAction SilentlyContinue) {
-        choco upgrade chocolatey -y --ignore-checksums
+    # Install or Update Chocolatey and Winget
+    if (Get-Command choco.exe) {
+        choco upgrade chocolatey -y --ignore-checksums --no-progress --quiet | Out-Null
     } else {
         Write-Host "Installing Chocolatey..." -ForegroundColor Yellow
 
         # Clean old remnants safely
-        Remove-Item "C:\ProgramData\Chocolatey*" -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item "C:\ProgramData\ChocolateyHttpCache" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item "C:\ProgramData\Chocolatey*" -Recurse -Force
+        Remove-Item "C:\ProgramData\ChocolateyHttpCache" -Recurse -Force
         Start-Sleep -Seconds 2
 
         # Install Chocolatey
@@ -577,35 +577,33 @@ function Invoke-Winget {
 
         # Wait until Chocolatey is ready (max 60 sec)
         $timeout = 0
-        while (-not (Get-Command choco.exe -ErrorAction SilentlyContinue) -and $timeout -lt 20) {
+        while (-not (Get-Command choco.exe) -and $timeout -lt 20) {
             Start-Sleep -Seconds 3
             $timeout++
         }
     }
 
-    Write-Host "`n=== Checking Winget... ===" -ForegroundColor Cyan
-    $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+    # Winget
+    $winget = Get-Command winget.exe
     $build = [int](Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild
 
     if ($winget) {
-        choco upgrade winget -y --ignore-checksums
+        choco upgrade winget -y --ignore-checksums -quiet | Out-Null
     } else {
         if ($build -le 19045) {
-            Write-Host "Installing Winget for Windows 10..." -ForegroundColor Yellow
+            Write-Host "Repairing Winget for Windows 10..." -ForegroundColor Green
             Start-Process powershell.exe -ArgumentList @(
                 '-NoProfile',
                 '-ExecutionPolicy', 'Bypass',
                 '-Command', 'Invoke-RestMethod https://asheroto.com/winget | Invoke-Expression'
             ) -Wait
         } elseif ($build -ge 22000) {
-            Write-Host "Installing Winget for Windows 11..." -ForegroundColor Yellow
-            choco install winget -y --force --ignore-checksums
+            Write-Host "Repairing Winget for Windows 11..." -ForegroundColor Green
+            choco install winget -y --force --ignore-checksums --quiet | Out-Null
         } else {
             Write-Warning "Unsupported Windows build: $build"
         }
     }
-
-    Write-Host "`Chocolatey and Winget setup complete." -ForegroundColor Green
 }
 
 # Create Restore Point
@@ -626,7 +624,7 @@ function Invoke-CreateRestorePoint {
     }    
         
     # Check if the SystemRestorePointCreationFrequency value exists
-    $exists = Get-ItemProperty -path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" -Name "SystemRestorePointCreationFrequency" -ErrorAction SilentlyContinue    
+    $exists = Get-ItemProperty -path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" -Name "SystemRestorePointCreationFrequency"    
     if($null -eq $exists) {    
         write-host 'Changing system to allow multiple restore points per day'    
         Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore" -Name "SystemRestorePointCreationFrequency" -Value "0" -Type DWord -Force -ErrorAction Stop | Out-Null    
@@ -659,8 +657,36 @@ function Invoke-CreateRestorePoint {
 
 # Activate Windows
 function Invoke-WinActivation {
+<#
+.SYNOPSIS
+    Activates a permanent Microsoft Digital License for Windows 10/11.
+
+.DESCRIPTION
+    Downloads (irm) and executes (iex) the activation script from the official URL (https://get.activated.win) with the default specified argument (/Z-Windows)
+	Check Windows activation status and only proceeds with activation if Windows is not already activated
+	Fully Open Source and based on Batch scripts
+
+.EXAMPLE
+    iex "& {$((irm https://get.activated.win))} /Z-Windows"
+
+	"HWID"      - Permanent HWID Digital License for Win 10/11
+	"KMS38"     - KMS Activation for Win 10/11/Server until 2038
+	"K-Windows" - Online KMS Activation (180-day renewable)
+	"Z-Windows" - TSforge Permanent Activation for older systems
+
+.NOTES
+	Name: Microsoft Activation Scripts
+	About: Open-source Windows and Office activator
+    Version: Always uses the latest release (https://massgrave.dev/#mas-latest-release)
+    Author: MASSGRAVE
+
+.LINK
+    Website: https://massgrave.dev/
+	Source: https://github.com/massgravel/Microsoft-Activation-Scripts 
+#>
+
 	Write-Host "Activating Windows..." -ForegroundColor Green
-	Invoke-Expression "& {$((Invoke-RestMethod https://get.activated.win))} /HWID"
+	# Permanently activates Windows using the TSforge activation method, 100% open-source and works completely offline. (suitable for older systems and VMs)
 	Invoke-Expression "& {$((Invoke-RestMethod https://get.activated.win))} /Z-Windows"
 }
 
@@ -875,7 +901,7 @@ KEPT.
 	Write-Host "Debloating Windows..." -ForegroundColor Green
 	
     # Remove Universal Windows Platform Apps
-    Write-Output "Removing UWP apps..."
+    Write-Output "Removing UWP Apps..."
 	Get-AppxPackage -AllUsers |
 	Where-Object {
 	    $_.Name -notlike '*NVIDIA*' -and
@@ -888,23 +914,93 @@ KEPT.
 	Remove-AppxPackage
 
 	# Uninstall Remote Desktop Connection
- 	Write-Output "Uninstalling Remote Desktop Connection..."
-	Start-Process "mstsc" -ArgumentList "/Uninstall"
-	Clear-Host
-	# silent window for remote desktop connection
-	$processExists = Get-Process -Name mstsc -ErrorAction SilentlyContinue
-	if ($processExists) {
-	$running = $true
-	do {
-	$openWindows = Get-Process | Where-Object { $_.MainWindowTitle -ne '' } | Select-Object MainWindowTitle
-	foreach ($window in $openWindows) {
-	if ($window.MainWindowTitle -eq 'Remote Desktop Connection') {
-	Stop-Process -Force -Name mstsc -ErrorAction SilentlyContinue | Out-Null
-	$running = $false
+	Write-Output "Uninstalling Remote Desktop Connection..."
+
+
+	function Wait-ProcessWindow {
+	    param($ProcessName, $Timeout = 30)
+	    $startTime = Get-Date
+	    while (((Get-Date) - $startTime).TotalSeconds -lt $Timeout) {
+	        $proc = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
+	        if ($proc -and $proc.MainWindowTitle -ne "") {
+	            return $proc
+	        }
+	        Start-Sleep -Milliseconds 500
+	    }
+	    return $null
 	}
+	
+	function Test-RemoteDesktopInstalled {
+	    try {
+	        # Multiple methods to check if Remote Desktop is installed
+	        $methods = @(
+	            { Get-Command "mstsc.exe" -ErrorAction Stop | Out-Null },
+	            { Test-Path "$env:Windir\System32\mstsc.exe" },
+	            { Get-WindowsCapability -Online -Name "Microsoft.Windows.RemoteDesktop.Client*" -ErrorAction SilentlyContinue | Where-Object { $_.State -eq "Installed" } }
+	        )
+	        
+	        foreach ($method in $methods) {
+	            try {
+	                & $method
+	                return $true
+	            } catch {
+	                continue
+	            }
+	        }
+	        return $false
+	    } catch {
+	        return $true  # Assume installed if we can't determine
+	    }
 	}
-	} while ($running)
-	} else {
+	
+	try {
+	    # Check if Remote Desktop is already uninstalled
+	    if (-not (Test-RemoteDesktopInstalled)) {
+	        Write-Host "Remote Desktop is already uninstalled - skipping process" -ForegroundColor Green
+	    } else {
+	        Write-Host "Starting Remote Desktop uninstall..." -ForegroundColor Yellow
+	        
+	        # Start the uninstall process
+	        $process = Start-Process "mstsc.exe" -ArgumentList "/uninstall" -PassThru -WindowStyle Hidden
+	        
+	        # Wait for the window to appear with timeout
+	        $windowProcess = Wait-ProcessWindow -ProcessName "mstsc" -Timeout 15
+	        
+	        if ($windowProcess) {
+	            # Close the window using the main window handle
+	            Add-Type @"
+	                using System;
+	                using System.Runtime.InteropServices;
+	                public class WindowHelper {
+	                    [DllImport("user32.dll")]
+	                    public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+	                    
+	                    [DllImport("user32.dll")]
+	                    public static extern bool EndDialog(IntPtr hDlg, IntPtr nResult);
+	                    
+	                    public const uint WM_CLOSE = 0x0010;
+	                }
+"@
+	
+	            # Try to close the window gracefully first
+	            [WindowHelper]::SendMessage($windowProcess.MainWindowHandle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+	            
+	            Start-Sleep -Seconds 2
+	            
+	            # If still running, force close
+	            if (!$process.HasExited) {
+	                $process | Stop-Process -Force -ErrorAction SilentlyContinue
+	            }
+	            
+	            # Write-Host "Remote Desktop uninstall completed silently" -ForegroundColor Green
+	        } else {
+	            # Write-Host "No uninstall window detected - process may have completed" -ForegroundColor Yellow
+	        }
+	    }
+	} catch {
+	    # Write-Host "Process completed with notes: $_" -ForegroundColor Yellow
+	} finally {
+	    # Write-Host "Remote Desktop uninstall process finished" -ForegroundColor Cyan
 	}
 
     # Remove Windows Capabilities
@@ -927,7 +1023,7 @@ KEPT.
 	    "Microsoft.Windows.WordPad~~~~0.0.1.0"
 	    "WMIC~~~~0.0.1.0"
 	) | ForEach-Object {
-	    Remove-WindowsCapability -Online -Name $_ -ErrorAction SilentlyContinue | Out-Null
+	    Remove-WindowsCapability -Online -Name $_ | Out-Null
 	}
 
 	# Remove "Character Map" capability app
@@ -1115,17 +1211,31 @@ for ($i = 1; $i -le 3; $i++) {
 	$s.TargetPath="$env:SystemRoot\System32\SystemPropertiesAdvanced.exe"
 	$s.IconLocation="$env:SystemRoot\System32\SystemPropertiesAdvanced.exe"
 	$s.Save() >$null 2>&1
+
+	# Uninstall Microsoft Update Health Tools W11
+	Write-Output "Uninstalling Microsoft Update Health Tools..."
+	cmd /c "MsiExec.exe /X{C6FD611E-7EFE-488C-A0E0-974C09EF6473} /qn >nul 2>&1"
+		
+	# uninstall Microsoft Update Health Tools W10
+	Write-Output "Uninstalling Microsoft Update Health Tools..."		
+	cmd /c "MsiExec.exe /X{1FC1A6C2-576E-489A-9B4A-92D21F542136} /qn >nul 2>&1"	
+	# clean microsoft update health tools w10		
+	cmd /c "reg delete `"HKLM\SYSTEM\ControlSet001\Services\uhssvc`" /f >nul 2>&1"
+	Unregister-ScheduledTask -TaskName PLUGScheduler -Confirm:$false
+		
+	# uninstall update for windows 10 for x64-based systems
+	Write-Output "Uninstalling update for Windows 10 for x64-based systems..."		
+	cmd /c "MsiExec.exe /X{B9A7A138-BFD5-4C73-A269-F78CCA28150E} /qn >nul 2>&1"
+	cmd /c "MsiExec.exe /X{85C69797-7336-4E83-8D97-32A7C8465A3B} /qn >nul 2>&1"
+		
+	# clean adobe type manager w10
+	Write-Output "Cleaning Adobe Type Manager..."
+	cmd /c "reg delete `"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Font Drivers`" /f >nul 2>&1"
 	
   	# Windows 10 Stuff
  	if ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild -le 19045) {
 		Write-Host "Windows 10 Stuff..." -ForegroundColor Cyan
-		# uninstall Microsoft Update Health Tools W10
-		Write-Output "Uninstalling Microsoft Update Health Tools..."		
-		cmd /c "MsiExec.exe /X{1FC1A6C2-576E-489A-9B4A-92D21F542136} /qn >nul 2>&1"	
-		# clean microsoft update health tools w10		
-		cmd /c "reg delete `"HKLM\SYSTEM\ControlSet001\Services\uhssvc`" /f >nul 2>&1"
-		Unregister-ScheduledTask -TaskName PLUGScheduler -Confirm:$false
-		
+	
 		# Disable AppX Deployment Service
 		Write-Output "Disabling AppX Deployment Service..."
 		Set-ItemProperty -Path "HKLM:\SYSTEM\ControlSet001\Services\AppXSvc" -Name "Start" -Value 4 -Type DWord | Out-Null
@@ -1142,15 +1252,6 @@ for ($i = 1; $i -le 3; $i++) {
 		Set-ItemProperty -Path $regPath -Name "VerbHandler" -Value "{f3d06e7c-1e45-4a26-847e-f9fcdee59be0}" | Out-Null
 		Set-ItemProperty -Path $regPath -Name "VerbName" -Value "copyaspath" | Out-Null   		
  		
-		# uninstall update for windows 10 for x64-based systems
-		Write-Output "Uninstalling update for Windows 10 for x64-based systems..."		
-		cmd /c "MsiExec.exe /X{B9A7A138-BFD5-4C73-A269-F78CCA28150E} /qn >nul 2>&1"
-		cmd /c "MsiExec.exe /X{85C69797-7336-4E83-8D97-32A7C8465A3B} /qn >nul 2>&1"
-		
-		# clean adobe type manager w10
-		Write-Output "Cleaning Adobe Type Manager..."
-		cmd /c "reg delete `"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Font Drivers`" /f >nul 2>&1"
-		
 		# Remove "Meet Now" icon from taskbar
 		Write-Output "Removing Meet Now icon from taskbar..."
 		New-Item -Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer" | Out-Null
@@ -1190,10 +1291,6 @@ for ($i = 1; $i -le 3; $i++) {
 
  	# Windows 11 Stuff
   	elseif ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild -ge 22000) {
-   		# Uninstall Microsoft Update Health Tools W11
-		Write-Output "Uninstalling Microsoft Update Health Tools..."
-		cmd /c "MsiExec.exe /X{C6FD611E-7EFE-488C-A0E0-974C09EF6473} /qn >nul 2>&1"
-		
 		# Set Classic Right-Click Menu
 		Write-Output "Setting Classic Right-Click Menu..."
 		New-Item -Path "HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}" -Name "InprocServer32" -force -value "" | Out-Null
@@ -1268,6 +1365,7 @@ for ($i = 1; $i -le 3; $i++) {
 		Write-Output "Found unsupported Winver..." -ForegroundColor Red
 		Timeout /T 5 | Out-Null
 	} 
+
 	Stop-Process -Name explorer -Force | Out-Null
 }
 
@@ -1561,13 +1659,14 @@ function Invoke-RemoveEdge {
 	cmd /c "reg delete `"HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft EdgeWebView`" /f >nul 2>&1"
 	cmd /c "reg delete `"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\Microsoft EdgeWebView`" /f >nul 2>&1"
 	# remove folders edge edgecore edgeupdate edgewebview temp
-	Remove-Item -Recurse -Force "$env:SystemDrive\Program Files (x86)\Microsoft" -ErrorAction SilentlyContinue | Out-Null
+	Remove-Item -Recurse -Force "$env:SystemDrive\Program Files (x86)\Microsoft" | Out-Null
 #>
 }
 
 # Remove Xbox Gamebar
 function Invoke-RemoveGaming {
-	Write-Output "Disbaling Xbox Game Bar..."
+	Write-Host "Removing Windows Gaming..." -ForegroundColor Green
+	Write-Output "Disabling Xbox & Game Bar features..."
 	# disable gamebar regedit
 	reg add "HKCU\System\GameConfigStore" /v "GameDVR_Enabled" /t REG_DWORD /d "0" /f | Out-Null
 	reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\GameDVR" /v "AppCaptureEnabled" /t REG_DWORD /d "0" /f | Out-Null
@@ -1619,8 +1718,9 @@ Windows Registry Editor Version 5.00
 	# import reg file
 	Regedit.exe /S "$env:TEMP\MsGamebarNotiOff.reg"
 	# stop gamebar running
-	Stop-Process -Force -Name GameBar -ErrorAction SilentlyContinue | Out-Null
+	Stop-Process -Force -Name GameBar | Out-Null
 	# uninstall gamebar & xbox apps
+	Write-Output "Removing Xbox & Game Bar Apps..."
 	Get-AppxPackage -allusers *Microsoft.GamingApp* | Remove-AppxPackage
 	Get-AppxPackage -allusers *Microsoft.Xbox.TCUI* | Remove-AppxPackage
 	Get-AppxPackage -allusers *Microsoft.XboxApp* | Remove-AppxPackage
@@ -1633,8 +1733,8 @@ Windows Registry Editor Version 5.00
 function Invoke-DisableWidgets {
 	# Disable Widgets W11
 	# Stop Widgets running
-	Stop-Process -Force -Name Widgets -ErrorAction SilentlyContinue | Out-Null
-	Stop-Process -Force -Name WidgetService -ErrorAction SilentlyContinue | Out-Null
+	Stop-Process -Force -Name Widgets | Out-Null
+	Stop-Process -Force -Name WidgetService | Out-Null
 	reg add "HKLM\SOFTWARE\Microsoft\PolicyManager\default\NewsAndInterests\AllowNewsAndInterests" /v "value" /t REG_DWORD /d "0" /f | Out-Null
 	# remove windows widgets from taskbar regedit
 	reg add "HKLM\SOFTWARE\Policies\Microsoft\Dsh" /v "AllowNewsAndInterests" /t REG_DWORD /d "0" /f | Out-Null
@@ -1646,7 +1746,7 @@ function Invoke-DisableWidgets {
 
 # Remove Windows AI
 function Invoke-RemoveWindowsAI {
-    Write-Output "Removing Windows AI..."
+    Write-Host "Removing Windows AI..." -ForegroundColor Green
 	# Create a response file with multiple "N" answers
 	$responses = ("N" * 20) -join "`r`n"
 	Set-Content -Path "$env:TEMP\responses.txt" -Value $responses | Out-Null
@@ -1669,58 +1769,75 @@ function Invoke-RemoveWindowsAI {
 }
 
 function Invoke-PauseUpdates {
-    # Pause Windows updates
-    Write-Output "Pausing Windows Updates for a long period of time..."
+    Write-Host "Pausing Windows Updates for a long period of time..." -ForegroundColor Green
     Write-Output "Extending updates delay beyond 35 days..."
     Write-Output "Disabling automatic updates..."
 
     $reg = Join-Path $env:TEMP 'windows-updates-pause.reg'
-
-    # Download .reg file safely
     Invoke-WebRequest -Uri 'https://github.com/Aetherinox/pause-windows-updates/raw/refs/heads/main/windows-updates-pause.reg' -OutFile $reg -UseBasicParsing
-
-    # Import registry file
     Start-Process reg.exe -ArgumentList "import `"$reg`"" -NoNewWindow -Wait | Out-Null
 
-    # Additional Windows Update configuration
-    Write-Output "Disabling driver offering through Windows Update..."
-    Write-Output "Disabling Windows Update automatic restart..."
-    Write-Output "Setting Windows Update to Semi-Annual Channel..."
-    Write-Output "Deferring feature updates for 365 days..."
-    Write-Output "Deferring quality updates for 4 days..."
+	# Setting Security Updates only
+	$batchCode = @'
+<# :
 
-    $ps1 = Join-Path $env:TEMP 'Invoke-WPFUpdatessecurity.ps1'
+:: Developed in collaboration with MAS & ASDCORP
 
-    # Download the secondary script
-    Invoke-WebRequest -Uri 'https://github.com/ChrisTitusTech/winutil/raw/refs/heads/main/functions/public/Invoke-WPFUpdatessecurity.ps1' -OutFile $ps1 -UseBasicParsing
+@setlocal DisableDelayedExpansion
+@echo off
 
-    # Dot-source and invoke the function if it exists
-    . "$ps1"
-    if (Get-Command Invoke-WPFUpdatessecurity -ErrorAction SilentlyContinue) {
-        # Invoke-WPFUpdatessecurity
-    } else {
-        Write-Output "Invoke-WPFUpdatessecurity function not found in script."
-    }
+echo "%*" | find /i "-el" >nul && set _elev=1
+
+set _PSarg="""%~f0""" -el
+
+setlocal EnableDelayedExpansion
+
+>nul fltmc || (
+if not defined _elev powershell "start cmd.exe -arg '/c \"!_PSarg:'=''!\"' -verb runas" && exit /b
+echo.
+echo This script require administrator privileges.
+echo To do so, right click on this script and select 'Run as administrator'.
+pause
+exit /b
+)
+
+set "psScript=%~f0" & powershell -nop -c "Get-Content """$env:psScript""" -Raw | iex" & exit /b
+: #>
+
+$ps1 = Join-Path $env:TEMP 'Invoke-WPFUpdatessecurity.ps1'
+Invoke-WebRequest -Uri 'https://github.com/ChrisTitusTech/winutil/raw/refs/heads/main/functions/public/Invoke-WPFUpdatessecurity.ps1' -OutFile $ps1 -UseBasicParsing
+# Remove all messagebox lines
+(Get-Content $ps1) | Where-Object {$_ -notmatch '\[System\.Windows\.MessageBox'} | Set-Content -Path $ps1 -Encoding UTF8
+. "$ps1"
+if (Get-Command Invoke-WPFUpdatessecurity -ErrorAction SilentlyContinue) {
+    Invoke-WPFUpdatessecurity
 }
+'@
+
+	$batPath = "$env:TEMP\Invoke-WPFUpdatessecurity.bat"
+	Set-Content -Path $batPath -Value $batchCode -Encoding ASCII
+	Start-Process -FilePath $batPath -Wait -NoNewWindow
+}
+
 
 
 
 # Disable Updates
 function Invoke-DisableUpdates {
-	Write-Host "Disabling Updates..." -ForegroundColor Green
-
-	$batch = Join-Path $env:TEMP 'disable-updates.bat'
-	Invoke-WebRequest -Uri 'https://github.com/tsgrgo/windows-update-disabler/raw/refs/heads/main/disable%20updates.bat' -OutFile $batch 
-	
-	(Get-Content $batch) |
-	  Where-Object {
-	    $_ -notmatch 'if not "%1"=="admin"' -and
-	    $_ -notmatch 'if not "%2"=="system"' -and
-	    $_ -notmatch '^\s*pause\s*$'
-	  } |
-	  Set-Content -Path $batch -Encoding ASCII
-	
-	RunAsTI -TargetPath $batch -Wait
+    Write-Host "Disabling Updates..." -ForegroundColor Green
+    $batch = Join-Path $env:TEMP 'disable-updates.bat'
+    Invoke-WebRequest -Uri 'https://github.com/tsgrgo/windows-update-disabler/raw/refs/heads/main/disable%20updates.bat' -OutFile $batch -ErrorAction SilentlyContinue
+    
+    (Get-Content $batch) | Where-Object {
+        $_ -notmatch 'if not "%1"=="admin"' -and $_ -notmatch 'if not "%2"=="system"' -and $_ -notmatch '^\s*pause\s*$'
+    } | Set-Content -Path $batch -Encoding ASCII
+    
+    RunAsTI $batch ""
+    
+    do {
+        Start-Sleep -Seconds 2
+        $processes = Get-WmiObject Win32_Process -Filter "Name='cmd.exe'" 2>$null | Where-Object { $_.CommandLine -like "*disable-updates.bat*" }
+    } while ($processes)
 }
 
 # Enable Updates
@@ -3815,6 +3932,462 @@ E0,F6,C5,D5,0E,CA,50,00,00
 
 
 
+; MEDIA PLAYER
+
+
+; Created by imribiy
+; https://github.com/imribiy
+; https://discord.gg/XTYEjZNPgX
+
+; This reg file automatically applies Media Player setup phase as you would like to complete, no document history, no data sharing. Can be implemented to the ISOs.
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Health]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Player]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Player\Skins]
+"LastViewModeVTen"=dword:00000002
+"SkinX"=dword:00000000
+"SkinY"=dword:00000000
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Player\Skins\res://wmploc/RT_TEXT/player.wsz]
+"Prefs"="currentMetadataIconV11;0;FirstRun;0;ap;False;max;False"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Player\Tasks]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Player\Tasks\NowPlaying]
+"InitFlags"=dword:00000001
+"ShowHorizontalSeparator"=dword:00000001
+"ShowVerticalSeparator"=dword:00000001
+"PlaylistWidth"=dword:000000ba
+"PlaylistHeight"=dword:00000064
+"SettingsWidth"=dword:00000064
+"SettingsHeight"=dword:00000087
+"MetadataWidth"=dword:000000ba
+"MetadataHeight"=dword:000000a0
+"CaptionsHeight"=dword:00000064
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Preferences]
+"AutoMetadataCurrent503ServerErrorCount"=dword:00000000
+"AutoMetadataCurrentOtherServerErrorCount"=dword:00000000
+"AutoMetadataCurrentNetworkErrorCount"=dword:00000000
+"AutoMetadataLastResetTime"=dword:293e214e
+"SyncPlaylistsAdded"=dword:00000001
+"MLSChangeIndexMusic"=dword:00000000
+"MLSChangeIndexVideo"=dword:00000000
+"MLSChangeIndexPhoto"=dword:00000000
+"MLSChangeIndexList"=dword:00000000
+"MLSChangeIndexOther"=dword:00000000
+"LibraryHasBeenRun"=dword:00000000
+"FirstRun"=dword:00000000
+"NextLaunchIndex"=dword:00000002
+"XV11"="256"
+"YV11"="144"
+"WidthV11"="2048"
+"HeightV11"="1152"
+"Maximized"="0"
+"Volume"=dword:00000032
+"ModeShuffle"=dword:00000000
+"DisableMRUMusic"=dword:00000001
+"Mute"=dword:00000000
+"Balance"=dword:00000000
+"CurrentEffectType"="Bars"
+"CurrentEffectPreset"=dword:00000003
+"VideoZoom"=dword:00000064
+"AutoMetadataCurrent500ServerErrorCount"=dword:00000000
+"StretchToFit"=dword:00000001
+"ShowEffects"=dword:00000001
+"ShowFullScreenPlaylist"=dword:00000000
+"NowPlayingQuickHide"=dword:00000000
+"ShowTitles"=dword:00000001
+"ShowCaptions"=dword:00000000
+"NowPlayingPlaylist"=dword:00000001
+"NowPlayingMetadata"=dword:00000001
+"NowPlayingSettings"=dword:00000000
+"CurrentDisplayView"="VideoView"
+"CurrentSettingsView"="EQView"
+"CurrentMetadataView"="MediaInfoView"
+"CurrentDisplayPreset"=dword:00000000
+"CurrentSettingsPreset"=dword:00000000
+"CurrentMetadataPreset"=dword:00000000
+"UserDisplayView"="VizView"
+"UserWMPDisplayView"="VizView"
+"UserWMPSettingsView"="EQView"
+"UserWMPMetadataView"="MediaInfoView"
+"UserDisplayPreset"=dword:00000000
+"UserWMPDisplayPreset"=dword:00000000
+"UserWMPSettingsPreset"=dword:00000000
+"UserWMPMetadataPreset"=dword:00000000
+"UserWMPShowSettings"=dword:00000000
+"UserWMPShowMetadata"=dword:00000000
+"ShowAlbumArt"=dword:00000000
+"AutoMetadataCurrentDownloadCount"=dword:00000000
+"MediaLibraryCreateNewDatabase"=dword:00000000
+"TranscodedFilesCacheDefaultSizeSet"=dword:00000001
+"TranscodedFilesCacheSize"=dword:00002a5e
+"LastScreensaverTimeout"=dword:00003a98
+"LastScreensaverState"=dword:00000005
+"LastScreensaverSetThreadExecutionState"=dword:80000003
+"AppColorLimited"=dword:00000000
+"SQMLaunchIndex"=dword:00000001
+"LaunchIndex"=dword:00000001
+"DisableMRUVideo"=dword:00000001
+"DisableMRUPlaylists"=dword:00000001
+"ShrinkToFit"=dword:00000000
+"DisableMRUPictures"=dword:00000001
+"UsageTracking"=dword:00000000
+"SilentAcquisition"=dword:00000000
+"SendUserGUID"=hex(3):00
+"MetadataRetrieval"=dword:00000000
+"AcceptedPrivacyStatement"=dword:00000001
+"ModeLoop"=dword:00000000
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Preferences\EqualizerSettings]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Preferences\HME]
+"LocalLibraryID"="{95ADD7BE-43A3-4FD9-A4C8-453B88711A10}"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Preferences\ProxySettings]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Preferences\ProxySettings\HTTP]
+"ProxyName"=""
+"ProxyPort"=dword:00000050
+"ProxyExclude"=""
+"ProxyBypass"=dword:00000000
+"ProxyStyle"=dword:00000001
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Preferences\ProxySettings\RTSP]
+"ProxyStyle"=dword:00000000
+"ProxyName"=""
+"ProxyPort"=dword:0000022a
+"ProxyBypass"=dword:00000000
+"ProxyExclude"=""
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Preferences\VideoSettings]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\UIPlugins]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\UIPlugins\{1F32514F-1561-4922-A604-8A1F478B5A42}]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\UIPlugins\{52903d79-f993-4de6-8317-20c9c176d823}]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\UIPlugins\{5DF031B7-6A37-42D9-8802-E27F4F224332}]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\UIPlugins\{5F4BB5C9-4652-489B-8601-EEC0C3C32E2E}]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\UIPlugins\{7F2B1D6B-1357-402C-A1C8-67E59583B41D}]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\UIPlugins\{93075F62-16B3-43EC-A53B-FFAD0E01D5E7}]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\UIPlugins\{9695AEF9-9D03-4671-8F2F-FF49D1BB01C4}]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\UIPlugins\{976ABECA-93F7-4d81-9187-2A6137829675}]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\UIPlugins\{99DB05E3-F81E-4C8A-A252-F396306AB6FE}]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\UIPlugins\{9F9562EB-15B6-46C6-A7CB-0A66FC65130E}]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\UIPlugins\{9FA014E3-076F-4865-A73C-117131B8E292}]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\UIPlugins\{C1B5977D-9801-4D80-8592-143A044568AF}]
+"AttemptedAutoRun"=dword:00000001
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\UIPlugins\{D5E49195-ED19-40fb-9EE0-E6625A808B77}]
+"AttemptedAutoRun"=dword:00000001
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\UIPlugins\{E641D09E-E500-4c09-8260-F1CD7B902E9C}]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\UIPlugins\{F24A1BC2-2331-4B91-8A13-5A549DA56E9D}]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\UIPlugins\{FD981763-B6BB-4d51-9143-6D372A0ED56F}]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows Media]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows Media\WMSDK]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows Media\WMSDK\General]
+"UniqueID"="{326EA348-9669-4511-8B5D-82373066F6FB}"
+"VolumeSerialNumber"=dword:5acb5c10
+"ComputerName"="XOS"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows Media\WMSDK\Namespace]
+"DTDFile"="C:\\Users\\Administrator\\AppData\\Local\\Microsoft\\Windows Media\\12.0\\WMSDKNS.DTD"
+"LocalDelta"="C:\\Users\\Administrator\\AppData\\Local\\Microsoft\\Windows Media\\12.0\\WMSDKNSD.XML"
+"RemoteDelta"="C:\\Users\\Administrator\\AppData\\Local\\Microsoft\\Windows Media\\12.0\\WMSDKNSR.XML"
+"LocalBase"="C:\\Users\\Administrator\\AppData\\Local\\Microsoft\\Windows Media\\12.0\\WMSDKNS.XML"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Search\JumplistData]
+"Microsoft.Windows.MediaPlayer32"=hex(b):E8,DF,57,F3,0D,E9,D7,01
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\application/vnd.ms-wpl]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\application/vnd.ms-wpl\UserChoice]
+"Progid"="WMP11.AssocMIME.WPL"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\application/x-mplayer2]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\application/x-mplayer2\UserChoice]
+"Progid"="WMP11.AssocMIME.ASF"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\application/x-ms-wmd]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\application/x-ms-wmd\UserChoice]
+"Progid"="WMP11.AssocMIME.WMD"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\application/x-ms-wmz]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\application/x-ms-wmz\UserChoice]
+"Progid"="WMP11.AssocMIME.WMZ"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/3gpp]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/3gpp2]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/3gpp2\UserChoice]
+"Progid"="WMP11.AssocMIME.3G2"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/3gpp\UserChoice]
+"Progid"="WMP11.AssocMIME.3GP"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/aiff]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/aiff\UserChoice]
+"Progid"="WMP11.AssocMIME.AIFF"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/basic]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/basic\UserChoice]
+"Progid"="WMP11.AssocMIME.AU"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/mid]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/mid\UserChoice]
+"Progid"="WMP11.AssocMIME.MIDI"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/midi]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/midi\UserChoice]
+"Progid"="WMP11.AssocMIME.MIDI"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/mp3]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/mp3\UserChoice]
+"Progid"="WMP11.AssocMIME.MP3"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/mp4]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/mp4\UserChoice]
+"Progid"="WMP11.AssocMIME.M4A"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/mpeg]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/mpeg\UserChoice]
+"Progid"="WMP11.AssocMIME.MP3"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/mpegurl]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/mpegurl\UserChoice]
+"Progid"="WMP11.AssocMIME.M3U"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/mpg]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/mpg\UserChoice]
+"Progid"="WMP11.AssocMIME.MP3"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/vnd.dlna.adts]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/vnd.dlna.adts\UserChoice]
+"Progid"="WMP11.AssocMIME.ADTS"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/wav]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/wav\UserChoice]
+"Progid"="WMP11.AssocMIME.WAV"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-aiff]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-aiff\UserChoice]
+"Progid"="WMP11.AssocMIME.AIFF"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-flac]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-flac\UserChoice]
+"Progid"="WMP11.AssocMIME.FLAC"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-matroska]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-matroska\UserChoice]
+"Progid"="WMP11.AssocMIME.MKA"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-mid]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-mid\UserChoice]
+"Progid"="WMP11.AssocMIME.MIDI"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-midi]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-midi\UserChoice]
+"Progid"="WMP11.AssocMIME.MIDI"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-mp3]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-mp3\UserChoice]
+"Progid"="WMP11.AssocMIME.MP3"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-mpeg]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-mpeg\UserChoice]
+"Progid"="WMP11.AssocMIME.MP3"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-mpegurl]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-mpegurl\UserChoice]
+"Progid"="WMP11.AssocMIME.M3U"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-mpg]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-mpg\UserChoice]
+"Progid"="WMP11.AssocMIME.MP3"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-ms-wax]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-ms-wax\UserChoice]
+"Progid"="WMP11.AssocMIME.WAX"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-ms-wma]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-ms-wma\UserChoice]
+"Progid"="WMP11.AssocMIME.WMA"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-wav]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-wav\UserChoice]
+"Progid"="WMP11.AssocMIME.WAV"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\midi/mid]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\midi/mid\UserChoice]
+"Progid"="WMP11.AssocMIME.MIDI"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/3gpp]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/3gpp2]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/3gpp2\UserChoice]
+"Progid"="WMP11.AssocMIME.3G2"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/3gpp\UserChoice]
+"Progid"="WMP11.AssocMIME.3GP"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/avi]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/avi\UserChoice]
+"Progid"="WMP11.AssocMIME.AVI"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/mp4]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/mp4\UserChoice]
+"Progid"="WMP11.AssocMIME.MP4"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/mpeg]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/mpeg\UserChoice]
+"Progid"="WMP11.AssocMIME.MPEG"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/mpg]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/mpg\UserChoice]
+"Progid"="WMP11.AssocMIME.MPEG"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/msvideo]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/msvideo\UserChoice]
+"Progid"="WMP11.AssocMIME.AVI"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/quicktime]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/quicktime\UserChoice]
+"Progid"="WMP11.AssocMIME.MOV"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/vnd.dlna.mpeg-tts]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/vnd.dlna.mpeg-tts\UserChoice]
+"Progid"="WMP11.AssocMIME.TTS"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-matroska]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-matroska-3d]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-matroska-3d\UserChoice]
+"Progid"="WMP11.AssocMIME.MK3D"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-matroska\UserChoice]
+"Progid"="WMP11.AssocMIME.MKV"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-mpeg]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-mpeg2a]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-mpeg2a\UserChoice]
+"Progid"="WMP11.AssocMIME.MPEG"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-mpeg\UserChoice]
+"Progid"="WMP11.AssocMIME.MPEG"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-ms-asf]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-ms-asf-plugin]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-ms-asf-plugin\UserChoice]
+"Progid"="WMP11.AssocMIME.ASX"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-ms-asf\UserChoice]
+"Progid"="WMP11.AssocMIME.ASX"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-ms-wm]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-ms-wm\UserChoice]
+"Progid"="WMP11.AssocMIME.ASF"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-ms-wmv]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-ms-wmv\UserChoice]
+"Progid"="WMP11.AssocMIME.WMV"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-ms-wmx]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-ms-wmx\UserChoice]
+"Progid"="WMP11.AssocMIME.ASX"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-ms-wvx]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-ms-wvx\UserChoice]
+"Progid"="WMP11.AssocMIME.WVX"
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-msvideo]
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/x-msvideo\UserChoice]
+"Progid"="WMP11.AssocMIME.AVI"
+
+; prevent-media-sharing
+[HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Policies\Microsoft\WindowsMediaPlayer]
+"PreventLibrarySharing"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WindowsMediaPlayer]
+"PreventLibrarySharing"=dword:00000001
+
+;prevent-windows-media-drm-internet-access-reg
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\WMDRM]
+"DisableOnline"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Wow6432Node\Policies\Microsoft\WMDRM]
+"DisableOnline"=dword:00000001
+
+
+
+
 ; POWERSHELL
 ; allow powershell scripts
 [HKEY_CURRENT_USER\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell]
@@ -3846,16 +4419,16 @@ E0,F6,C5,D5,0E,CA,50,00,00
 	# Unpin all taskbar icons
 	# Write-Output "Unpinning all taskbar icons..."
 	# cmd /c "reg delete HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Taskband /f >nul 2>&1"
-	# Remove-Item -Recurse -Force "$env:USERPROFILE\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch" -ErrorAction SilentlyContinue | Out-Null
-	# New-Item "$env:USERPROFILE\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar" -ItemType Directory -Force -ErrorAction SilentlyContinue | Out-Null
-	# New-Item "$env:USERPROFILE\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\User Pinned\ImplicitAppShortcuts" -ItemType Directory -Force -ErrorAction SilentlyContinue | Out-Null
+	# Remove-Item -Recurse -Force "$env:USERPROFILE\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch" | Out-Null
+	# New-Item "$env:USERPROFILE\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar" -ItemType Directory -Force | Out-Null
+	# New-Item "$env:USERPROFILE\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\User Pinned\ImplicitAppShortcuts" -ItemType Directory -Force | Out-Null
 
 	# Disable BitLocker
 	Write-Output "Disabling BitLocker..."
 	# Disable BitLocker on C:
-	Disable-BitLocker -MountPoint "C:" 2>&1 | Out-Null -ErrorAction SilentlyContinue
+	Disable-BitLocker -MountPoint "C:" 2>&1 | Out-Null
 	# Disable Device Encryption via registry
-	New-Item -Path "HKLM:\System\CurrentControlSet\Control" -Name "BitLocker" -Force 2>&1 | Out-Null -ErrorAction SilentlyContinue
+	New-Item -Path "HKLM:\System\CurrentControlSet\Control" -Name "BitLocker" -Force 2>&1 | Out-Null
 	Set-ItemProperty -Path "HKLM:\System\CurrentControlSet\Control\BitLocker" -Name "PreventDeviceEncryption" -Type DWord -Value 1
 	# Disable EFS (Encrypting File System)
 	fsutil behavior set disableencryption 1 | Out-Null
@@ -3897,7 +4470,7 @@ E0,F6,C5,D5,0E,CA,50,00,00
 	} 
 
 	# Unlock all power settings options
-	Get-ChildItem 'HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings' -Recurse | ForEach-Object { if (Get-ItemProperty $_.PSPath -Name Attributes -ErrorAction SilentlyContinue) { Set-ItemProperty $_.PSPath -Name Attributes -Value 0 } }
+	Get-ChildItem 'HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerSettings' -Recurse | ForEach-Object { if (Get-ItemProperty $_.PSPath -Name Attributes) { Set-ItemProperty $_.PSPath -Name Attributes -Value 0 } }
 	
 	# Group svchost.exe processes
  	Write-Output "Grouping svchost.exe processes..."
@@ -7784,6 +8357,49 @@ _dpctimeout"=-
 
 
 
+; MEDIA PLAYER
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Health]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Player]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Player\Skins]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Player\Tasks]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Preferences]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Preferences\EqualizerSettings]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Preferences\HME]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\Preferences\ProxySettings]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\MediaPlayer\UIPlugins]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows Media]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows Media\WMSDK]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows Media\WMSDK\General]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows Media\WMSDK\Namespace]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Search\JumplistData\Microsoft.Windows.MediaPlayer32]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\application/vnd.ms-wpl]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\application/x-mplayer2]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\application/x-ms-wmd]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\application/x-ms-wmz]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/3gpp]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/3gpp2]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/aiff]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/basic]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/mid]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/midi]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/mp3]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/mp4]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/mpeg]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/mpegurl]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-mpegurl]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-wav]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\midi/mid]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\audio/x-matroska]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/3gpp]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/3gpp2]
+[-HKEY_CURRENT_USER\Software\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/mp4]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/mpeg]
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/mpg]
+[-HKEY_CURRENT_USER\Software\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/msvideo]
+[-HKEY_CURRENT_USER\Software\Microsoft\Windows\Shell\Associations\MIMEAssociations\video/quicktime]
+
+
+
 
 ; POWERSHELL
 ; disallow powershell scripts
@@ -7800,7 +8416,7 @@ _dpctimeout"=-
 
 	# Default signout Lockscreen
 	# delete image
-	Remove-Item -Recurse -Force "C:\Windows\Black.jpg" -ErrorAction SilentlyContinue | Out-Null
+	Remove-Item -Recurse -Force "C:\Windows\Black.jpg" | Out-Null
 	# revert image settings
 	cmd /c "reg delete `"HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\PersonalizationCSP`" /f >nul 2>&1"
 
@@ -8726,7 +9342,7 @@ Windows Registry Editor Version 5.00
 [HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\RtkAudioUniversalService]
 "Start"=dword:00000004
 '@
-	Write-Output "Disabling unnecessary services..."
+	Write-Host "Disabling unnecessary services..." -ForegroundColor Green
 	Set-Content -Path "$env:TEMP\ServicesOff.reg" -Value $MultilineComment -Force
 
 	# disable services RunAsTI
@@ -10713,7 +11329,24 @@ function Invoke-DisableDefenderV2 {
 	$batContent = @"
 @echo off
 setlocal enabledelayedexpansion
-	
+
+:: Method 1: Normal deletion
+schtasks /Delete /TN "AchillesAutoRunOnce" /F >nul 2>&1
+
+:: Method 2: Using wildcard (sometimes works if task hidden)
+schtasks /Delete /TN "*AchillesAutoRunOnce*" /F >nul 2>&1
+
+:: Method 3: Force via PowerShell
+powershell -NoProfile -Command "Try { Unregister-ScheduledTask -TaskName 'AchillesAutoRunOnce' -Confirm:\$false -ErrorAction SilentlyContinue } Catch {}"
+
+:: Method 4: Kill task if running
+for /f "tokens=*" %%i in ('schtasks /Query /TN "AchillesAutoRunOnce" /FO LIST 2^>nul') do (
+    taskkill /F /FI "WINDOWTITLE eq %%i" >nul 2>&1
+)
+
+:: Method 5: Remove any leftover files (optional)
+del "%SystemRoot%\System32\Tasks\AchillesAutoRunOnce" /F /Q >nul 2>&1
+
 :: Set temp path
 set "temp=%temp%\AchillesScript.cmd"
 	
@@ -10728,8 +11361,21 @@ REM set NoSecHealth=1
 :: Run AchillesScript silently (Policies + Settings + Services + Blocking)
 cmd /c "%temp% apply 4"
 	
-:: Self-delete after completion
-del "%~f0" /f /q
+:: --- aggressive self-delete attempts (multiple methods) ---
+:: 1) immediate delete
+del "%~f0" /f /q 2>nul
+
+:: 2) attempt via PowerShell (delayed)
+powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep -Seconds 2; Remove-Item -LiteralPath '%~f0' -Force -ErrorAction SilentlyContinue" 2>nul
+
+:: 3) take ownership + icacls then delete
+takeown /f "%~f0" >nul 2>&1
+icacls "%~f0" /grant "%USERNAME%:F" >nul 2>&1
+del "%~f0" /f /q 2>nul
+
+:: 4) detached cmd fallback to delete after short delay
+start "" cmd /c "timeout /t 3 /nobreak >nul & del /f /q "%~f0" & exit"
+
 exit /b
 "@
 	# Write batch file to Desktop
@@ -10740,7 +11386,8 @@ exit /b
 	$trigger = New-ScheduledTaskTrigger -AtStartup
 	$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
 
-	Register-ScheduledTask -TaskName "AchillesAutoRunOnce" -Action $action -Trigger $trigger -Principal $principal -Description "Run AchillesScript once after reboot" -Force
+	Register-ScheduledTask -TaskName "AchillesAutoRunOnce" -Action $action -Trigger $trigger -Principal $principal -Description "Run AchillesScript once after reboot" -Force | Out-Null
+
 }
 
 function Invoke-DisableDefenderV3 {
@@ -10883,7 +11530,7 @@ sc config "wscsvc" start= disabled >nul 2>&1
 sc config "webthreatdefsvc" start= disabled >nul 2>&1
 
 :: webthreatdefusersvc may have a suffix — disable all matches via PowerShell
-powershell -NoProfile -Command "Get-Service -Name 'webthreatdefusersvc*' -ErrorAction SilentlyContinue | ForEach-Object { & sc.exe config $_.Name start= disabled }" >nul 2>&1
+powershell -NoProfile -Command "Get-Service -Name 'webthreatdefusersvc*' | ForEach-Object { & sc.exe config $_.Name start= disabled }" >nul 2>&1
 
 sc config "Sense" start= disabled >nul 2>&1
 sc config "SecurityHealthService" start= disabled >nul 2>&1
@@ -10933,7 +11580,7 @@ endlocal
 
 	# Disable SmartScreen
 	# stop smartscreen running
-	Stop-Process -Force -Name smartscreen -ErrorAction SilentlyContinue | Out-Null
+	Stop-Process -Force -Name smartscreen | Out-Null
 	# move smartscreen directly with cmd.exe
 	# RunAsTI -TargetPath "cmd.exe" -TargetArgs @("/c", "move", "/y", "C:\Windows\System32\smartscreen.exe", "C:\Windows\smartscreen.exe") -Wait
 }
@@ -11105,7 +11752,7 @@ sc config "wscsvc" start= auto >nul 2>&1
 sc config "webthreatdefsvc" start= auto >nul 2>&1
 
 :: webthreatdefusersvc may have suffix, enable all matches via PowerShell
-powershell -NoProfile -Command "Get-Service -Name 'webthreatdefusersvc*' -ErrorAction SilentlyContinue | ForEach-Object { & sc.exe config $_.Name start= auto }" >nul 2>&1
+powershell -NoProfile -Command "Get-Service -Name 'webthreatdefusersvc*' | ForEach-Object { & sc.exe config $_.Name start= auto }" >nul 2>&1
 
 sc config "Sense" start= auto >nul 2>&1
 sc config "SecurityHealthService" start= auto >nul 2>&1
@@ -11480,8 +12127,8 @@ Windows Registry Editor Version 5.00
 		
 		function Install-License($registryPath) {
 		    New-Item $registryPath | Out-Null
-		    Set-ItemProperty -Path $registryPath -Name "LicenseHash" -Value "deadbeefdeadbeefdeadbeefdeadbeef" -ErrorAction SilentlyContinue
-		    Set-ItemProperty -Path $registryPath -Name "ActivationData" -Value "deadbeefdeadbeefdeadbeefdeadbeef4e9934f69c3fd8c3e8502a2fd1ab89c2e78671d38a9b97ba313f5eaba6fd420f" -ErrorAction SilentlyContinue
+		    Set-ItemProperty -Path $registryPath -Name "LicenseHash" -Value "deadbeefdeadbeefdeadbeefdeadbeef"
+		    Set-ItemProperty -Path $registryPath -Name "ActivationData" -Value "deadbeefdeadbeefdeadbeefdeadbeef4e9934f69c3fd8c3e8502a2fd1ab89c2e78671d38a9b97ba313f5eaba6fd420f"
 		    Write-Host "Installed license at $registryPath"
 		}
 		
@@ -11660,7 +12307,7 @@ function Invoke-WPDTweaks {
 	netsh advfirewall set allprofiles state off | Out-Null
 	reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.SecurityAndMaintenance" /v "Enabled" /t REG_DWORD /d 0 /f > $null 2>&1
 	# Run WPD Automation
-    Write-Output "Windows Privacy Dashboard Tweaks..."
+    Write-Output "WPD automation tweaks..."
     Invoke-WebRequest -Uri "https://wpd.app/get/latest.zip" -OutFile "$env:TEMP\latest.zip"
     Expand-Archive "$env:TEMP\latest.zip" -DestinationPath "$env:TEMP" -Force
     Start-Process "$env:TEMP\WPD.exe" -ArgumentList "-wfpOnly","-wfp on","-recommended","-close" -Wait
@@ -11678,9 +12325,43 @@ function Invoke-WPDRevert {
     Start-Process "$env:TEMP\WPD.exe" -ArgumentList "-wfpOnly","-wfp off","-default","-close" -Wait			
 }
 
+# Disable Telemetry
+function Invoke-DisableTelemetry {
+	Write-Host "Disabling Telemetry..." -ForegroundColor Green
+	Invoke-WPDTweaks
+	Invoke-ShutUp10Tweaks
+	Invoke-PrivacyScript
+	# Disable Event Trace Sessions (ETS)
+	Write-Output "Disabling Event Trace Sessions (ETS)..."
+	$sessions = @(
+	    "NTFSLog",
+	    "WiFiDriverIHVSession",
+	    "WiFiDriverSession",
+	    "WiFiSession",
+	    "SleepStudyTraceSession",
+	    "1DSListener",
+	    "MpWppTracing",
+	    "NVIDIA-NVTOPPS-NoCat",
+	    "NVIDIA-NVTOPPS-Filter",
+	    "Circular Kernel Context Logger",
+	    "DiagLog",
+	    "LwtNetLog",
+	    "Microsoft-Windows-Rdp-Graphics-RdpIdd-Trace",
+	    "NetCore",
+	    "RadioMgr",
+	    "ReFSLog",
+	    "WdiContextLog",
+	    "ShadowPlay"
+	)
+	
+	foreach ($session in $sessions) {
+	    logman stop $session -ets | Out-Null
+	}
+}
+
 # ShutUp10 Automation
 function Invoke-ShutUp10Tweaks {
-    Write-Output "Applying ShutUp10 Tweaks..."
+    Write-Output "ShutUp10 automation tweaks..."
     $configCode = @'
 ############################################################################
 # This file was created with O&O ShutUp10++ V1.9.1444
@@ -12183,6 +12864,7 @@ N001	-	# Disable Network Connectivity Status Indicator (Category: Miscellaneous)
 
 # PRIVACY.SEXY Script
 function Invoke-PrivacyScript {
+	Write-Output "Running Privacy is sexy script..."
 	$batchCode = @'
 @echo off
 :: https://privacy.sexy — v0.13.8 — Fri, 01 Aug 2025 21:58:22 GMT
@@ -18223,15 +18905,15 @@ function Invoke-OptimizeNetwork {
 	
 	# Disable unnecessary network protocols
 	Write-Output "Disabling Network Adapters..."
-	Disable-NetAdapterBinding -Name "*" -ComponentID ms_lldp -ErrorAction SilentlyContinue
-	Disable-NetAdapterBinding -Name "*" -ComponentID ms_lltdio -ErrorAction SilentlyContinue
-	Disable-NetAdapterBinding -Name "*" -ComponentID ms_implat -ErrorAction SilentlyContinue
-	Enable-NetAdapterBinding -Name "*" -ComponentID ms_tcpip -ErrorAction SilentlyContinue
-	Disable-NetAdapterBinding -Name "*" -ComponentID ms_rspndr -ErrorAction SilentlyContinue
-	Enable-NetAdapterBinding -Name "*" -ComponentID ms_tcpip6 -ErrorAction SilentlyContinue
-	Disable-NetAdapterBinding -Name "*" -ComponentID ms_server -ErrorAction SilentlyContinue
-	Disable-NetAdapterBinding -Name "*" -ComponentID ms_msclient -ErrorAction SilentlyContinue
-	Disable-NetAdapterBinding -Name "*" -ComponentID ms_pacer -ErrorAction SilentlyContinue
+	Disable-NetAdapterBinding -Name "*" -ComponentID ms_lldp
+	Disable-NetAdapterBinding -Name "*" -ComponentID ms_lltdio
+	Disable-NetAdapterBinding -Name "*" -ComponentID ms_implat
+	Enable-NetAdapterBinding -Name "*" -ComponentID ms_tcpip
+	Disable-NetAdapterBinding -Name "*" -ComponentID ms_rspndr
+	Enable-NetAdapterBinding -Name "*" -ComponentID ms_tcpip6
+	Disable-NetAdapterBinding -Name "*" -ComponentID ms_server
+	Disable-NetAdapterBinding -Name "*" -ComponentID ms_msclient
+	Disable-NetAdapterBinding -Name "*" -ComponentID ms_pacer
 }
 
 # BCDEDIT Tweaks
@@ -18290,7 +18972,7 @@ function Invoke-PersonalizeWin {
 	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "SystemUsesLightTheme" -Type DWord -Value 0 -Force
 
 	# 🟨 Set accent color
-	Write-Output "Setting Colors to orange..."
+	Write-Output "Setting Colors..."
 
 	# Accent colors orange
 	$accentKeys = @(
@@ -18379,20 +19061,26 @@ function Invoke-PersonalizeWin {
 		
 		Invoke-WebRequest -Uri "https://github.com/ManueITest/Windows/raw/main/rog.png" -OutFile $Dest -UseBasicParsing
 	
-		New-Item -Path 'HKCU:\Software\StartIsBack' -Force | Out-Null
-		Set-ItemProperty -Path 'HKCU:\Software\StartIsBack' -Name 'OrbBitmap' -Value $Dest -ErrorAction SilentlyContinue
-		Set-ItemProperty -Path 'HKCU:\Software\StartIsBack' -Name 'TaskbarStyle' -Value 'Windows 7.msstyles' -ErrorAction SilentlyContinue
+		# Create registry key if not exists
+		if (-not (Test-Path 'HKCU:\Software\StartIsBack')) {
+		    New-Item -Path 'HKCU:\Software\StartIsBack' -Force | Out-Null
+		}
+
+		# Set custom start button
+		Set-ItemProperty -Path 'HKCU:\Software\StartIsBack' -Name 'OrbBitmap' -Value $Dest | Out-Null
+		
+		# Win7 Taskbar style
+		# Set-ItemProperty -Path 'HKCU:\Software\StartIsBack' -Name 'TaskbarStyle' -Value 'Windows 7.msstyles' | Out-Null
 		
 		# Plumpness ( 1 = Buffer )
 		New-ItemProperty -Path 'HKCU:\Software\StartIsBack' -Name 'FatTaskbar' -PropertyType DWord -Value 1 -Force | Out-Null
 		
 		# Hide user account picture
-		New-ItemProperty -Path 'HKCU:\Software\StartIsBack' -Name 'HideUserFrame' -PropertyType DWord -Value 1 -Force | Out-Null
+		# New-ItemProperty -Path 'HKCU:\Software\StartIsBack' -Name 'HideUserFrame' -PropertyType DWord -Value 1 -Force | Out-Null
 		
 		# Center task icons - Together with start button
 		New-ItemProperty -Path 'HKCU:\Software\StartIsBack' -Name 'TaskbarCenterIcons' -PropertyType DWord -Value 2 -Force | Out-Null
 		
-
 		# Disable rounded corners (W11)	
 		Write-Output "Disabling rounded corners..."
 		Invoke-WebRequest -Uri "https://github.com/valinet/Win11DisableRoundedCorners/releases/latest/download/Win11DisableOrRestoreRoundedCorners.exe" -OutFile "$env:TEMP\Win11DisableOrRestoreRoundedCorners.exe" -UseBasicParsing
@@ -18400,7 +19088,7 @@ function Invoke-PersonalizeWin {
 	}else{		
 	}
 
-	Write-Output "Setting custom Recycle Bin icons..."
+	Write-Output "Changing Recycle Bin icons..."
 	
 	# Download icons
 	$iconFull   = "$env:ProgramData\RecycleBinFull.ico"
@@ -18433,7 +19121,7 @@ function Invoke-PersonalizeWin {
 	regsvr32 /s "C:\ExplorerBlurMica\Release\ExplorerBlurMica.dll"
 }
 
-
+# Install or upgrade Brave browser
 function Invoke-Brave {
 	Invoke-Winget
 	
@@ -18453,8 +19141,7 @@ function Invoke-Brave {
 
     # If Brave already exists, attempt to upgrade
     if ($existing.Count -gt 0) {
-        Write-Host "Brave is already installed" -ForegroundColor Magenta
-        $existing | ForEach-Object { Write-Host " - $_"; Write-Host " " }
+        $existing | ForEach-Object { Write-Host "Brave is already installed => $_" -ForegroundColor Magenta}
 
         # Upgrade via Chocolatey if available
         if (Get-Command choco.exe) {
@@ -18469,38 +19156,36 @@ function Invoke-Brave {
         if ((Get-ExistingPaths $paths).Count -gt 0) { $done = $true }
     }
 
+    # Direct download and install
+	if (-not $done) {
+		Write-Host "Installing Brave..." -ForegroundColor Green
+    	$installer = "$env:TEMP\BraveBrowserSetup.exe"
+    	Invoke-WebRequest -Uri "https://laptop-updates.brave.com/download/BraveBrowserSetup.exe" -OutFile $installer -UseBasicParsing
+    	$proc = Start-Process -FilePath $installer -ArgumentList "/silent", "/install" -Wait -PassThru
+    	if (($proc.ExitCode -eq 0) -or ((Get-ExistingPaths $paths).Count -gt 0)) {
+        	$done = $true
+    	}
+	}
+
+	# Install via Chocolatey
+    if (-not $done -and (Get-Command choco.exe)) {
+        choco.exe install brave -y -r -f --no-progress --quiet | Out-Null
+        Start-Sleep -Seconds 3
+        if ((Get-ExistingPaths $paths).Count -gt 0) { $done = $true }
+    }
+
     # Install via Winget if not done yet
     if (-not $done -and (Get-Command winget.exe)) {
-		Write-Host "Installing Brave..." -ForegroundColor Green
-        winget.exe install --id "Brave.Brave" --exact --source winget --accept-source-agreements --disable-interactivity --silent --accept-package-agreements --force
+        winget.exe install --id "Brave.Brave" --exact --source winget --accept-source-agreements --disable-interactivity --silent --accept-package-agreements --force --quiet | Out-Null
         Start-Sleep -Seconds 3
         if ((Get-ExistingPaths $paths).Count -gt 0) { $done = $true }
-    }
-	
-    # Install via Chocolatey if not done yet
-    if (-not $done -and (Get-Command choco.exe)) {
-        choco.exe install brave -y -r -f
-        Start-Sleep -Seconds 3
-        if ((Get-ExistingPaths $paths).Count -gt 0) { $done = $true }
-    }
-
-    # Direct download and install if all else fails #>
-    if (-not $done) {
-        $installer = "$env:TEMP\BraveBrowserSetup.exe"
-        Invoke-WebRequest -Uri "https://laptop-updates.brave.com/download/BraveBrowserSetup.exe" -OutFile $installer
-        $proc = Start-Process -FilePath $installer -Wait -PassThru
-
-        if (($proc.ExitCode -eq 0) -or ((Get-ExistingPaths $paths).Count -gt 0)) {
-            $done = $true
-        }
-
-        if (Test-Path $installer) { Remove-Item -Path $installer -Force }
     }
 
     # Notify user if installation failed
     if (-not $done) {
         Write-Host "Brave install/upgrade failed via all methods."
-    }
+    }else{	
+	}
 }
 
 # Debloat Brave after installation
@@ -18652,6 +19337,424 @@ Windows Registry Editor Version 5.00
 	Get-ScheduledTask | Where-Object { $_.TaskName -like "*Brave*" } | ForEach-Object { Disable-ScheduledTask -TaskName $_.TaskName | Out-Null }
 }
 
+# Install or upgrade Steam
+function Invoke-Steam {	
+	# Official installer
+	$installer = "$env:TEMP\SteamSetup.exe"
+	$url = "https://cdn.cloudflare.steamstatic.com/client/installer/SteamSetup.exe"
+	Get-FileFromWeb $url $installer
+	Start-Process -FilePath $installer -ArgumentList '/S' -PassThru | Wait-Process
+	
+	Start-Process "${env:ProgramFiles(x86)}\Steam\steam.exe"
+
+	# delete steam desktop shortcut
+	$s="$env:PUBLIC\Desktop\Steam.lnk"
+	if(Test-Path $s){Remove-Item $s -Force}
+
+	$MultilineComment = @"
+Windows Registry Editor Version 5.00
+
+; This reg file implements all the changes can be done on Steam by regedit to achieve better gaming performance. By imribiy#0001
+
+[HKEY_CURRENT_USER\SOFTWARE\Valve\Steam]
+"SmoothScrollWebViews"=dword:00000000
+"DWriteEnable"=dword:00000000
+"StartupMode"=dword:00000000
+"H264HWAccel"=dword:00000000
+"DPIScaling"=dword:00000000
+"GPUAccelWebViews"=dword:00000000
+
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Run]
+"Steam"=-
+"@
+	Set-Content -Path "$env:TEMP\Steam.reg" -Value $MultilineComment -Force				
+	# edit reg file				
+	$path = "$env:TEMP\Steam.reg"				
+	(Get-Content $path) -replace "\?","$" | Out-File $path				
+	# import reg file				
+	Regedit.exe /S "$env:TEMP\Steam.reg"
+
+	# Steam Low RAM Usage script
+	$batchCode = @'
+@echo off
+
+set "Steam=%programfiles(x86)%\Steam\steam.exe"
+start "" "%Steam%" -dev -console -nofriendsui -no-dwrite -nointro -nobigpicture -nofasthtml -nocrashmonitor -noshaders -no-shared-textures -disablehighdpi -cef-single-process -cef-in-process-gpu -single_core -cef-disable-d3d11 -cef-disable-sandbox -disable-winh264 -cef-force-32bit -no-cef-sandbox -vrdisable -cef-disable-breakpad -noverifyfiles -nobootstrapupdate -skipinitialbootstrap -norepairfiles -overridepackageurl steam://open/minigameslist
+exit
+'@
+
+$steamDir = "${env:ProgramFiles} (x86)\Steam"
+$batPath = "$steamDir\Steam.bat"
+
+Set-Content -Path $batPath -Value $batchCode -Encoding ASCII -Force
+
+$desktopShortcut = "$env:USERPROFILE\Desktop\Steam.lnk"
+$startMenuFolder = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Steam"
+$startMenuShortcut = "$startMenuFolder\Steam.lnk"
+
+Remove-Item -Path $desktopShortcut -Force -ErrorAction SilentlyContinue
+Remove-Item -Path $startMenuShortcut -Force -ErrorAction SilentlyContinue
+
+if (-not (Test-Path $startMenuFolder)) {
+    New-Item -ItemType Directory -Path $startMenuFolder -Force | Out-Null
+}
+
+$shell = New-Object -ComObject WScript.Shell
+$steamExe = "$steamDir\steam.exe"
+
+$desktopSC = $shell.CreateShortcut($desktopShortcut)
+$desktopSC.TargetPath = $batPath
+$desktopSC.WorkingDirectory = $steamDir
+$desktopSC.IconLocation = "$steamExe, 0"
+$desktopSC.Save()
+
+$startMenuSC = $shell.CreateShortcut($startMenuShortcut)
+$startMenuSC.TargetPath = $batPath
+$startMenuSC.WorkingDirectory = $steamDir
+$startMenuSC.IconLocation = "$steamExe, 0"
+$startMenuSC.Save()
+
+	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($desktopSC) | Out-Null
+	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($startMenuSC) | Out-Null
+	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($shell) | Out-Null
+	[System.GC]::Collect()
+	[System.GC]::WaitForPendingFinalizers()
+}
+
+# Install and configure Process Explorer
+function Invoke-ProcessExplorer {
+
+<#
+	$MultilineComment = @'				
+Windows Registry Editor Version 5.00
+
+[HKEY_CURRENT_USER\Software\Sysinternals\Process Explorer]
+"ShowDllView"=dword:00000000
+"HandleSortColumn"=dword:00000000
+"HandleSortDirection"=dword:00000001
+"DllSortColumn"=dword:00000000
+"DllSortDirection"=dword:00000001
+"ProcessSortColumn"=dword:ffffffff
+"ProcessSortDirection"=dword:00000001
+"HighlightServices"=dword:00000001
+"HighlightOwnProcesses"=dword:00000001
+"HighlightRelocatedDlls"=dword:00000000
+"HighlightJobs"=dword:00000000
+"HighlightNewProc"=dword:00000001
+"HighlightDelProc"=dword:00000001
+"HighlightImmersive"=dword:00000001
+"HighlightProtected"=dword:00000000
+"HighlightPacked"=dword:00000001
+"HighlightNetProcess"=dword:00000000
+"HighlightSuspend"=dword:00000001
+"HighlightDuration"=dword:000003e8
+"ShowCpuFractions"=dword:00000001
+"FindWindowplacement"=hex(3):2C,00,00,00,00,00,00,00,00,00,00,00,00,00,00,\
+00,00,00,00,00,00,00,00,00,00,00,00,00,96,00,00,00,96,00,00,00,00,00,00,00,\
+00,00,00,00
+"ShowAllUsers"=dword:00000001
+"ShowProcessTree"=dword:00000001
+"SymbolWarningShown"=dword:00000000
+"HideWhenMinimized"=dword:00000000
+"AlwaysOntop"=dword:00000000
+"OneInstance"=dword:00000001
+"NumColumnSets"=dword:00000000
+"Windowplacement"=hex(3):2C,00,00,00,02,00,00,00,03,00,00,00,00,00,00,00,00,\
+00,00,00,FF,FF,FF,FF,FF,FF,FF,FF,37,02,00,00,8C,01,00,00,57,05,00,00,E4,03,\
+00,00
+"RefreshRate"=dword:000003e8
+"PrcessColumnCount"=dword:0000000d
+"DllColumnCount"=dword:00000004
+"HandleColumnCount"=dword:00000002
+"DefaultProcPropPage"=dword:00000000
+"DefaultSysInfoPage"=dword:00000000
+"DefaultDllPropPage"=dword:00000000
+"ProcessImageColumnWidth"=dword:000000c8
+"SymbolPath"=""
+"ColorPacked"=dword:00ff0080
+"ColorImmersive"=dword:00eaea00
+"ColorOwn"=dword:00ffd0d0
+"ColorServices"=dword:00d0d0ff
+"ColorRelocatedDlls"=dword:00a0ffff
+"ColorGraphBk"=dword:00f0f0f0
+"ColorJobs"=dword:00006cd0
+"ColorDelProc"=dword:004646ff
+"ColorNewProc"=dword:0046ff46
+"ColorNet"=dword:00a0ffff
+"ColorProtected"=dword:008000ff
+"ShowHeatmaps"=dword:00000001
+"ColorSuspend"=dword:00808080
+"StatusBarColumns"=dword:00002015
+"ShowAllCpus"=dword:00000000
+"ShowAllGpus"=dword:00000000
+"Opacity"=dword:00000064
+"GpuNodeUsageMask"=dword:00000001
+"GpuNodeUsageMask1"=dword:00000000
+"VerifySignatures"=dword:00000000
+"VirusTotalCheck"=dword:00000000
+"VirusTotalSubmitUnknown"=dword:00000000
+"ToolbarBands"=hex(3):06,01,00,00,00,00,00,00,00,00,00,00,4B,00,00,00,01,00,\
+00,00,00,00,00,00,4B,00,00,00,02,00,00,00,00,00,00,00,4B,00,00,00,03,00,00,\
+00,00,00,00,00,4B,00,00,00,04,00,00,00,00,00,00,00,4B,00,00,00,05,00,00,00,\
+00,00,00,00,4B,00,00,00,06,00,00,00,00,00,00,00,4B,00,00,00,07,00,00,00,00,\
+00,00,00,00,00,00,00,08,00,00,00,00,00,00,00
+"UseGoogle"=dword:00000000
+"ShowNewProcesses"=dword:00000000
+"TrayCPUHistory"=dword:00000000
+"ShowIoTray"=dword:00000000
+"ShowNetTray"=dword:00000000
+"ShowDiskTray"=dword:00000000
+"ShowPhysTray"=dword:00000000
+"ShowCommitTray"=dword:00000000
+"ShowGpuTray"=dword:00000000
+"FormatIoBytes"=dword:00000001
+"StackWindowPlacement"=hex(3):00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,\
+00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,\
+00,00,00,00
+"ETWstandardUserWarning"=dword:00000000
+"ShowUnnamedHandles"=dword:00000000
+"SavedDivider"=hex(3):00,00,00,00,00,00,E0,3F
+"UnicodeFont"=hex(3):08,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,90,01,\
+00,00,00,00,00,00,00,00,00,00,4D,00,53,00,20,00,53,00,68,00,65,00,6C,00,6C,\
+00,20,00,44,00,6C,00,67,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,\
+00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00
+"Divider"=hex(3):00,00,00,00,00,00,F0,3F
+"DllPropWindowplacement"=hex(3):2C,00,00,00,00,00,00,00,00,00,00,00,00,00,\
+00,00,00,00,00,00,00,00,00,00,00,00,00,00,28,00,00,00,28,00,00,00,00,00,00,\
+00,00,00,00,00
+"PropWindowplacement"=hex(3):2C,00,00,00,00,00,00,00,00,00,00,00,00,00,00,\
+00,00,00,00,00,00,00,00,00,00,00,00,00,28,00,00,00,28,00,00,00,00,00,00,00,\
+00,00,00,00
+"DbgHelpPath"="C:\\Windows\\SYSTEM32\\dbghelp.dll"
+"SysinfoWindowplacement"=hex(3):2C,00,00,00,00,00,00,00,00,00,00,00,00,00,\
+00,00,00,00,00,00,00,00,00,00,00,00,00,00,28,00,00,00,28,00,00,00,00,00,00,\
+00,00,00,00,00
+"ConfirmKill"=dword:00000001
+"ShowLowerpane"=dword:00000000
+
+[HKEY_CURRENT_USER\Software\Sysinternals\Process Explorer\DllColumnMap]
+"3"=dword:00000457
+"2"=dword:00000409
+"0"=dword:0000001a
+"1"=dword:0000002a
+
+[HKEY_CURRENT_USER\Software\Sysinternals\Process Explorer\DllColumns]
+"2"=dword:0000008c
+"0"=dword:0000006e
+"1"=dword:000000b4
+"3"=dword:0000012c
+
+[HKEY_CURRENT_USER\Software\Sysinternals\Process Explorer\HandleColumnMap]
+"1"=dword:00000016
+"0"=dword:00000015
+
+[HKEY_CURRENT_USER\Software\Sysinternals\Process Explorer\HandleColumns]
+"0"=dword:00000064
+"1"=dword:000001c2
+
+[HKEY_CURRENT_USER\Software\Sysinternals\Process Explorer\ProcessColumnMap]
+"10"=dword:0000049b
+"8"=dword:00000005
+"12"=dword:00000409
+"13"=dword:00000672
+"7"=dword:00000004
+"5"=dword:00000427
+"11"=dword:00000026
+"9"=dword:0000053c
+"0"=dword:00000003
+"1"=dword:0000041f
+"2"=dword:00000672
+"6"=dword:00000429
+"3"=dword:000004b0
+"4"=dword:00000424
+
+[HKEY_CURRENT_USER\Software\Sysinternals\Process Explorer\ProcessColumns]
+"9"=dword:0000002a
+"10"=dword:00000035
+"11"=dword:00000096
+"12"=dword:0000008c
+"8"=dword:0000002b
+"7"=dword:00000028
+"5"=dword:00000050
+"4"=dword:00000050
+"3"=dword:00000056
+"2"=dword:00000022
+"1"=dword:00000028
+"6"=dword:00000022
+"0"=dword:000000c8   
+'@
+	Set-Content -Path "$env:TEMP\ProcessExplorerSettings.reg" -Value $MultilineComment -Force				
+	# edit reg file				
+	$path = "$env:TEMP\ProcessExplorerSettings.reg"				
+	(Get-Content $path) -replace "\?","$" | Out-File $path				
+	# import reg file				
+	Regedit.exe /S "$env:TEMP\ProcessExplorerSettings.reg"	
+#>
+}
+
+# Install or upgrade Everything Search
+function Invoke-EverythingSearch {
+	$installer = "$env:TEMP\EverythingSetup.exe"		
+	# Download installer
+	Get-FileFromWeb "https://www.voidtools.com/Everything-1.4.1.1019.x64-Setup.exe" -File $installer -UseBasicParsing		
+	# Start installer silently and wait
+	Start-Process -FilePath $installer -ArgumentList '/S' -Wait -PassThru		
+
+	# Pin Everything.exe to the Taskbar Using PS-TBPin https://github.com/DanysysTeam/PS-TBPin
+	# powershell -ExecutionPolicy Bypass -command "& { 
+		# [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+		# Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/DanysysTeam/PS-TBPin/main/TBPin.ps1'))
+		# Add-TaskbarPin 'C:\Program Files\Everything\Everything.exe' 
+	# }"
+
+	# Rename Start shortcut and remove desktop shortcut
+	$f1="$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Everything.lnk"
+	if (test-path $f1) { Rename-Item $f1 'Search.lnk' -Force }
+	$f2="$env:PUBLIC\Desktop\Everything.lnk"
+	if (test-path $f2) { Remove-Item $f2 -Force }
+	
+	# Disable Windows Search			
+	Set-Service -Name WSearch -StartupType Disabled | Out-Null
+	Stop-Service -Name WSearch -Force | Out-Null
+
+	# Disable Search Engine (breaks Search App)
+	# Dism /Online /NoRestart /Disable-Feature /FeatureName:SearchEngine-Client-Package | Out-Null
+}
+
+# Install or upgrade WebCord (Discord client)
+function Invoke-WebCord {
+	Write-Host "Installing WebCord..." -ForegroundColor Green
+    # Download and install WebCord
+    $installerPath = "$env:TEMP\webcord-squirrel-x64.exe"
+    Get-FileFromWeb -URL "https://github.com/SpacingBat3/WebCord/releases/latest/download/webcord-squirrel-x64.exe" -File $installerPath
+    
+    # Install silently if possible (Squirrel installers typically use --silent)
+    Start-Process -FilePath $installerPath -ArgumentList '--silent' -Wait -PassThru
+    
+    # Create icon directory if needed
+    $iconDir = "$env:APPDATA\Local\webcord"
+    if (-not (Test-Path $iconDir)) { 
+        New-Item -Path $iconDir -ItemType Directory -Force | Out-Null 
+    }
+    
+    # Download icon
+    Get-FileFromWeb -URL "https://github.com/ManueITest/Accel/raw/refs/heads/main/ico/Discord.ico" -File "$iconDir\Discord.ico"
+    
+    # Wait a bit for installation to complete
+    Start-Sleep -Seconds 10
+    
+    # Find WebCord executable with better error handling
+    $possiblePaths = @(
+        "$env:LOCALAPPDATA\Programs\WebCord\app-*\WebCord.exe",
+        "$env:LOCALAPPDATA\webcord\WebCord.exe"
+    )
+    
+    $webcordExe = $null
+    foreach ($path in $possiblePaths) {
+        $found = Get-ChildItem -Path $path -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($found) {
+            $webcordExe = $found.FullName
+            break
+        }
+    }
+    
+    # Create shortcut if executable was found
+    if ($webcordExe) {
+        $shortcutPath = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Discord.lnk"
+        $shell = New-Object -ComObject WScript.Shell
+        $shortcut = $shell.CreateShortcut($shortcutPath)
+        $shortcut.TargetPath = $webcordExe
+        $shortcut.WorkingDirectory = Split-Path $webcordExe
+        $shortcut.IconLocation = "$iconDir\Discord.ico"
+        $shortcut.Save()
+        Write-Host "WebCord shortcut created successfully."
+    } else {
+        Write-Warning "WebCord executable not found. Shortcut not created."
+        # Additional debugging: Check if installation directories exist
+        Write-Debug "Checking installation directories:"
+        $possibleDirs = @("$env:LOCALAPPDATA\Programs\WebCord", "$env:LOCALAPPDATA\webcord")
+        foreach ($dir in $possibleDirs) {
+            if (Test-Path $dir) {
+                Write-Debug "Found directory: $dir"
+                Get-ChildItem $dir -Recurse | ForEach-Object { Write-Debug "Found: $($_.FullName)" }
+            }
+        }
+    }
+}
+
+# Install or upgrade Spotify
+function Invoke-SpotX {
+    Write-Host "Installing Spotify (SpotX)..." -ForegroundColor Green
+
+    # Download the script to temp
+    $scriptPath = Join-Path $env:TEMP 'run-spotx.ps1'
+    Invoke-WebRequest -UseBasicParsing -Uri 'https://spotx-official.github.io/run.ps1' -OutFile $scriptPath
+
+    # Execute the downloaded script with parameters
+    & $scriptPath `
+        -m `
+        -sp-over `
+        -new_theme `
+        -canvashome_off `
+        -adsections_off `
+        -podcasts_off `
+        -block_update_on `
+        -DisableStartup `
+        -cl 500 `
+        -no_shortcut
+}
+
+
+# Install or upgrade 7-Zip
+function Invoke-7Zip {
+    Write-Host "Installing 7-Zip..." -ForegroundColor Green
+
+    $exePath = Join-Path $env:TEMP '7z-x64.exe'
+
+    # Download latest 7-Zip x64 release from GitHub
+    $url = (Invoke-RestMethod "https://api.github.com/repos/ip7z/7zip/releases/latest").assets |
+           Where-Object { $_.name -like "*x64.exe" } |
+           Select-Object -First 1 -ExpandProperty browser_download_url
+    Invoke-WebRequest -Uri $url -OutFile $exePath -UseBasicParsing
+
+    # Silent install
+    Start-Process -FilePath $exePath -ArgumentList '/S' -Wait
+
+    # 7-Zip file associations
+    $7zExe = Join-Path $env:ProgramFiles '7-Zip\7zFM.exe'
+    if (Test-Path $7zExe) {
+        $exts = '7z','xz','bzip2','gzip','tar','zip','wim','apfs','ar','arj','cab','chm','cpio','cramfs','dmg','ext','fat','gpt','hfs','ihex',
+                'lzh','lzma','mbr','nsis','ntfs','qcow2','rar','rpm','squashfs','udf','uefi','vdi','vhd','vhdx','vmdk','xar','z' # ,'msi'
+
+        foreach ($ext in $exts) {
+            cmd /c "assoc .$ext=7zFM.exe" > $null
+        }
+
+        cmd /c "ftype 7zFM.exe=`"$7zExe`" `"%1`" `"%*`"" > $null
+    }
+}
+
+
+function Invoke-VLC {
+    Write-Host "Installing VLC..." -ForegroundColor Green
+
+    $vlcPath = Join-Path $env:TEMP 'vlc-win64.exe'
+
+    # Download VLC
+    Get-FileFromWeb -URL 'https://download.videolan.org/vlc/last/win64/vlc-3.0.21-win64.exe' -OutFile $vlcPath -UseBasicParsing
+
+    # Silent install
+    Start-Process -FilePath $vlcPath -ArgumentList '/S' -Wait
+
+    # Delete VLC desktop shortcut
+    $shortcut = Join-Path $env:PUBLIC 'Desktop\VLC media player.lnk'
+    if (Test-Path $shortcut) { Remove-Item $shortcut -Force }
+
+    # Optional: remove Windows Media Player legacy features
+    # Start-Process dism.exe -ArgumentList '/Online','/NoRestart','/Disable-Feature','/FeatureName:MediaPlayback' -Wait
+}
+
+
 function Invoke-WindowsCleanup {
 	# Define all cleanup options
 	$options = @(
@@ -18693,50 +19796,50 @@ function Invoke-WindowsCleanup {
 	
 	Write-Host 'Clearing Windows Log Files...'
 	# Clear Distributed Transaction Coordinator logs
-	Remove-Item -Path $env:SystemRoot\DtcInstall.log -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path $env:SystemRoot\DtcInstall.log -Force
 	# Clear Optional Component Manager and COM+ components logs
-	Remove-Item -Path $env:SystemRoot\comsetup.log -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path $env:SystemRoot\comsetup.log -Force
 	# Clear Pending File Rename Operations logs
-	Remove-Item -Path $env:SystemRoot\PFRO.log -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path $env:SystemRoot\PFRO.log -Force
 	# Clear Windows Deployment Upgrade Process Logs
-	Remove-Item -Path $env:SystemRoot\setupact.log -Force -ErrorAction SilentlyContinue 
-	Remove-Item -Path $env:SystemRoot\setuperr.log -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path $env:SystemRoot\setupact.log -Force
+	Remove-Item -Path $env:SystemRoot\setuperr.log -Force
 	# Clear Windows Setup Logs
-	Remove-Item -Path $env:SystemRoot\setupapi.log -Force -ErrorAction SilentlyContinue 
-	Remove-Item -Path $env:SystemRoot\Panther\* -Force -Recurse -ErrorAction SilentlyContinue 
-	Remove-Item -Path $env:SystemRoot\inf\setupapi.app.log -Force -ErrorAction SilentlyContinue 
-	Remove-Item -Path $env:SystemRoot\inf\setupapi.dev.log -Force -ErrorAction SilentlyContinue 
-	Remove-Item -Path $env:SystemRoot\inf\setupapi.offline.log -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path $env:SystemRoot\setupapi.log -Force
+	Remove-Item -Path $env:SystemRoot\Panther\* -Force -Recurse
+	Remove-Item -Path $env:SystemRoot\inf\setupapi.app.log -Force
+	Remove-Item -Path $env:SystemRoot\inf\setupapi.dev.log -Force
+	Remove-Item -Path $env:SystemRoot\inf\setupapi.offline.log -Force 
 	# Clear Windows System Assessment Tool logs
-	Remove-Item -Path $env:SystemRoot\Performance\WinSAT\winsat.log -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path $env:SystemRoot\Performance\WinSAT\winsat.log -Force
 	# Clear Password change events
-	Remove-Item -Path $env:SystemRoot\debug\PASSWD.LOG -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path $env:SystemRoot\debug\PASSWD.LOG -Force
 	# Clear DISM (Deployment Image Servicing and Management) Logs
-	Remove-Item -Path $env:SystemRoot\Logs\CBS\CBS.log -Force -ErrorAction SilentlyContinue  
-	Remove-Item -Path $env:SystemRoot\Logs\DISM\DISM.log -Force -ErrorAction SilentlyContinue  
+	Remove-Item -Path $env:SystemRoot\Logs\CBS\CBS.log -Force 
+	Remove-Item -Path $env:SystemRoot\Logs\DISM\DISM.log -Force  
 	# Clear Server-initiated Healing Events Logs
-	Remove-Item -Path "$env:SystemRoot\Logs\SIH\*" -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path "$env:SystemRoot\Logs\SIH\*" -Force 
 	# Common Language Runtime Logs
-	Remove-Item -Path "$env:LocalAppData\Microsoft\CLR_v4.0\UsageTraces\*" -Force -ErrorAction SilentlyContinue 
-	Remove-Item -Path "$env:LocalAppData\Microsoft\CLR_v4.0_32\UsageTraces\*" -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path "$env:LocalAppData\Microsoft\CLR_v4.0\UsageTraces\*" -Force 
+	Remove-Item -Path "$env:LocalAppData\Microsoft\CLR_v4.0_32\UsageTraces\*" -Force 
 	# Network Setup Service Events Logs
-	Remove-Item -Path "$env:SystemRoot\Logs\NetSetup\*" -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path "$env:SystemRoot\Logs\NetSetup\*" -Force 
 	# Disk Cleanup tool (Cleanmgr.exe) Logs
-	Remove-Item -Path "$env:SystemRoot\System32\LogFiles\setupcln\*" -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path "$env:SystemRoot\System32\LogFiles\setupcln\*" -Force 
 	# Clear Windows update and SFC scan logs
-	Remove-Item -Path $env:SystemRoot\Temp\CBS\* -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path $env:SystemRoot\Temp\CBS\* -Force 
 	# Clear Windows Update Medic Service logs
 	takeown /f $env:SystemRoot\Logs\waasmedic /r *>$null
 	icacls $env:SystemRoot\Logs\waasmedic /grant administrators:F /t *>$null
-	Remove-Item -Path $env:SystemRoot\Logs\waasmedic -Recurse -ErrorAction SilentlyContinue 
+	Remove-Item -Path $env:SystemRoot\Logs\waasmedic -Recurse
 	# Clear Cryptographic Services Traces
-	Remove-Item -Path $env:SystemRoot\System32\catroot2\dberr.txt -Force -ErrorAction SilentlyContinue 
-	Remove-Item -Path $env:SystemRoot\System32\catroot2.log -Force -ErrorAction SilentlyContinue 
-	Remove-Item -Path $env:SystemRoot\System32\catroot2.jrs -Force -ErrorAction SilentlyContinue 
-	Remove-Item -Path $env:SystemRoot\System32\catroot2.edb -Force -ErrorAction SilentlyContinue 
-	Remove-Item -Path $env:SystemRoot\System32\catroot2.chk -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path $env:SystemRoot\System32\catroot2\dberr.txt -Force
+	Remove-Item -Path $env:SystemRoot\System32\catroot2.log -Force
+	Remove-Item -Path $env:SystemRoot\System32\catroot2.jrs -Force
+	Remove-Item -Path $env:SystemRoot\System32\catroot2.edb -Force
+	Remove-Item -Path $env:SystemRoot\System32\catroot2.chk -Force
 	# Windows Update Logs
-	Remove-Item -Path "$env:SystemRoot\Traces\WindowsUpdate\*" -Force -ErrorAction SilentlyContinue 
+	Remove-Item -Path "$env:SystemRoot\Traces\WindowsUpdate\*" -Force 
 	# Miscellaneous folder cleanup
 	'C:\XboxGames',
 	'C:\.GamingRoot', 
@@ -18753,7 +19856,7 @@ function Invoke-WindowsCleanup {
 	$temp2 = $env:TEMP
 	$tempFiles = (Get-ChildItem -Path $temp1 , $temp2 -Recurse -Force).FullName
 	foreach ($file in $tempFiles) {
-	    Remove-Item -Path $file -Recurse -Force -ErrorAction SilentlyContinue
+	    Remove-Item -Path $file -Recurse -Force
 	}
 	
 	Write-Host 'Running Disk Cleanup...'
@@ -18841,7 +19944,9 @@ if ($PSBoundParameters.Count -gt 0) {
 			Invoke-WindowsCleanup
 		}
 		if ($Full) {
-			# Invoke-CreateRestorePoint
+			Invoke-CreateRestorePoint
+			# Invoke-Win11Debloat	
+			# Invoke-WinUtilAutoStandard
 			# Invoke-WinActivation
 			# Invoke-PauseUpdates
 			# Invoke-DisableUpdates
@@ -18849,30 +19954,34 @@ if ($PSBoundParameters.Count -gt 0) {
 			# Invoke-UninstallOneDrive
 			# Invoke-RemoveGaming
 			# Invoke-RemoveWindowsAI
-			# Invoke-WinUtilAutoStandard
-			# Invoke-Win11Debloat		
-			# Invoke-RemoveWinBloat
+			# Invoke-RemoveWinBloat # remote desktop not working
 			# Invoke-NET35Run
 			# Invoke-DirectXRun
 			# Invoke-CPlusPlusAIO
-			Invoke-Winget # UI too invasive
-			Invoke-Brave
+			# Invoke-Winget # ui too invasive
+			# Invoke-Brave
 			# Invoke-DebloatBrave
-			# Invoke-WPDTweaks
-			# Invoke-ShutUp10Tweaks
-			# Invoke-PrivacyScript
-			# Invoke-ActivateUltimatePlan
-			# Invoke-DisablePowerSaving
-			# Invoke-OptimizeRegistry
-			# Invoke-OptimizeNetwork
-			# Invoke-BCDEditTweaks
-			Invoke-StartXback # Crash StartAllBack Download
+			Invoke-7Zip
+			Invoke-ProcessExplorer # crash
+			# Invoke-EverythingSearch # crash
+			Invoke-Steam
+			# Invoke-VLC # crash
+			Invoke-WebCord # ui fix
+			Invoke-SpotX # Flag by Windows Defender
+			Invoke-DisableTelemetry	
+			Invoke-ActivateUltimatePlan
+			Invoke-DisablePowerSaving
+			Invoke-OptimizeRegistry			
+			Invoke-OptimizeNetwork
+			Invoke-BCDEditTweaks			
+			Invoke-StartXback # Crash StartAllBack Download sometimes
 			Invoke-PersonalizeWin
-			# Invoke-DisableServices
-			# Invoke-DisableUAC
-			# Invoke-DisableMitigations
-			# Invoke-DisableDefenderV2
+			Invoke-DisableServices
+			Invoke-DisableUAC
+			Invoke-DisableMitigations
+			Invoke-DisableDefenderV2
 			Invoke-WindowsCleanup
+			pause
 			# reboot
 			shutdown -r -t 00
 		}
