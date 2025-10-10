@@ -40,12 +40,106 @@ param (
 	[switch]$Restart
 )
 
+# ------------------------------
+# Safe console customization 
+# ------------------------------
+
+# Colors
 $Host.UI.RawUI.WindowTitle = ''
 $Host.UI.RawUI.BackgroundColor = 'Black'
 $Host.UI.RawUI.ForegroundColor = 'Blue'
 $Host.PrivateData.ProgressBackgroundColor = 'Black'
 $Host.PrivateData.ProgressForegroundColor = 'Blue'
 Clear-Host
+
+# --- Font (SetCurrentConsoleFontEx) ---
+$fontCs = @"
+using System;
+using System.Runtime.InteropServices;
+public class ConsoleFont {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct COORD { public short X; public short Y; }
+    [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
+    public struct CONSOLE_FONT_INFOEX {
+        public uint cbSize;
+        public uint nFont;
+        public COORD dwFontSize;
+        public int FontFamily;
+        public int FontWeight;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst=32)]
+        public string FaceName;
+    }
+    [DllImport("kernel32.dll", SetLastError=true)]
+    public static extern IntPtr GetStdHandle(int nStdHandle);
+    [DllImport("kernel32.dll", SetLastError=true)]
+    public static extern bool GetCurrentConsoleFontEx(IntPtr hConsoleOutput, bool bMaximumWindow, ref CONSOLE_FONT_INFOEX lpConsoleCurrentFontEx);
+    [DllImport("kernel32.dll", SetLastError=true)]
+    public static extern bool SetCurrentConsoleFontEx(IntPtr hConsoleOutput, bool bMaximumWindow, ref CONSOLE_FONT_INFOEX lpConsoleCurrentFontEx);
+}
+"@
+Add-Type -TypeDefinition $fontCs -ErrorAction Stop
+
+$hd = [ConsoleFont]::GetStdHandle(-11)
+
+$cf = New-Object ConsoleFont+CONSOLE_FONT_INFOEX
+$cf.cbSize = [uint32][System.Runtime.InteropServices.Marshal]::SizeOf($cf)
+[ConsoleFont]::GetCurrentConsoleFontEx($hd, $false, [ref]$cf) | Out-Null
+
+$cf.FaceName = "Consolas"
+$cf.FontWeight = 700
+$cf.dwFontSize = New-Object ConsoleFont+COORD
+$cf.dwFontSize.X = 0
+$cf.dwFontSize.Y = 14
+
+[ConsoleFont]::SetCurrentConsoleFontEx($hd, $false, [ref]$cf) | Out-Null
+
+# Check what was actually applied
+$check = New-Object ConsoleFont+CONSOLE_FONT_INFOEX
+$check.cbSize = [uint32][System.Runtime.InteropServices.Marshal]::SizeOf($check)
+[ConsoleFont]::GetCurrentConsoleFontEx($hd, $false, [ref]$check) | Out-Null
+
+# --- Opacity (SetLayeredWindowAttributes only) ---
+$winCs = @"
+using System;
+using System.Runtime.InteropServices;
+public static class Win32 {
+    [DllImport("kernel32.dll")]
+    public static extern IntPtr GetConsoleWindow();
+    [DllImport("user32.dll", SetLastError=true)]
+    public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+    [DllImport("user32.dll", SetLastError=true)]
+    public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+    [DllImport("user32.dll", SetLastError=true)]
+    public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
+}
+"@
+Add-Type -TypeDefinition $winCs -ErrorAction Stop
+
+$hwnd = [Win32]::GetConsoleWindow()
+$opacityWanted = 0.90
+$alphaByte = [byte][math]::Round(255 * $opacityWanted)
+
+$opacityApplied = $false
+if ($hwnd -ne [IntPtr]::Zero) {
+    try {
+        $GWL_EXSTYLE = -20
+        $WS_EX_LAYERED = 0x80000
+        $LWA_ALPHA = 0x2
+        $style = [Win32]::GetWindowLong($hwnd, $GWL_EXSTYLE)
+        [Win32]::SetWindowLong($hwnd, $GWL_EXSTYLE, ($style -bor $WS_EX_LAYERED)) | Out-Null
+        $ok = [Win32]::SetLayeredWindowAttributes($hwnd, 0, $alphaByte, $LWA_ALPHA)
+        if ($ok) { $opacityApplied = $true }
+    } catch { }
+}
+
+# --- Summary ---
+Write-Host "`nSummary:"
+Write-Host "  Font: $($check.FaceName), size $($check.dwFontSize.Y), weight $($check.FontWeight)"
+if ($opacityApplied) {
+    Write-Host "  Opacity set to $([math]::Round($alphaByte/255*100))%"
+} else {
+    Write-Warning "Opacity could not be applied (if you're using Windows Terminal, that's expected)."
+}
 
 # -------------------------
 # Helper functions / stubs
@@ -164,7 +258,7 @@ function Invoke-CPlusPlusAIO {
 
 function Invoke-DirectXRun { 
 	# DirectX Runtime
- 	Write-Output "Installing DirectX..."
+ 	Write-Host "Installing DirectX..." -ForegroundColor Green
 	Remove-Item "$env:TEMP\DirectX","$env:SystemRoot\Temp\DirectX" -Recurse -Force
 	Get-FileFromWeb -URL "https://download.microsoft.com/download/8/4/A/84A35BF1-DAFE-4AE8-82AF-AD2AE20B6B14/directx_Jun2010_redist.exe" -File "$env:TEMP\DirectX.exe"
 	Start-Process "$env:TEMP\DirectX.exe" -ArgumentList "/Q /T:`"$env:TEMP\DirectX`"" -Wait
@@ -173,14 +267,14 @@ function Invoke-DirectXRun {
 
 function Invoke-NET35Run {   
 	# .NET Freamework 3.5 (includes .NET 2.0 and 3.0)
- 	Write-Output "Installing .NET Freamework 3.5..."
+ 	Write-Host "Installing .NET Freamework 3.5..." -ForegroundColor Green
 	Get-FileFromWeb -URL "https://github.com/abbodi1406/dotNetFx35W10/releases/download/v0.20.01/dotNetFx35_WX_9_x86_x64.zip" -File "$env:TEMP\dotNetFx35_WX_9_x86_x64.zip"
 	Expand-Archive "$env:TEMP\dotNetFx35_WX_9_x86_x64.zip" $env:TEMP -Force
 	Start-Process "$env:TEMP\dotNetFx35_WX_9_x86_x64.exe" -ArgumentList "/ai /S /NORESTART" -Wait -NoNewWindow
 }
 
 function Invoke-NETDesktopRunAIO {
-	Write-OutPut "Installing All latest .NET Desktop Runtimes..."
+	Write-Host "Installing All latest .NET Desktop Runtimes..." -ForegroundColor Green
 	# install latest .net desktop runtimes
 	foreach($id in "Microsoft.DotNet.DesktopRuntime.3_1","Microsoft.DotNet.DesktopRuntime.5","Microsoft.DotNet.DesktopRuntime.6","Microsoft.DotNet.DesktopRuntime.7","Microsoft.DotNet.DesktopRuntime.8","Microsoft.DotNet.DesktopRuntime.9"){winget.exe install --id=$id -a x64 --exact --source winget --accept-source-agreements --accept-package-agreements --force}   	
 }
@@ -1098,7 +1192,7 @@ KEPT.
 	    'MicrosoftWindowsPowerShellV2'
 	    'WorkFolders-Client'
 	    'Microsoft-Hyper-V-All'
-	    'Recall'
+	    # 'Recall'
 	) | ForEach-Object {
 	    Dism /Online /NoRestart /Disable-Feature /FeatureName:$_ | Out-Null
 	}
@@ -2937,6 +3031,10 @@ Windows Registry Editor Version 5.00
 
 
 ; PERSONALIZATION
+; don't show all taskbar icons
+[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer]
+"EnableAutoTray"=-
+
 ; solid color personalize your background
 [HKEY_CURRENT_USER\Control Panel\Desktop]
 "Wallpaper"=""
@@ -5515,6 +5613,10 @@ Windows Registry Editor Version 5.00
 
 
 ; PERSONALIZATION
+; show all taskbar icons
+[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer]
+"EnableAutoTray"=dword:00000000
+
 ; picture personalize your background
 [HKEY_CURRENT_USER\Control Panel\Desktop]
 "WallPaper"="C:\\Windows\\web\\wallpaper\\Windows\\img0.jpg"
@@ -19079,7 +19181,7 @@ function Invoke-PersonalizeWin {
 		# New-ItemProperty -Path 'HKCU:\Software\StartIsBack' -Name 'HideUserFrame' -PropertyType DWord -Value 1 -Force | Out-Null
 		
 		# Center task icons - Together with start button
-		New-ItemProperty -Path 'HKCU:\Software\StartIsBack' -Name 'TaskbarCenterIcons' -PropertyType DWord -Value 2 -Force | Out-Null
+		# New-ItemProperty -Path 'HKCU:\Software\StartIsBack' -Name 'TaskbarCenterIcons' -PropertyType DWord -Value 2 -Force | Out-Null
 		
 		# Disable rounded corners (W11)	
 		Write-Output "Disabling rounded corners..."
@@ -19087,7 +19189,7 @@ function Invoke-PersonalizeWin {
 		Start-Process -FilePath "$env:TEMP\Win11DisableOrRestoreRoundedCorners.exe" -ArgumentList "/disable" -Wait
 	}else{		
 	}
-
+<#
 	Write-Output "Changing Recycle Bin icons..."
 	
 	# Download icons
@@ -19105,7 +19207,7 @@ function Invoke-PersonalizeWin {
 	
 	# Refresh icons
 	ie4uinit.exe -show
-
+#>
 	# Restart Explorer to apply changes
 	# Stop-Process -Name explorer -Force
 	# Stop-Process -Name StartAllBackCfg -Force
@@ -19121,76 +19223,132 @@ function Invoke-PersonalizeWin {
 	regsvr32 /s "C:\ExplorerBlurMica\Release\ExplorerBlurMica.dll"
 }
 
-# Install or upgrade Brave browser
-function Invoke-Brave {
-	Invoke-Winget
+# LibreWolf installation
+function Invoke-LibreWolf {
+	Write-Host "Installing LibreWolf..." -ForegroundColor Green
+    $l = "$env:ProgramFiles\LibreWolf\librewolf.exe"
+
+	$api = "https://gitlab.com/api/v4/projects/librewolf-community%2Fbrowser%2Fbsys6/releases"
+	$releases = Invoke-RestMethod -Uri $api
+
+	foreach ($rel in $releases) {
+    	foreach ($asset in $rel.assets.links) {
+        	if ($asset.url -match "windows" -and $asset.url -match "\.exe$") {
+            	$url = $asset.url
+            	break
+        	}
+    	}
+    	if ($url) { break }
+	}
+
+	if (-not $url) { throw "No Windows installer found." }
+
+	$dest = "$env:TEMP\librewolf-setup.exe"
+	Get-FileFromWeb -Url $url -File $dest
+	Start-Process $dest "/S" -Wait -NoNewWindow
+
+	if (Test-Path $l) {		                        		                        
+	    # if (Get-Command winget) { winget.exe upgrade --id "LibreWolf.LibreWolf" --exact --source winget --accept-source-agreements --silent --accept-package-agreements --quiet | Out-Null }			                        
+	    $s = "$env:USERPROFILE\Desktop\LibreWolf.lnk"			                        
+	    $wshell = New-Object -ComObject WScript.Shell   # <-- renamed from $W to avoid $w clash			                        
+	    $lnk = $wshell.CreateShortcut($s)			                        
+	    $lnk.TargetPath = $l			                        
+	    $lnk.Save()			                        
+	}	
+
+	# create librewolf config file
+	$MultilineComment = @"
+defaultPref("browser.startup.homepage", "https://search.brave.com/");
+defaultPref("privacy.clearOnShutdown.history", false);
+defaultPref("privacy.window.maxInnerWidth", 1920);
+defaultPref("privacy.window.maxInnerHeight", 1080);
+defaultPref("browser.newtabpage.activity-stream.section.highlights.includeBookmarks", false);
+defaultPref("browser.safebrowsing.malware.enabled", true);
+defaultPref("browser.safebrowsing.phishing.enabled", true);
+defaultPref("browser.safebrowsing.blockedURIs.enabled", true);
+defaultPref(
+  "browser.safebrowsing.provider.google4.gethashURL",
+  "https://safebrowsing.googleapis.com/v4/fullHashes:find?$ct=application/x-protobuf&key=%GOOGLE_SAFEBROWSING_API_KEY%&$httpMethod=POST"
+);
+defaultPref(
+  "browser.safebrowsing.provider.google4.updateURL",
+  "https://safebrowsing.googleapis.com/v4/threatListUpdates:fetch?$ct=application/x-protobuf&key=%GOOGLE_SAFEBROWSING_API_KEY%&$httpMethod=POST"
+);
+defaultPref(
+  "browser.safebrowsing.provider.google.gethashURL",
+  "https://safebrowsing.google.com/safebrowsing/gethash?client=SAFEBROWSING_ID&appver=%MAJOR_VERSION%&pver=2.2"
+);
+defaultPref(
+  "browser.safebrowsing.provider.google.updateURL",
+  "https://safebrowsing.google.com/safebrowsing/downloads?client=SAFEBROWSING_ID&appver=%MAJOR_VERSION%&pver=2.2&key=%GOOGLE_SAFEBROWSING_API_KEY%"
+);
+defaultPref("browser.safebrowsing.downloads.enabled", true);
+defaultPref("browser.urlbar.suggest.engines", false);
+defaultPref("browser.urlbar.suggest.bookmark", false);
+defaultPref("browser.urlbar.suggest.history", false);
+defaultPref("browser.urlbar.suggest.openpage", false);
+defaultPref("browser.urlbar.suggest.topsites", false);
+defaultPref("layout.spellcheckDefault", 0);
+defaultPref("general.autoScroll", true);
+defaultPref("middlemouse.paste", false);
+defaultPref("media.autoplay.blocking_policy", 2);
+defaultPref("media.hardwaremediakeys.enabled", false);	
+defaultPref("media.peerconnection.enabled", false);
+defaultPref("media.videocontrols.picture-in-picture.video-toggle.enabled", false);
+defaultPref("places.history.enabled", false);
+defaultPref("privacy.clearOnShutdown.siteSettings", true);
+defaultPref("privacy.cpd.offlineApps", true);
+defaultPref("privacy.cpd.siteSettings", true);	
+defaultPref("privacy.userContext.enabled", false);	
+defaultPref("ui.osk.enabled", false);
+defaultPref("dom.push.connection.enabled", false);
+defaultPref("privacy.resistFingerprinting.letterboxing", true);
+defaultPref("network.http.referer.XOriginPolicy", 2);
+defaultPref("browser.sessionstore.resume_from_crash", false);
+"@
+
+	$path="$env:USERPROFILE\.librewolf"; if(!(Test-Path $path)){New-Item -ItemType Directory -Path $path -Force|Out-Null}; Set-Content -Path "$path\librewolf.overrides.cfg" -Value $MultilineComment -Force
+
+Remove-Item "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\LibreWolf Private Browsing.lnk" -Force 
 	
-    # Define all possible Brave installation paths
-    $paths = @(
-        "$env:ProgramFiles\BraveSoftware\Brave-Browser\Application\brave.exe",
-        "$env:LocalAppData\BraveSoftware\Brave-Browser\Application\brave.exe"
-    )
+# Define the shortcut name
+$shortcutName = "LibreWolf Private Browsing.lnk"
 
-    # Helper function to filter existing paths
-    function Get-ExistingPaths([string[]]$p) {
-        $p | Where-Object { Test-Path -Path $_ -PathType Leaf }
-    }
+# Paths to check for the shortcut
+$pathsToCheck = @(
+    "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\$shortcutName",
+    "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\$shortcutName"
+)
 
-    $done = $false
-    $existing = Get-ExistingPaths $paths
-
-    # If Brave already exists, attempt to upgrade
-    if ($existing.Count -gt 0) {
-        $existing | ForEach-Object { Write-Host "Brave is already installed => $_" -ForegroundColor Magenta}
-
-        # Upgrade via Chocolatey if available
-        if (Get-Command choco.exe) {
-            choco.exe upgrade brave -y -r --no-progress --quiet | Out-Null
-        }
-
-        # Upgrade via Winget if available
-        if (Get-Command winget.exe) {
-            winget.exe upgrade --id "Brave.Brave" --exact --source winget --accept-source-agreements --disable-interactivity --silent --accept-package-agreements --quiet | Out-Null
-        }
-
-        if ((Get-ExistingPaths $paths).Count -gt 0) { $done = $true }
-    }
-
-    # Direct download and install
-	if (-not $done) {
-		Write-Host "Installing Brave..." -ForegroundColor Green
-    	$installer = "$env:TEMP\BraveBrowserSetup.exe"
-    	Invoke-WebRequest -Uri "https://laptop-updates.brave.com/download/BraveBrowserSetup.exe" -OutFile $installer -UseBasicParsing
-    	$proc = Start-Process -FilePath $installer -ArgumentList "/silent", "/install" -Wait -PassThru
-    	if (($proc.ExitCode -eq 0) -or ((Get-ExistingPaths $paths).Count -gt 0)) {
-        	$done = $true
+	# Remove shortcut from all locations
+	foreach ($path in $pathsToCheck) {
+    	if (Test-Path $path) {
+			Remove-Item $path -Force
+		}else {
     	}
 	}
+}
 
-	# Install via Chocolatey
-    if (-not $done -and (Get-Command choco.exe)) {
-        choco.exe install brave -y -r -f --no-progress --quiet | Out-Null
-        Start-Sleep -Seconds 3
-        if ((Get-ExistingPaths $paths).Count -gt 0) { $done = $true }
+# Install or upgrade Brave browser
+function Invoke-Brave {
+    # Direct download and install
+	Write-Host "Installing Brave..." -ForegroundColor Green
+    $installer = "$env:TEMP\BraveBrowserSetup.exe"
+    Invoke-WebRequest -Uri "https://laptop-updates.brave.com/download/BraveBrowserSetup.exe" -OutFile $installer -UseBasicParsing
+    $proc = Start-Process -FilePath $installer -ArgumentList "/silent", "/install" -Wait -PassThru
+    if (($proc.ExitCode -eq 0) -or ((Get-ExistingPaths $paths).Count -gt 0)) {
     }
-
-    # Install via Winget if not done yet
-    if (-not $done -and (Get-Command winget.exe)) {
-        winget.exe install --id "Brave.Brave" --exact --source winget --accept-source-agreements --disable-interactivity --silent --accept-package-agreements --force --quiet | Out-Null
-        Start-Sleep -Seconds 3
-        if ((Get-ExistingPaths $paths).Count -gt 0) { $done = $true }
+<#
+    # Upgrade via Winget if available
+    if (Get-Command winget.exe) {
+        winget.exe upgrade --id "Brave.Brave" --exact --source winget --accept-source-agreements --silent --accept-package-agreements --quiet | Out-Null
     }
-
-    # Notify user if installation failed
-    if (-not $done) {
-        Write-Host "Brave install/upgrade failed via all methods."
-    }else{	
-	}
+#>
 }
 
 # Debloat Brave after installation
 function Invoke-DebloatBrave {
-    Write-Output "Debloating Brave..." 	
+    Write-Host "Debloating Brave..." -ForegroundColor Green 	
 	$batchCode = @'
 @echo off
 	
@@ -19339,13 +19497,22 @@ Windows Registry Editor Version 5.00
 
 # Install or upgrade Steam
 function Invoke-Steam {	
+	Write-Host "Installing Steam..." -ForegroundColor Green
 	# Official installer
 	$installer = "$env:TEMP\SteamSetup.exe"
-	$url = "https://cdn.cloudflare.steamstatic.com/client/installer/SteamSetup.exe"
-	Get-FileFromWeb $url $installer
+	Get-FileFromWeb -URL "https://cdn.cloudflare.steamstatic.com/client/installer/SteamSetup.exe" $installer
 	Start-Process -FilePath $installer -ArgumentList '/S' -PassThru | Wait-Process
-	
+
+	# Launch Steam, wait indefinitely for steamwebhelper to appear, then kill both immediately
 	Start-Process "${env:ProgramFiles(x86)}\Steam\steam.exe"
+
+	while (-not (Get-Process -Name 'steamwebhelper')) {
+    	Start-Sleep -Milliseconds 200
+	}
+
+	# As soon as any steamwebhelper exists, kill all instances and Steam
+	Get-Process -Name 'steamwebhelper' | Stop-Process -Force
+	Get-Process -Name 'steam' | Stop-Process -Force
 
 	# delete steam desktop shortcut
 	$s="$env:PUBLIC\Desktop\Steam.lnk"
@@ -19594,28 +19761,34 @@ Windows Registry Editor Version 5.00
 
 # Install or upgrade Everything Search
 function Invoke-EverythingSearch {
-	$installer = "$env:TEMP\EverythingSetup.exe"		
-	# Download installer
-	Get-FileFromWeb "https://www.voidtools.com/Everything-1.4.1.1019.x64-Setup.exe" -File $installer -UseBasicParsing		
-	# Start installer silently and wait
-	Start-Process -FilePath $installer -ArgumentList '/S' -Wait -PassThru		
+    Write-Host "Installing Everything (Search)..." -ForegroundColor Green
 
-	# Pin Everything.exe to the Taskbar Using PS-TBPin https://github.com/DanysysTeam/PS-TBPin
-	# powershell -ExecutionPolicy Bypass -command "& { 
-		# [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-		# Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/DanysysTeam/PS-TBPin/main/TBPin.ps1'))
-		# Add-TaskbarPin 'C:\Program Files\Everything\Everything.exe' 
-	# }"
+    $installer = "$env:TEMP\EverythingSetup.exe"
+    Get-FileFromWeb "https://www.voidtools.com/Everything-1.4.1.1019.x64-Setup.exe" -File $installer
 
-	# Rename Start shortcut and remove desktop shortcut
-	$f1="$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Everything.lnk"
-	if (test-path $f1) { Rename-Item $f1 'Search.lnk' -Force }
-	$f2="$env:PUBLIC\Desktop\Everything.lnk"
-	if (test-path $f2) { Remove-Item $f2 -Force }
-	
-	# Disable Windows Search			
-	Set-Service -Name WSearch -StartupType Disabled | Out-Null
-	Stop-Service -Name WSearch -Force | Out-Null
+    Start-Process -FilePath $installer -ArgumentList '/S' -Wait -PassThru | Out-Null
+
+    # Rename Start Menu shortcut and remove desktop shortcut
+	$startMenu = Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs'
+	$search     = Join-Path $startMenu 'Search.lnk'
+	$everything = Join-Path $startMenu 'Everything.lnk'
+
+	if (Test-Path $search) {Remove-Item $everything -Force}
+	elseif (Test-Path $everything) {Rename-Item $everything 'Search.lnk' -Force}
+
+    $f2 = "$env:PUBLIC\Desktop\Everything.lnk"
+    if (Test-Path $f2) { Remove-Item $f2 -Force }
+<#
+	Pin Everything.exe to the Taskbar Using PS-TBPin https://github.com/DanysysTeam/PS-TBPin (Flag by AV)
+	powershell -ExecutionPolicy Bypass -command "& { 
+		[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+		Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/DanysysTeam/PS-TBPin/main/TBPin.ps1'))
+		Add-TaskbarPin 'C:\Program Files\Everything\Everything.exe' 
+	}"
+#>
+    # Disable Windows Search
+    Stop-Service -Name WSearch -Force
+    Set-Service -Name WSearch -StartupType Disabled
 
 	# Disable Search Engine (breaks Search App)
 	# Dism /Online /NoRestart /Disable-Feature /FeatureName:SearchEngine-Client-Package | Out-Null
@@ -19629,12 +19802,12 @@ function Invoke-WebCord {
     Get-FileFromWeb -URL "https://github.com/SpacingBat3/WebCord/releases/latest/download/webcord-squirrel-x64.exe" -File $installerPath
     
     # Install silently if possible (Squirrel installers typically use --silent)
-    Start-Process -FilePath $installerPath -ArgumentList '--silent' -Wait -PassThru
+    Start-Process -FilePath $installerPath -ArgumentList '--silent' -Wait -PassThru | Out-Null
     
     # Create icon directory if needed
     $iconDir = "$env:APPDATA\Local\webcord"
     if (-not (Test-Path $iconDir)) { 
-        New-Item -Path $iconDir -ItemType Directory -Force | Out-Null 
+        New-Item -Path $iconDir -ItemType Directory -Force | Out-Null
     }
     
     # Download icon
@@ -19651,7 +19824,7 @@ function Invoke-WebCord {
     
     $webcordExe = $null
     foreach ($path in $possiblePaths) {
-        $found = Get-ChildItem -Path $path -ErrorAction SilentlyContinue | Select-Object -First 1
+        $found = Get-ChildItem -Path $path | Select-Object -First 1
         if ($found) {
             $webcordExe = $found.FullName
             break
@@ -19667,9 +19840,9 @@ function Invoke-WebCord {
         $shortcut.WorkingDirectory = Split-Path $webcordExe
         $shortcut.IconLocation = "$iconDir\Discord.ico"
         $shortcut.Save()
-        Write-Host "WebCord shortcut created successfully."
+        # Write-Host "WebCord shortcut created successfully."
     } else {
-        Write-Warning "WebCord executable not found. Shortcut not created."
+        Write-Warning "WebCord executable not found! Shortcut not created."
         # Additional debugging: Check if installation directories exist
         Write-Debug "Checking installation directories:"
         $possibleDirs = @("$env:LOCALAPPDATA\Programs\WebCord", "$env:LOCALAPPDATA\webcord")
@@ -19734,14 +19907,14 @@ function Invoke-7Zip {
     }
 }
 
-
+# Install or upgrade VLC Media Player
 function Invoke-VLC {
     Write-Host "Installing VLC..." -ForegroundColor Green
 
     $vlcPath = Join-Path $env:TEMP 'vlc-win64.exe'
 
     # Download VLC
-    Get-FileFromWeb -URL 'https://download.videolan.org/vlc/last/win64/vlc-3.0.21-win64.exe' -OutFile $vlcPath -UseBasicParsing
+    Get-FileFromWeb -URL 'https://download.videolan.org/pub/videolan/vlc/last/win64/vlc-3.0.21-win64.exe' -File $vlcPath
 
     # Silent install
     Start-Process -FilePath $vlcPath -ArgumentList '/S' -Wait
@@ -19754,7 +19927,7 @@ function Invoke-VLC {
     # Start-Process dism.exe -ArgumentList '/Online','/NoRestart','/Disable-Feature','/FeatureName:MediaPlayback' -Wait
 }
 
-
+# Perform comprehensive Windows cleanup
 function Invoke-WindowsCleanup {
 	# Define all cleanup options
 	$options = @(
@@ -19944,36 +20117,39 @@ if ($PSBoundParameters.Count -gt 0) {
 			Invoke-WindowsCleanup
 		}
 		if ($Full) {
+
 			Invoke-CreateRestorePoint
-			# Invoke-Win11Debloat	
-			# Invoke-WinUtilAutoStandard
-			# Invoke-WinActivation
-			# Invoke-PauseUpdates
-			# Invoke-DisableUpdates
-			# Invoke-RemoveEdge
-			# Invoke-UninstallOneDrive
-			# Invoke-RemoveGaming
-			# Invoke-RemoveWindowsAI
-			# Invoke-RemoveWinBloat # remote desktop not working
-			# Invoke-NET35Run
-			# Invoke-DirectXRun
-			# Invoke-CPlusPlusAIO
-			# Invoke-Winget # ui too invasive
-			# Invoke-Brave
-			# Invoke-DebloatBrave
+			Invoke-Win11Debloat
+			Invoke-WinUtilAutoStandard
+			Invoke-WinActivation
+			Invoke-PauseUpdates
+			Invoke-DisableUpdates
+			Invoke-RemoveEdge
+			Invoke-UninstallOneDrive
+			Invoke-RemoveGaming
+			Invoke-RemoveWindowsAI
+			Invoke-RemoveWinBloat # remote desktop not working
+			Invoke-NET35Run
+			Invoke-DirectXRun
+			Invoke-CPlusPlusAIO
+			Invoke-Winget # ui too invasive
+			Invoke-LibreWolf
+			Invoke-Brave
+			Invoke-DebloatBrave
 			Invoke-7Zip
-			Invoke-ProcessExplorer # crash
-			# Invoke-EverythingSearch # crash
+			Invoke-ProcessExplorer
+			Invoke-EverythingSearch
+			
 			Invoke-Steam
-			# Invoke-VLC # crash
-			Invoke-WebCord # ui fix
+			Invoke-VLC
+			Invoke-WebCord
 			Invoke-SpotX # Flag by Windows Defender
-			Invoke-DisableTelemetry	
+			Invoke-DisableTelemetry
 			Invoke-ActivateUltimatePlan
 			Invoke-DisablePowerSaving
-			Invoke-OptimizeRegistry			
+			Invoke-OptimizeRegistry
 			Invoke-OptimizeNetwork
-			Invoke-BCDEditTweaks			
+			Invoke-BCDEditTweaks
 			Invoke-StartXback # Crash StartAllBack Download sometimes
 			Invoke-PersonalizeWin
 			Invoke-DisableServices
@@ -20012,7 +20188,7 @@ if ($PSBoundParameters.Count -gt 0) {
 		if ($ShutUp10)         { Invoke-ShutUp10Tweaks }
 		if ($BCDEdit)          { Invoke-BCDEditTweaks }
 		if ($StartXback)       { Invoke-StartXback }
-		if ($Cleanup)       { Invoke-WinCleanup}
+		if ($Cleanup)          { Invoke-WinCleanup }
 		if ($DisableTelemetry) {
 			Invoke-WPDTweaks
 			Invoke-ShutUp10Tweaks
@@ -20024,10 +20200,10 @@ if ($PSBoundParameters.Count -gt 0) {
 			Invoke-DisableDefender
 		}
 		if ($DisableDefender)  { Invoke-DisableDefender }
-        if ($Restart)           { shutdown -r -t 00 }
+        if ($Restart)          { shutdown -r -t 00 }
     } catch {
         Write-Host "Error while running parameter actions: $_" -ForegroundColor Red
-        exit 1
+		pause
     }
     return
 }
@@ -20261,18 +20437,13 @@ while ($true) {
 				############################################################################
 				5 {
 					$telemetryOptions = @(
-						'WPD','ShutUp10','Privacy is sexy',
+						'WPD','ShutUp10','PRIVACY.SEXY',
 						'WindowsSpyBlocker','Portmaster','simplewall'
 					)
 					$exitSubMenu = $false   # flag
                     while (-not $exitSubMenu) {
-                        Clear-Host
-				        1..3 | ForEach-Object { '' }
-						
+						Clear-Host
 						1..3 | ForEach-Object { '' }
-						Write-Host (& $c "") -ForegroundColor DarkGray
-						
-				        1..2 | ForEach-Object { '' }
 						
 						# Show submenu
 				        $colorOptions = @{ 'WPD' = 'Green'; 'ShutUp10' = 'Green'; 'simplewall' = 'Green' }
