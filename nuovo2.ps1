@@ -19152,7 +19152,22 @@ function Invoke-PersonalizeWin {
 	Set-ItemProperty "HKCU:\Control Panel\Desktop" -Name "WallpaperStyle" -Value "10"
 	Set-ItemProperty "HKCU:\Control Panel\Desktop" -Name "TileWallpaper" -Value "0"
 	[Wallpaper]::SystemParametersInfo(0x0014, 0, $persistentWallpaperPath, 3) | Out-Null
-
+<#
+	# MyDockFinder
+	Get-FileFromWeb -Url "https://github.com/ManueITest/Windows/raw/refs/heads/main/MyDockFinder.zip" -File "$env:TEMP\MyDockFinder.zip"
+	Expand-Archive -Path "$env:TEMP\MyDockFinder.zip" -DestinationPath "$env:TEMP\MyDockFinder" -Force
+	Move-Item "$env:TEMP\MyDockFinder\MyDockFinder" "C:\MyDockFinder" -Force
+	# Create a shortcut in the user's Startup folder
+	$startup = [Environment]::GetFolderPath('Startup')
+	$WshShell = New-Object -ComObject WScript.Shell
+	$shortcutPath = Join-Path $startup "MyDockFinder.lnk"
+	$shortcut = $WshShell.CreateShortcut($shortcutPath)
+	$shortcut.TargetPath = "C:\MyDockFinder\Dock_64.exe"
+	$shortcut.WorkingDirectory = "C:\MyDockFinder"
+	$shortcut.WindowStyle = 1
+	$shortcut.IconLocation = "C:\MyDockFinder\Dock_64.exe, 0"
+	$shortcut.Save()
+#>
 	# if Windows 11+
 	if ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild -ge 22000) {
 		
@@ -19186,7 +19201,7 @@ function Invoke-PersonalizeWin {
 		# Disable rounded corners (W11)	
 		Write-Output "Disabling rounded corners..."
 		Invoke-WebRequest -Uri "https://github.com/valinet/Win11DisableRoundedCorners/releases/latest/download/Win11DisableOrRestoreRoundedCorners.exe" -OutFile "$env:TEMP\Win11DisableOrRestoreRoundedCorners.exe" -UseBasicParsing
-		Start-Process -FilePath "$env:TEMP\Win11DisableOrRestoreRoundedCorners.exe" -ArgumentList "/disable" -Wait
+		Start-Process -FilePath "$env:TEMP\Win11DisableOrRestoreRoundedCorners.exe" -ArgumentList "/disable" -Wait	
 	}else{		
 	}
 <#
@@ -19307,7 +19322,9 @@ defaultPref("network.http.referer.XOriginPolicy", 2);
 defaultPref("browser.sessionstore.resume_from_crash", false);
 "@
 
-	$path="$env:USERPROFILE\.librewolf"; if(!(Test-Path $path)){New-Item -ItemType Directory -Path $path -Force|Out-Null}; Set-Content -Path "$path\librewolf.overrides.cfg" -Value $MultilineComment -Force
+	$path="$env:USERPROFILE\.librewolf"
+	if(!(Test-Path $path)){New-Item -ItemType Directory -Path $path -Force|Out-Null}
+	Set-Content -Path "$path\librewolf.overrides.cfg" -Value $MultilineComment -Force
 
 Remove-Item "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\LibreWolf Private Browsing.lnk" -Force 
 	
