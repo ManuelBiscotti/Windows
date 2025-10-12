@@ -1467,9 +1467,14 @@ function Invoke-FixStore {
 	Get-AppXPackage -AllUsers *Microsoft.WindowsStore* | ForEach-Object {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"}
 	Get-AppXPackage -AllUsers *Microsoft.Microsoft.StorePurchaseApp * | ForEach-Object {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"}
 }
-			
+
+# Debloat Edge
 function Invoke-DebloatEdge {
 	Write-Host "Debloating Edge..." -ForegroundColor Green
+	# edge-debloat
+	Invoke-WebRequest -Uri "https://github.com/marlock9/edge-debloat/raw/refs/heads/main/edge-debloat.reg" -OutFile "$env:TEMP\edge-debloat.reg"
+	Start-Process regedit.exe -ArgumentList "/s `"$env:TEMP\edge-debloat.reg`"" -Wait
+	# Edge policies
 	$MultilineComment = @'
 Windows Registry Editor Version 5.00
 
@@ -1640,9 +1645,72 @@ Windows Registry Editor Version 5.00
 "HttpsUpgradesEnabled"=dword:00000001
 "NonRemovableProfileEnabled"=dword:00000000
 "ProactiveAuthEnabled"=dword:00000000
+"SearchInSidebarEnabled"=dword:00000002
+"FavoritesBarEnabled"=dword:00000000
+"GuidedSwitchEnabled"=dword:00000000
+"EdgeDefaultProfileEnabled"="Default"
+"BrowserAddProfileEnabled"=dword:00000000
+"ConfigureOnPremisesAccountAutoSignIn"=dword:00000000
+"ConfigureOnlineTextToSpeech"=dword:00000000
+"ConfigureShare"=dword:00000000
+"DefaultBrowserSettingsCampaignEnabled"=dword:00000000
+"ImportOnEachLaunch"=dword:00000000
+"LocalBrowserDataShareEnabled"=dword:00000000
+"MSAWebSiteSSOUsingThisProfileAllowed"=dword:00000000
+"PinningWizardAllowed"=dword:00000000
+"QuickViewOfficeFilesEnabled"=dword:00000000
+"RemoteDebuggingAllowed"=dword:00000000
+"RoamingProfileSupportEnabled"=dword:00000000
+"SearchForImageEnabled"=dword:00000000
+"SearchFiltersEnabled"=dword:00000000
+"SharedLinksEnabled"=dword:00000000
+"TabServicesEnabled"=dword:00000000
+"NewTabPageSearchBox"="redirect"
+"PasswordProtectionWarningTrigger"=dword:00000000
+"AskBeforeCloseEnabled"=dword:00000000
+"AutofillMembershipsEnabled"=dword:00000000
+"AADWebSSOAllowed"=dword:00000000
+"AccessCodeCastEnabled"=dword:00000000
+"AdsTransparencyEnabled"=dword:00000000
+"EdgeAdminCenterEnabled"=dword:00000000
+"SigninInterceptionEnabled"=dword:00000000
+"SideSearchEnabled"=dword:00000000
+"ShowPDFDefaultRecommendationsEnabled"=dword:00000000
+"ShowHomeButton"=dword:00000000
+"SafeBrowsingProxiedRealTimeChecksAllowed"=dword:00000000
+"PasswordDismissCompromisedAlertEnabled"=dword:00000000
+"DesktopSharingHubEnabled"=dword:00000000
+"CopilotPageContextEnabled"=dword:00000000
+"QRCodeGeneratorEnabled"=dword:00000000
+"EdgeAutofillMlEnabled"=dword:00000000
+"EdgeEntraCopilotPageContext"=dword:00000000
+"MouseGestureEnabled"=dword:00000000
+"DisableScreenshots"=dword:00000000
+"WebCaptureEnabled"=dword:00000000
+"AddressBarWorkSearchResultsEnabled"=dword:00000000
+"AddressBarTrendingSuggestEnabled"=dword:00000000
+"BuiltInAIAPIsEnabled"=dword:00000000
+"AllowSystemNotifications"=dword:00000000
+"AutoplayAllowed"=dword:00000000
+"ClickOnceEnabled"=dword:00000000
+"InternetExplorerIntegrationReloadInIEModeAllowed"=dword:00000000
+"HideInternetExplorerRedirectUXForIncompatibleSitesEnabled"=dword:00000001
+"Microsoft365CopilotChatIconEnabled"=dword:00000000
+"HttpsOnlyMode"="force_enabled"
+"LiveVideoTranslationEnabled"=dword:00000000
 
-
-
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Edge\SyncTypesListDisabled]
+"1"="favorites"
+"2"="settings"
+"3"="passwords"
+"4"="addressesAndMore"
+"5"="extensions"
+"6"="history"
+"7"="openTabs"
+"8"="edgeWallet"
+"9"="collections"
+"10"="apps"
+"11"="edgeFeatureUsage"
 
 ; block desktop shortcut for all edge channels
 [HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\EdgeUpdate]

@@ -1,0 +1,20 @@
+Windows Registry Editor Version 5.00
+
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Power]
+"CoalescingTimerInterval"=dword:00000000
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows]
+"TimerCoalescing"=hex:00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,\
+00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,\
+00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,\
+00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,00,\
+00,00,00,00,00,00,00,00
+
+[HKEY_CURRENT_USER\Control Panel\Desktop]
+"ScreenSaveActive"="0"
+"ScreenSaveTimeOut"="0"
+"SCRNSAVE.EXE"=-
+
+

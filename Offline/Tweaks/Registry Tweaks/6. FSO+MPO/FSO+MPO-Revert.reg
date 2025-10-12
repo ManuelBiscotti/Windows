@@ -1,0 +1,14 @@
+Windows Registry Editor Version 5.00
+
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\Dwm]
+"OverlayTestMode"=-
+"OverlayMinFPS"=dword:0000001e
+
+; >>>>>>>>> OverlayMinFPS can also be set to "00000000" if you're having issues with Discord or other Chromium apps
+; like (flickering/lag/black screen/freezing) when using the default value of 30 Decimal / 1e Hexadecimal
+
+
+[HKEY_CURRENT_USER\System\GameConfigStore]
+"GameDVR_FSEBehaviorMode"=dword:00000000
+"GameDVR_FSEBehavior"=dword:00000000
