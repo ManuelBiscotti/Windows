@@ -47,99 +47,48 @@ param (
 # Colors
 $Host.UI.RawUI.WindowTitle = ''
 $Host.UI.RawUI.BackgroundColor = 'Black'
-$Host.UI.RawUI.ForegroundColor = 'Blue'
+$Host.UI.RawUI.ForegroundColor = 'DarkGray'
 $Host.PrivateData.ProgressBackgroundColor = 'Black'
-$Host.PrivateData.ProgressForegroundColor = 'Blue'
+$Host.PrivateData.ProgressForegroundColor = 'DarkGray'
 Clear-Host
 
-# --- Font (SetCurrentConsoleFontEx) ---
-$fontCs = @"
-using System;
-using System.Runtime.InteropServices;
-public class ConsoleFont {
-    [StructLayout(LayoutKind.Sequential)]
-    public struct COORD { public short X; public short Y; }
-    [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]
-    public struct CONSOLE_FONT_INFOEX {
-        public uint cbSize;
-        public uint nFont;
-        public COORD dwFontSize;
-        public int FontFamily;
-        public int FontWeight;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst=32)]
-        public string FaceName;
+function Set-WindowsTerminalFont {
+    param(
+        [string]$FontFace = "Consolas",
+        [int]$FontSize = 14,
+        [string]$FontWeight = "bold"
+    )
+
+    # Locate the settings.json file
+    $settingsPath = "$env:USERPROFILE\AppData\Local\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json"
+
+    # Check if file exists
+    if (-not (Test-Path $settingsPath)) {
+        Write-Warning "Windows Terminal settings file not found at: $settingsPath"
+        return
     }
-    [DllImport("kernel32.dll", SetLastError=true)]
-    public static extern IntPtr GetStdHandle(int nStdHandle);
-    [DllImport("kernel32.dll", SetLastError=true)]
-    public static extern bool GetCurrentConsoleFontEx(IntPtr hConsoleOutput, bool bMaximumWindow, ref CONSOLE_FONT_INFOEX lpConsoleCurrentFontEx);
-    [DllImport("kernel32.dll", SetLastError=true)]
-    public static extern bool SetCurrentConsoleFontEx(IntPtr hConsoleOutput, bool bMaximumWindow, ref CONSOLE_FONT_INFOEX lpConsoleCurrentFontEx);
-}
-"@
-Add-Type -TypeDefinition $fontCs -ErrorAction Stop
 
-$hd = [ConsoleFont]::GetStdHandle(-11)
+    # Read and convert the JSON file
+    $settings = Get-Content $settingsPath | ConvertFrom-Json
 
-$cf = New-Object ConsoleFont+CONSOLE_FONT_INFOEX
-$cf.cbSize = [uint32][System.Runtime.InteropServices.Marshal]::SizeOf($cf)
-[ConsoleFont]::GetCurrentConsoleFontEx($hd, $false, [ref]$cf) | Out-Null
+    # Ensure the 'profiles.defaults' section exists
+    if (-not $settings.profiles.PSObject.Properties['defaults']) {
+        $settings.profiles | Add-Member -MemberType NoteProperty -Name 'defaults' -Value (@{}) -Force
+    }
 
-$cf.FaceName = "Consolas"
-$cf.FontWeight = 700
-$cf.dwFontSize = New-Object ConsoleFont+COORD
-$cf.dwFontSize.X = 0
-$cf.dwFontSize.Y = 14
+    # Set the font properties
+    $settings.profiles.defaults | Add-Member -MemberType NoteProperty -Name 'fontFace' -Value $FontFace -Force
+    $settings.profiles.defaults | Add-Member -MemberType NoteProperty -Name 'fontSize' -Value $FontSize -Force
+    $settings.profiles.defaults | Add-Member -MemberType NoteProperty -Name 'fontWeight' -Value $FontWeight -Force
 
-[ConsoleFont]::SetCurrentConsoleFontEx($hd, $false, [ref]$cf) | Out-Null
+    # Save the changes back to the file
+    $settings | ConvertTo-Json -Depth 10 | Set-Content $settingsPath -Encoding UTF8
 
-# Check what was actually applied
-$check = New-Object ConsoleFont+CONSOLE_FONT_INFOEX
-$check.cbSize = [uint32][System.Runtime.InteropServices.Marshal]::SizeOf($check)
-[ConsoleFont]::GetCurrentConsoleFontEx($hd, $false, [ref]$check) | Out-Null
-
-# --- Opacity (SetLayeredWindowAttributes only) ---
-$winCs = @"
-using System;
-using System.Runtime.InteropServices;
-public static class Win32 {
-    [DllImport("kernel32.dll")]
-    public static extern IntPtr GetConsoleWindow();
-    [DllImport("user32.dll", SetLastError=true)]
-    public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
-    [DllImport("user32.dll", SetLastError=true)]
-    public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
-    [DllImport("user32.dll", SetLastError=true)]
-    public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
-}
-"@
-Add-Type -TypeDefinition $winCs -ErrorAction Stop
-
-$hwnd = [Win32]::GetConsoleWindow()
-$opacityWanted = 0.90
-$alphaByte = [byte][math]::Round(255 * $opacityWanted)
-
-$opacityApplied = $false
-if ($hwnd -ne [IntPtr]::Zero) {
-    try {
-        $GWL_EXSTYLE = -20
-        $WS_EX_LAYERED = 0x80000
-        $LWA_ALPHA = 0x2
-        $style = [Win32]::GetWindowLong($hwnd, $GWL_EXSTYLE)
-        [Win32]::SetWindowLong($hwnd, $GWL_EXSTYLE, ($style -bor $WS_EX_LAYERED)) | Out-Null
-        $ok = [Win32]::SetLayeredWindowAttributes($hwnd, 0, $alphaByte, $LWA_ALPHA)
-        if ($ok) { $opacityApplied = $true }
-    } catch { }
+    Write-Host "Windows Terminal font updated to: $FontFace, Size $FontSize, Weight $FontWeight" -ForegroundColor Green
 }
 
-# --- Summary ---
-Write-Host "`nSummary:"
-Write-Host "  Font: $($check.FaceName), size $($check.dwFontSize.Y), weight $($check.FontWeight)"
-if ($opacityApplied) {
-    Write-Host "  Opacity set to $([math]::Round($alphaByte/255*100))%"
-} else {
-    Write-Warning "Opacity could not be applied (if you're using Windows Terminal, that's expected)."
-}
+# Run the function
+Set-WindowsTerminalFont
 
 # -------------------------
 # Helper functions / stubs
@@ -276,79 +225,156 @@ function Invoke-NET35Run {
 function Invoke-NETDesktopRunAIO {
 	Write-Host "Installing All latest .NET Desktop Runtimes..." -ForegroundColor Green
 	# install latest .net desktop runtimes
-	foreach($id in "Microsoft.DotNet.DesktopRuntime.3_1","Microsoft.DotNet.DesktopRuntime.5","Microsoft.DotNet.DesktopRuntime.6","Microsoft.DotNet.DesktopRuntime.7","Microsoft.DotNet.DesktopRuntime.8","Microsoft.DotNet.DesktopRuntime.9"){winget.exe install --id=$id -a x64 --exact --source winget --accept-source-agreements --accept-package-agreements --force}   	
+	foreach($id in "Microsoft.DotNet.DesktopRuntime.3_1","Microsoft.DotNet.DesktopRuntime.5","Microsoft.DotNet.DesktopRuntime.6","Microsoft.DotNet.DesktopRuntime.7","Microsoft.DotNet.DesktopRuntime.8","Microsoft.DotNet.DesktopRuntime.9"){
+		winget.exe install --id=$id -a x64 --exact --source winget --accept-source-agreements --accept-package-agreements --force
+	}   	
 }
 
 function Invoke-ActivateUltimatePlan {
-	# POWER PLAN ACTIVATION
-	# Activate Ultimate Performance Power Plan
-	Write-Host "Activating Ultimate Performance power plan..." -ForegroundColor Green
-	# Import the Ultimate Performance power plan and create a custom duplicate with a fixed GUID
-	cmd /c "powercfg /duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 99999999-9999-9999-9999-999999999999 >nul 2>&1"
-	# Set the custom Ultimate Performance power plan as the active scheme
-	cmd /c "powercfg /SETACTIVE 99999999-9999-9999-9999-999999999999 >nul 2>&1"
- 
- 	# POWER PLAN SETTINGS
-	# Prevent hard disks from turning off while on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 0012ee47-9041-4b5d-9b77-535fba8b1442 6738e2c4-e8a5-4a42-b16a-e040e769756e 0x00000000 
-	# Pause desktop background slideshow to avoid unnecessary resource usage
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 0d7dbae2-4294-402a-ba8e-26777e8488cd 309dce9b-bef4-4119-9921-a851fb12f0f4 001 
-	# Set wireless adapter to maximum performance on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 19cbb8fa-5279-450e-9fac-8a3d5fedd0c1 12bbebe6-58d6-4636-95bb-3217ef867c1a 000
-	# Disable automatic sleep on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 238c9fa8-0aad-41ed-83f4-97be242c8f20 29f6c1db-86da-48c5-9fdb-f2b67b1f44da 0x00000000 
-	# Disable hybrid sleep on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 238c9fa8-0aad-41ed-83f4-97be242c8f20 94ac6d29-73ce-41a6-809f-6363ba21b47e 000 
-	# Disable hibernation timeout on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 238c9fa8-0aad-41ed-83f4-97be242c8f20 9d7815a6-7ee4-497e-8888-515a05f02364 0x00000000 
-	# Prevent scheduled tasks from waking the computer while on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 238c9fa8-0aad-41ed-83f4-97be242c8f20 bd3b718a-0680-4d9d-8ab2-e1d2b4ac806d 000 
-	# Configure power button to perform a full shutdown when pressed
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 4f971e89-eebd-4455-a8de-9e59040e7347 a7066653-8d6c-40a8-910e-a1f54b84c7e5 002 
-	# Disable PCI Express Link State Power Management for maximum throughput
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5 000 
-	# Set minimum processor state to 100% for consistent maximum performance
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 54533251-82be-4824-96c1-47b60b740d00 893dee8e-2bef-41e0-89c6-b55d0929964c 0x00000064 
-	# Enable active cooling policy (fan priority over throttling)
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 54533251-82be-4824-96c1-47b60b740d00 94d3a615-a899-4ac5-ae2b-e4d8f634367f 001 
-	# Set maximum processor state to 100% on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 54533251-82be-4824-96c1-47b60b740d00 bc5038f7-23e0-4960-96da-33abaf5935ec 0x00000064 
-	# Set display brightness to 100% when on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 7516b95f-f776-4464-8c53-06167f40cc99 aded5e82-b909-4619-9949-f5d71dac0bcb 0x00000064
-	# Set dimmed display brightness to 100% on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 7516b95f-f776-4464-8c53-06167f40cc99 f1fbfde2-a960-4165-9f88-50667911ce96 0x00000064 
-	# Disable adaptive brightness on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 7516b95f-f776-4464-8c53-06167f40cc99 fbd9aa66-9553-4097-ba44-ed6e9d65eab8 000 
-	# Prioritize performance over quality in video playback when on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 9596fb26-9850-41fd-ac3e-f7c3c00afd4b 10778347-1370-4ee0-8bbd-33bdacaade49 001 
-	# Optimize video playback for performance on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 9596fb26-9850-41fd-ac3e-f7c3c00afd4b 34c7b99f-9a6d-4b3c-8dc7-b6693b78cef4 000 
-	# Force Intel integrated graphics to maximum performance on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 44f3beca-a7c0-460e-9df2-bb8b99e0cba6 3619c3f2-afb2-4afc-b0e9-e7fef372de36 002 *>$null
-	# Set AMD Power Slider to best performance on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 c763b4ec-0e50-4b6b-9bed-2b92a6ee884e 7ec1751b-60ed-4588-afb5-9819d3d77d90 003 *>$null 
-	# Force AMD/ATI PowerPlay graphics mode to maximize performance
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 f693fb01-e858-4f00-b20f-f30e12ac06d6 191f65b5-d45c-4a4f-8aae-1ab8bfd980e6 001 *>$null
-	# Force dynamic graphics switching to maximum performance mode
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e276e160-7cb0-43c6-b20b-73f5dce39954 a1662ab2-9d34-4e53-ba8b-2639b9e20857 003 *>$null 
-	# Disable critical battery notification on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f 5dbb7c9f-38e9-40d2-9749-4f8a0e9f640f 000
-	# Set critical battery action to "do nothing" when on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f 637ea02f-bbcb-4015-8e2c-a1c7b9c0b546 000
-	# Set low battery threshold to 0% on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f 8183ba9a-e910-48da-8769-14ae6dc1170a 0x00000000 
-	# Set critical battery threshold to 0% on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f 9a66d8d7-4ff7-4ef9-b5a2-5a326ca2a469 0x00000000 
-	# Disable low battery notification on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f bcded951-187b-4d05-bccc-f7e51960c258 000 
-	# Set low battery action to "do nothing" on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f d8742dcb-3e6a-4b3c-b3fe-374623cdcf06 000 
-	# Set reserve battery threshold to 0% on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f f3c5027d-cd16-4930-aa6b-90db844a8f00 0x00000000 
-	# Ensure brightness is not reduced by battery saver mode on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 de830923-a562-41af-a086-e3a2c6bad2da 13d09884-f74e-474a-a852-b6bde8ad03a8 0x00000064 
-	# Prevent battery saver from activating automatically on AC power
-	powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 de830923-a562-41af-a086-e3a2c6bad2da e69653ca-cf7f-4f05-aa73-cb833fa90ad4 0x00000000
+    # ULTIMATE PERFORMANCE POWER PLAN CONFIGURATION
+    # Configures system for maximum performance by activating Ultimate Performance power plan
+    # and optimizing power settings for high-performance scenarios
+
+	# POWER PLAN
+	Write-Host "`n=================================================================" -ForegroundColor White
+	Write-Host "		ULTIMATE PERFORMANCE POWER PLAN" -ForegroundColor White
+	Write-Host "=================================================================" -ForegroundColor White
+
+	Write-Host "`n--- Power Plan" -ForegroundColor Cyan
+    # Create a duplicate of the Ultimate Performance power scheme with fixed GUID
+    # This ensures the custom plan persists and can be reliably referenced
+    Write-Output "Importing and duplicating Ultimate Performance power scheme..."
+    cmd /c "powercfg /duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 99999999-9999-9999-9999-999999999999 >nul 2>&1"
+    # Set the duplicated Ultimate Performance plan as active power scheme
+    Write-Output "Setting Ultimate Performance as active power scheme..."
+    cmd /c "powercfg /SETACTIVE 99999999-9999-9999-9999-999999999999 >nul 2>&1"
+
+    # POWER SETTINGS 
+
+    # STORAGE SETTINGS
+    Write-Host "`n--- Storage Settings" -ForegroundColor Cyan
+    # Prevent hard disks from turning off while on AC power to avoid latency from spin-up
+    Write-Output "Preventing hard disks from turning off during AC power..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 0012ee47-9041-4b5d-9b77-535fba8b1442 6738e2c4-e8a5-4a42-b16a-e040e769756e 0x00000000
+    
+    # DESKTOP BACKGROUND SETTINGS
+    Write-Host "`n--- Desktop Background Settings" -ForegroundColor Cyan
+    # Pause desktop background slideshow to reduce resource usage and improve performance
+    Write-Output "Pausing desktop background slideshow to conserve resources..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 0d7dbae2-4294-402a-ba8e-26777e8488cd 309dce9b-bef4-4119-9921-a851fb12f0f4 001
+    
+    # WIRELESS ADAPTER SETTINGS
+    Write-Host "`n--- Wireless Adapter Settings" -ForegroundColor Cyan
+    # Set wireless adapter to maximum performance on AC power for optimal network throughput
+    Write-Output "Setting wireless adapter to maximum performance mode..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 19cbb8fa-5279-450e-9fac-8a3d5fedd0c1 12bbebe6-58d6-4636-95bb-3217ef867c1a 000
+    
+    # SLEEP AND HIBERNATION SETTINGS
+    Write-Host "`n--- Sleep and Hibernation Settings" -ForegroundColor Cyan
+    # Disable automatic sleep on AC power to maintain system availability
+    Write-Output "Disabling automatic sleep during AC power..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 238c9fa8-0aad-41ed-83f4-97be242c8f20 29f6c1db-86da-48c5-9fdb-f2b67b1f44da 0x00000000
+    # Disable hybrid sleep on AC power to prevent unnecessary sleep state transitions
+    Write-Output "Disabling hybrid sleep during AC power..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 238c9fa8-0aad-41ed-83f4-97be242c8f20 94ac6d29-73ce-41a6-809f-6363ba21b47e 000 
+    # Disable hibernation timeout on AC power to maintain system state
+    Write-Output "Disabling hibernation timeout during AC power..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 238c9fa8-0aad-41ed-83f4-97be242c8f20 9d7815a6-7ee4-497e-8888-515a05f02364 0x00000000
+    
+    # SYSTEM POWER MANAGEMENT
+    Write-Host "`n--- System Power Management" -ForegroundColor Cyan
+    # Prevent scheduled tasks from waking the computer while on AC power
+    Write-Output "Preventing scheduled tasks from waking the computer..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 238c9fa8-0aad-41ed-83f4-97be242c8f20 bd3b718a-0680-4d9d-8ab2-e1d2b4ac806d 000
+    # Configure power button to perform a full shutdown when pressed
+    Write-Output "Configuring power button for full shutdown..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 4f971e89-eebd-4455-a8de-9e59040e7347 a7066653-8d6c-40a8-910e-a1f54b84c7e5 002
+    
+    # PCI EXPRESS AND PROCESSOR POWER MANAGEMENT
+    Write-Host "`n--- PCI Express and Processor Settings" -ForegroundColor Cyan
+    # Disable PCI Express Link State Power Management for maximum throughput
+    Write-Output "Disabling PCI Express Link State Power Management..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5 000
+    # Enable active cooling policy (fan priority over throttling)
+    Write-Output "Enabling active cooling policy..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 54533251-82be-4824-96c1-47b60b740d00 94d3a615-a899-4ac5-ae2b-e4d8f634367f 001
+    # Set minimum processor state to 100% for consistent maximum performance
+    Write-Output "Setting minimum processor state to 100%..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 54533251-82be-4824-96c1-47b60b740d00 893dee8e-2bef-41e0-89c6-b55d0929964c 0x00000064
+    # Set maximum processor state to 100% on AC power
+    Write-Output "Setting maximum processor state to 100%..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 54533251-82be-4824-96c1-47b60b740d00 bc5038f7-23e0-4960-96da-33abaf5935ec 0x00000064
+    
+    # DISPLAY AND VIDEO SETTINGS
+    Write-Host "`n--- Display and Video Settings" -ForegroundColor Cyan
+    # Set display brightness to 100% when on AC power
+    Write-Output "Setting display brightness to 100%..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 7516b95f-f776-4464-8c53-06167f40cc99 aded5e82-b909-4619-9949-f5d71dac0bcb 0x00000064
+    # Set dimmed display brightness to 100% on AC power
+    Write-Output "Setting dimmed display brightness to 100%..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 7516b95f-f776-4464-8c53-06167f40cc99 f1fbfde2-a960-4165-9f88-50667911ce96 0x00000064
+    # Disable adaptive brightness on AC power
+    Write-Output "Disabling adaptive brightness..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 7516b95f-f776-4464-8c53-06167f40cc99 fbd9aa66-9553-4097-ba44-ed6e9d65eab8 000
+    # Prioritize performance over quality in video playback when on AC power
+    Write-Output "Prioritizing performance over quality in video playback..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 9596fb26-9850-41fd-ac3e-f7c3c00afd4b 10778347-1370-4ee0-8bbd-33bdacaade49 001
+    # Optimize video playback for performance on AC power
+    Write-Output "Optimizing video playback for maximum performance..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 9596fb26-9850-41fd-ac3e-f7c3c00afd4b 34c7b99f-9a6d-4b3c-8dc7-b6693b78cef4 000
+    
+    # GRAPHICS ADAPTER SETTINGS
+    Write-Host "`n--- Graphics Adapter Settings" -ForegroundColor Cyan
+    # Force Intel integrated graphics to maximum performance on AC power
+    Write-Output "Forcing Intel integrated graphics to maximum performance..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 44f3beca-a7c0-460e-9df2-bb8b99e0cba6 3619c3f2-afb2-4afc-b0e9-e7fef372de36 002 *>$null
+    # Set AMD Power Slider to best performance on AC power
+    Write-Output "Setting AMD Power Slider to best performance..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 c763b4ec-0e50-4b6b-9bed-2b92a6ee884e 7ec1751b-60ed-4588-afb5-9819d3d77d90 003 *>$null
+    # Force AMD/ATI PowerPlay graphics mode to maximize performance
+    Write-Output "Forcing AMD/ATI PowerPlay graphics mode to maximum performance..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 f693fb01-e858-4f00-b20f-f30e12ac06d6 191f65b5-d45c-4a4f-8aae-1ab8bfd980e6 001 *>$null
+    # Force dynamic graphics switching to maximum performance mode
+    Write-Output "Forcing dynamic graphics switching to maximum performance mode..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e276e160-7cb0-43c6-b20b-73f5dce39954 a1662ab2-9d34-4e53-ba8b-2639b9e20857 003 *>$null
+    
+    # BATTERY MANAGEMENT (for systems with battery)
+    Write-Host "`n--- Battery Management Settings" -ForegroundColor Cyan
+    # Disable critical battery notification on AC power
+    Write-Output "Disabling critical battery notification..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f 5dbb7c9f-38e9-40d2-9749-4f8a0e9f640f 000
+    # Set critical battery action to "do nothing" when on AC power
+    Write-Output "Setting critical battery action to 'do nothing'..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f 637ea02f-bbcb-4015-8e2c-a1c7b9c0b546 000
+    # Set low battery threshold to 0% on AC power
+    Write-Output "Setting low battery threshold to 0%..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f 8183ba9a-e910-48da-8769-14ae6dc1170a 0x00000000
+    # Set critical battery threshold to 0% on AC power
+    Write-Output "Setting critical battery threshold to 0%..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f 9a66d8d7-4ff7-4ef9-b5a2-5a326ca2a469 0x00000000
+    # Disable low battery notification on AC power
+    Write-Output "Disabling low battery notification..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f bcded951-187b-4d05-bccc-f7e51960c258 000
+    # Set low battery action to "do nothing" on AC power
+    Write-Output "Setting low battery action to 'do nothing'..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f d8742dcb-3e6a-4b3c-b3fe-374623cdcf06 000
+    # Set reserve battery threshold to 0% on AC power
+    Write-Output "Setting reserve battery threshold to 0%..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f f3c5027d-cd16-4930-aa6b-90db844a8f00 0x00000000
+    
+    # BATTERY SAVER SETTINGS
+    Write-Host "`n--- Battery Saver Settings" -ForegroundColor Cyan
+    # Ensure brightness is not reduced by battery saver mode on AC power
+    Write-Output "Ensuring brightness is not reduced by battery saver mode..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 de830923-a562-41af-a086-e3a2c6bad2da 13d09884-f74e-474a-a852-b6bde8ad03a8 0x00000064
+    # Prevent battery saver from activating automatically on AC power
+    Write-Output "Preventing battery saver from activating automatically..."
+    powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 de830923-a562-41af-a086-e3a2c6bad2da e69653ca-cf7f-4f05-aa73-cb833fa90ad4 0x00000000
+	
+	Write-Host "`n=================================================================" -ForegroundColor Green
+    Write-Host "	ULTIMATE PERFORMANCE PLAN ACTIVATED SUCCESSFULLY.		 " -ForegroundColor Green
+	Write-Host "=================================================================" -ForegroundColor Green
+	Start-Sleep 3
 }
 
 function Invoke-DisablePowerSaving {
@@ -364,61 +390,89 @@ function Invoke-DisablePowerSaving {
 	If you use your laptop on battery, certain power saving features will enable, but not all.
 	Generally, it's NOT recommended to run this script on laptops.`n 
 "@ -ForegroundColor Red
-			Start-Sleep 2
+			Start-Sleep 3
+			# Enable High Performance Power Plan
+			cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v HighPerformance /t REG_DWORD /d 1 /f >nul 2>&1"
 		}
 	}
 
-	Write-Host "Disabling Power Saving features..." -ForegroundColor Green
-		
+	# DISABLE POWER SAVING
+	Write-Output ""
+	Write-Host "Disabling Power Saving Features..." -ForegroundColor White
+	Write-Output ""
 	# DISABLE CPU POWER SAVING
+	Write-Host "Disabling CPU Power Saving..." -ForegroundColor Cyan
  	# Disable power throttling
+	Write-Output "Disabling Power Throttling..."
 	$powerKey = "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling"	
 	if (!(Test-Path $powerKey)) { New-Item $powerKey | Out-Null }	
 	New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling" -Name "PowerThrottlingOff" -Value 1 -PropertyType DWORD -Force | Out-Null	
 	# Force all CPU cores to remain unparked for maximum responsiveness
+	Write-Output "Disabling CPU Core Parking..."
 	cmd /c "reg add `"HKLM\SYSTEM\ControlSet001\Control\Power\PowerSettings\54533251-82be-4824-96c1-47b60b740d00\0cc5b647-c1df-4637-891a-dec35c318583`" /v `"ValueMax`" /t REG_DWORD /d `"0`" /f >nul 2>&1"	
 	# Disable processor throttle states to prevent CPU frequency reduction
+	Write-Output "Disabling CPU Throttle States..."
 	powercfg /setacvalueindex scheme_current 54533251-82be-4824-96c1-47b60b740d00 3b04d4fd-1cc7-4f23-ab1c-d1337819c4bb 0
 	# Set processor performance time check interval to 200 milliseconds for optimized DPC management
 	# This setting reduces deferred procedure calls and can be increased to 5000ms for statically clocked systems
+	Write-Output "Setting Processor Performance Time Check Interval to 200ms..."
 	powercfg /setacvalueindex scheme_current 54533251-82be-4824-96c1-47b60b740d00 4d2b0152-7d5c-498b-88e2-34345392a2c5 200
-	# DisabledDynamicTick + UsePlatformTick
-	bcdedit /set disabledynamictick yes | Out-Null    # disable dynamic tick
-	bcdedit /set useplatformtick yes | Out-Null		  # Enable platform tick use the platform timer (usually HPET)
+	# disable dynamic tick
+	Write-Output "Disabling Dynamic Tick..."
+	bcdedit /set disabledynamictick yes | Out-Null
+	# Enable platform tick use the platform timer (usually HPET)
+	Write-Output "Enabling Platform Tick..." 
+	bcdedit /set useplatformtick yes | Out-Null		  
 
-	# DISABLE HIBERNATION 
+	# DISABLE SLEEP
+	Write-Host "Disabling Sleep..." -ForegroundColor Cyan
 	# Disable system hibernation feature to free up disk space and improve system performance
+	Write-Output "Disabling Hibernation..."
 	powercfg /hibernate off
 	# Disable hibernation functionality through registry setting to prevent system from entering hibernate state
 	cmd /c "reg add `"HKLM\SYSTEM\CurrentControlSet\Control\Power`" /v `"HibernateEnabled`" /t REG_DWORD /d `"0`" /f >nul 2>&1"
 	# Set default hibernation state to disabled in registry to ensure hibernation remains off after system changes
 	cmd /c "reg add `"HKLM\SYSTEM\CurrentControlSet\Control\Power`" /v `"HibernateEnabledDefault`" /t REG_DWORD /d `"0`" /f >nul 2>&1"
 	# Disable Windows Fast Startup to ensure clean system initialization on boot
+	Write-Output "Disabling Fast Startup..."
 	cmd /c "reg add `"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power`" /v `"HiberbootEnabled`" /t REG_DWORD /d `"0`" /f >nul 2>&1"
 
 	# DISABLE DEVICE POWER SAVING
- 	# DISPLAY
+	Write-Host "Disabling Device Power Saving..." -ForegroundColor Cyan
+	# DISPLAY
+	Write-Host "Disabling Display Power Saving..." -ForegroundColor Cyan
 	# Disable automatic display dimming feature to maintain consistent screen brightness at all times
+	Write-Output "Disabling Automatic Display Dimming..."
 	powercfg /setacvalueindex scheme_current 7516b95f-f776-4464-8c53-06167f40cc99 17aaa29b-8b43-4b94-aafe-35f64daaf1ee 0
 	# Disable automatic display turn-off to keep screen active indefinitely for uninterrupted workflow
+	Write-Output "Disabling Automatic Display Turn-Off..."
 	powercfg /setacvalueindex scheme_current 7516b95f-f776-4464-8c53-06167f40cc99 3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e 0
 	# NVME
+	Write-Host "Disabling NVMe Power Saving..." -ForegroundColor Cyan
 	# Configure secondary NVMe drive idle timeout to 0 milliseconds
+	Write-Output "Disabling Secondary NVMe Drive Idle Timeout..."
 	powercfg /setacvalueindex scheme_current 0012ee47-9041-4b5d-9b77-535fba8b1442 d3d55efd-c1ff-424e-9dc3-441be7833010 0
 	# Configure primary NVMe drive idle timeout to 0 milliseconds to prevent drive sleep states
 	powercfg /setacvalueindex scheme_current 0012ee47-9041-4b5d-9b77-535fba8b1442 d639518a-e56d-4345-8af2-b9f32fb26109 0
 	# Disable NVMe NOPPME (Non-Operational Power Management Enable) 
+	Write-Output "Disabling NVMe NOPPME (Non-Operational Power Management Enable)..."
 	powercfg /setacvalueindex scheme_current 0012ee47-9041-4b5d-9b77-535fba8b1442 fc7372b6-ab2d-43ee-8797-15e9841f2cca 0
-	# Disable D3 support on SATA/NVMEs while using Modern Standby	
+	# Disable D3 support on SATA/NVMEs while using Modern Standby
+	Write-Output "Disabling D3 Support on SATA/NVMEs in Modern Standby..."
 	New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Storage" -Name "StorageD3InModernStandby" -Value 0 -PropertyType DWORD -Force | Out-Null	
 	# Disable IdlePowerMode for stornvme.sys (storage devices) - the device will never enter a low-power state	
-	New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\stornvme\Parameters\Device" -Name "IdlePowerMode" -Value 0 -PropertyType DWORD -Force | Out-Null		
+	Write-Output "Disabling IdlePowerMode for stornvme.sys (storage devices)..."
+	New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\stornvme\Parameters\Device" -Name "IdlePowerMode" -Value 0 -PropertyType DWORD -Force | Out-Null			
 	# USB
+	Write-Host "Disabling USB Power Saving..." -ForegroundColor Cyan
 	# Set USB hub selective suspend timeout to 0 milliseconds to prevent USB device sleep
+	Write-Output "Disabling USB Hub Selective Suspend Timeout..."
 	powercfg /setacvalueindex scheme_current 2a737441-1930-4402-8d77-b2bebba308a3 0853a681-27c8-4100-a2fd-82013e970683 0
 	# Disable USB selective suspend feature to prevent individual USB devices from entering low-power states
+	Write-Output "Disabling USB Selective Suspend..."
 	powercfg /setacvalueindex scheme_current 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
 	# Disable USB 3.0 link power management to maintain maximum USB 3.0 device performance and connectivity
+	Write-Output "Disabling USB 3.0 Link Power Management..."
 	powercfg /setacvalueindex scheme_current 2a737441-1930-4402-8d77-b2bebba308a3 d4e98f31-5ffe-4ce1-be31-1b38b384c009 0
 	# disables power saving features for all devices (that support power saving) in Device Manager.	
 	# get all USB ROOT devices	
@@ -433,6 +487,7 @@ function Invoke-DisablePowerSaving {
 	}
 
 	# DISABLE NETWORK POWER SAVING
+	Write-Host "Disabling Network Power Saving..." -ForegroundColor Cyan
 	$properties = Get-NetAdapter -Physical | Get-NetAdapterAdvancedProperty	
 	foreach ($setting in @(	
     	# Stands for Ultra Low Power	
@@ -490,59 +545,83 @@ function Invoke-DisablePowerSaving {
 	}
 	Get-CimInstance -ClassName MSPower_DeviceEnable -Namespace root/WMI | Set-CimInstance -Property @{ Enable = $false }	
 
+	# ADDITIONAL POWER OPTIMIZATIONS
+	Write-Host "Applying Additional Power Optimizations by @sherifmagdy32, creator of GoInterruptPolicy App..." -ForegroundColor Cyan
 	# Additional Power Optimizations by @sherifmagdy32, creator of "GoInterruptPolicy" app
 	# Processor idle thresholds
+	Write-Output "Configuring Processor Idle Thresholds..."
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82BE-4824-96C1-47B60B740D00 4B92D758-5A24-4851-A470-815D78AEE119 100   # Idle demote threshold
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82BE-4824-96C1-47B60B740D00 7B224883-B3CC-4D79-819F-8374152CBE7C 100   # Idle promote threshold
 	# Allow Standby States
+	Write-Output "Allowing Standby States..."
 	powercfg /setacvalueindex SCHEME_CURRENT 238c9fa8-0aad-41ed-83f4-97be242c8f20 abfc2519-3608-4c2a-94ea-171b0ed546ab 0
  	# Deep Sleep
 	# powercfg /setacvalueindex SCHEME_CURRENT 2e601130-5351-4d9d-8e04-252966bad054 d502f7ee-1dc7-4efd-a55d-f04b6f5c0545 0
 	# Processor performance core parking
-	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 a55612aa-f624-42c6-a443-7397d064c04f 0   # Core override
+	Write-Output "Configuring Processor Performance Core Parking..."
+	# undocumented setting (Unknown, not in official docs)
+	# powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 a55612aa-f624-42c6-a443-7397d064c04f 0   # Core override
+	# Ensures a minimum of 100% of logical processors remain unparked
+	Write-Output "Ensuring a minimum of 100% of logical processors remain unparked..."
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 ea062031-0e34-4ff1-9b6d-eb1059334028 100 # Max cores
   	# Processor performance boost mode
+	Write-Output "Configuring Processor Performance Boost Mode..."
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 be337238-0d82-4146-a960-4f3749d470c7 2	
  	# Processor autonomous modes
+	Write-Output "Configuring Processor Autonomous Modes..."
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 8baa4a8a-14c6-4451-8e8b-14bdbd197537 0
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 cfeda3d0-7697-4566-a922-a9086cd49dfa 0   # Activity window
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 4e4450b3-6179-4e91-b8f1-5bb9938f81a1 0   # Duty cycling
 	# NVMe Power State Transition Latency Tolerance
+	Write-Output "Configuring NVMe Power State Transition Latency Tolerance..."
 	powercfg /setacvalueindex SCHEME_CURRENT 0012ee47-9041-4b5d-9b77-535fba8b1442 fc95af4d-40e7-4b6d-835a-56d131dbc80e 0
 	# Processor idle disable. Only uncomment if on desktop with good CPU refrigeration and low temps, because it reduces input lag but raises temp even on idle. It keeps running the CPU at 100% all the time.
 	# powercfg /setacvalueindex SCHEME_CURRENT 54533251-82BE-4824-96C1-47B60B740D00 5d76a2ca-e8c0-402f-a133-2158492d58ad 1
 	
  	# (All safe on AC-powered laptops)
  	# System unattended sleep timeout
+	Write-Output "Configuring System Unattended Sleep Timeout..."
 	powercfg /setacvalueindex SCHEME_CURRENT 238c9fa8-0aad-41ed-83f4-97be242c8f20 7bc4a2f9-d8fc-4469-b07b-33eb785aaca0 0 
 	# Processor performance increase threshold
+	Write-Output "Configuring Processor Performance Increase Threshold..."
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 06cadf0e-64ed-448a-8927-ce7bf90eb35d 0
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 06cadf0e-64ed-448a-8927-ce7bf90eb35e 0   # Efficiency Class 1
 	# Latency sensitivity hint processor performance
+	Write-Output "Configuring Latency Sensitivity Hint Processor Performance..."
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 619b7505-003b-4e82-b7a6-4dd29c300971 0
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 619b7505-003b-4e82-b7a6-4dd29c300972 0   # Efficiency Class 1
 	# Disconnected standby mode
+	Write-Output "Disabling Disconnected Standby Mode..."
 	powercfg /setacvalueindex SCHEME_CURRENT fea3413e-7e05-4911-9a71-700331f1c294 68afb2d9-ee95-47a8-8f50-4115088073b1 0  
 	# Processor energy performance preference policy
+	Write-Output "Configuring Processor Energy Performance Preference Policy..."
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 36687f9e-e3a5-4dbf-b1dc-15eb381c6863 0
 	# Processor performance decrease thresholds/policies
+	Write-Output "Configuring Processor Performance Decrease Thresholds/Policies..."
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 12a0ab44-fe28-4fa9-b3bd-4b64f44960a6 10
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 40fbefc7-2e9d-4d25-a185-0cfd8574bac6 2
 	# Processor performance increase policies
+	Write-Output "Configuring Processor Performance Increase Policies..."
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 465e1f50-b610-473a-ab58-00d1077dc418 2
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 465e1f50-b610-473a-ab58-00d1077dc419 2   # Efficiency Class 1
 	# Sleep button action
+	Write-Output "Configuring Sleep Button Action..."
 	powercfg /setacvalueindex SCHEME_CURRENT 4f971e89-eebd-4455-a8de-9e59040e7347 96996bc0-ad50-47ec-923b-6f41874dd9eb 0
 	# Disable away mode
+	Write-Output "Disabling Away Mode..."
 	powercfg /setacvalueindex SCHEME_CURRENT 238c9fa8-0aad-41ed-83f4-97be242c8f20 25dfa149-5dd1-4736-b5ab-e8a37b5b8187 0
 	# Lid close action
+	Write-Output "Configuring Lid Close Action..."
 	powercfg /setacvalueindex SCHEME_CURRENT 4f971e89-eebd-4455-a8de-9e59040e7347 5ca83367-6e45-459f-a27b-476b1d01c936 0
 	# Media sharing
+	Write-Output "Disabling Media Sharing..."
 	powercfg /setacvalueindex SCHEME_CURRENT 9596fb26-9850-41fd-ac3e-f7c3c00afd4b 03680956-93bc-4294-bba6-4e0f09bb717f 1
 	# Processor performance boost policy
+	Write-Output "Configuring Processor Performance Boost Policy..."
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 45bcc044-d885-43e2-8605-ee0ec6e96b59 100
  	
 	# Disable power saving feature in devices
+	Write-Host "Disabling Power Saving Features in Devices..." -ForegroundColor Cyan
 	$keys = Get-ChildItem -Path "HKLM:\SYSTEM\CurrentControlSet\Enum" -Recurse -EA 0	
 	foreach ($value in @(	
 		"DisableIdlePowerManagement"
@@ -577,6 +656,9 @@ function Invoke-DisablePowerSaving {
 	}
 
 	# Disable Energy Saving feature
+	Write-Host "Disabling Energy Saving Features..." -ForegroundColor Cyan
+	# Disable Coalescing Timer Interval to improve DPC latency
+	Write-Output "Disabling Coalescing Timer Interval..."
 	cmd /c "reg add ""HKLM\System\CurrentControlSet\Control\Power\ModernSleep"" /v CoalescingTimerInterval /t REG_DWORD /d 0 /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\System\CurrentControlSet\Control\Power"" /v CoalescingTimerInterval /t REG_DWORD /d 0 /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\System\CurrentControlSet\Control\Session Manager\Power"" /v CoalescingTimerInterval /t REG_DWORD /d 0 /f >nul 2>&1"
@@ -585,8 +667,8 @@ function Invoke-DisablePowerSaving {
 	cmd /c "reg add ""HKLM\System\CurrentControlSet\Control\Session Manager\Executive"" /v CoalescingTimerInterval /t REG_DWORD /d 0 /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\System\CurrentControlSet\Control\Session Manager"" /v CoalescingTimerInterval /t REG_DWORD /d 0 /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\System\CurrentControlSet\Control"" /v CoalescingTimerInterval /t REG_DWORD /d 0 /f >nul 2>&1"
-
 	# Tell Windows to stop tolerating high DPC/ISR latencies
+	Write-Output "Optimizing DPC/ISR Latency Tolerance..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v ExitLatency /t REG_DWORD /d 1 /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v ExitLatencyCheckEnabled /t REG_DWORD /d 1 /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v Latency /t REG_DWORD /d 1 /f >nul 2>&1"
@@ -596,43 +678,84 @@ function Invoke-DisablePowerSaving {
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v LatencyToleranceScreenOffIR /t REG_DWORD /d 1 /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v LatencyToleranceVSyncEnabled /t REG_DWORD /d 1 /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v RtlCapabilityCheckLatency /t REG_DWORD /d 1 /f >nul 2>&1"
-
 	# Further optimizations to power
+	Write-Output "Disabling Energy Estimation..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v EnergyEstimationEnabled /t REG_DWORD /d 0 /f >nul 2>&1"
+	Write-Output "Disabling Connected Standby..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v CsEnabled /t REG_DWORD /d 0 /f >nul 2>&1"
+	Write-Output "Disabling Platform Sleep States..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v PerfCalculateActualUtilization /t REG_DWORD /d 0 /f >nul 2>&1"
+	Write-Output "Disabling Sleep Reliability Detailed Diagnostics..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v SleepReliabilityDetailedDiagnostics /t REG_DWORD /d 0 /f >nul 2>&1"
+	Write-Output "Disabling Power Throttling..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v EventProcessorEnabled /t REG_DWORD /d 0 /f >nul 2>&1"
+	
+	# Disable QoS management of idle processors to reduce latency
+	Write-Output "Disabling QoS Management of Idle Processors..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v QosManagesIdleProcessors /t REG_DWORD /d 0 /f >nul 2>&1"
+	# Disable Vsync Latency Update to reduce latency spikes
+	Write-Output "Disabling Vsync Latency Update..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v DisableVsyncLatencyUpdate /t REG_DWORD /d 1 /f >nul 2>&1"
+	# Disable Sensor Watchdog to prevent unnecessary power state changes
+	Write-Output "Disabling Sensor Watchdog..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v DisableSensorWatchdog /t REG_DWORD /d 1 /f >nul 2>&1"
+	# Disable Deep Io Coalescing to reduce latency
+	Write-Output "Disabling Deep Io Coalescing..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v DeepIoCoalescingEnabled /t REG_DWORD /d 0 /f >nul 2>&1"
+	# Setting CPU performance scaling to 64% for lower latency
+	Write-Output "Configuring CPU latency scaling for better performance..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v LowLatencyScalingPercentage /t REG_DWORD /d 64 /f >nul 2>&1"
-	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v HighPerformance /t REG_DWORD /d 1 /f >nul 2>&1"
+	# Disabling media foundation buffering threshold for real-time media processing
+	Write-Output "Disabling media buffering for real-time audio/video processing..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v MfBufferingThreshold /t REG_DWORD /d 0 /f >nul 2>&1"
+	# Disabling away mode which mimics sleep while keeping apps running
+	Write-Output "Disabling away mode to prevent background activity during sleep..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v AwayModeEnabled /t REG_DWORD /d 0 /f >nul 2>&1"
+	# Setting initial unparked CPU cores to maximum for immediate responsiveness
+	Write-Output "Configuring CPU core parking for maximum core availability..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v Class1InitialUnparkCount /t REG_DWORD /d 100 /f >nul 2>&1"
+	# Enabling power plan customization during system setup
+	Write-Output "Enabling power plan customization options..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v CustomizeDuringSetup /t REG_DWORD /d 1 /f >nul 2>&1"
+	# Setting hibernation file size to 0% to disable hibernation
+	Write-Output "Disabling hibernation to save disk space..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v HiberFileSizePercent /t REG_DWORD /d 0 /f >nul 2>&1"
+	# Setting timer threshold for better power state transitions
+	Write-Output "Optimizing power state transition timers..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v TimerRebaseThresholdOnDripsExit /t REG_DWORD /d 30 /f >nul 2>&1"
+	# Disabling energy estimation to prevent power-saving throttling
+	Write-Output "Disabling energy estimation to prevent performance throttling..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v EnergyEstimationDisabled /t REG_DWORD /d 1 /f >nul 2>&1"
+	# Enabling performance boost even at guaranteed power levels
+	Write-Output "Enabling performance boost at all power levels..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v PerfBoostAtGuaranteed /t REG_DWORD /d 1 /f >nul 2>&1"
+	# Disabling core parking to keep all CPU cores active
+	Write-Output "Disabling CPU core parking for consistent multi-core performance..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v CoreParkingDisabled /t REG_DWORD /d 1 /f >nul 2>&1"
-	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v HighestPerformance /t REG_DWORD /d 1 /f >nul 2>&1"
+	# Set minimum processor state to 100%
+	Write-Output "Setting Minimum Processor State to 100%..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v MinimumThrottlePercent /t REG_DWORD /d 0 /f >nul 2>&1"
+	# Set maximum processor state to 100%
+	Write-Output "Setting Maximum Processor State to 100%..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v MaximumThrottlePercent /t REG_DWORD /d 0 /f >nul 2>&1"
 	# Disable power management in connected standby mode
+	Write-Output "Disabling Connected Standby Power Management..."
 	cmd /c "reg add ""HKLM\SOFTWARE\Policies\Microsoft\Windows\WcmSvc\GroupPolicy"" /v fDisablePowerManagement /t REG_DWORD /d 1 /f >nul 2>&1"
 	# Disable energy save from PDC
+	Write-Output "Disabling PDC Energy Saving Features..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power\PDC\Activators\Default\VetoPolicy"" /v EA:EnergySaverEngaged /t REG_DWORD /d 0 /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power\PDC\Activators\28\VetoPolicy"" /v EA:PowerStateDischarging /t REG_DWORD /d 0 /f >nul 2>&1"
 	# Disable ASPM
+	Write-Output "Disabling ASPM (Active State Power Management)..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Services\pci\Parameters"" /v ASPMOptOut /t REG_DWORD /d 1 /f >nul 2>&1"
 	# Disable Sleep study
+	Write-Output "Disabling Sleep Study..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power"" /v SleepStudyDisabled /t REG_DWORD /d 1 /f >nul 2>&1"
 	# High Performance Burst
+	Write-Output "Enabling High Performance Burst..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power\Profile\Events\{54533251-82be-4824-96c1-47b60b740d00}\{0DA965DC-8FCF-4c0b-8EFE-8DD5E7BC959A}\{7E01ADEF-81E6-4e1b-8075-56F373584694}"" /v TimeLimitInSeconds /t REG_DWORD /d 12 /f >nul 2>&1"
 	# Power profile tweaks (multiple entries)
+	Write-Output "Applying Power Profile Tweaks..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power\Profile\Events\{54533251-82be-4824-96c1-47b60b740d00}\{0DA965DC-8FCF-4c0b-8EFE-8DD5E7BC959A}\{7E01ADEF-81E6-4e1b-8075-56F373584694}\{F6CC25DF-6E8F-4cf8-A242-B1343F565884}\{BDB3AF7A-F67E-4d1e-945D-E2790352BE0A}"" /ve /t REG_SZ /d ""{db57eb61-1aa2-4906-9396-23e8b8024c32}"" /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power\Profile\Events\{54533251-82be-4824-96c1-47b60b740d00}\{0DA965DC-8FCF-4c0b-8EFE-8DD5E7BC959A}\{7E01ADEF-81E6-4e1b-8075-56F373584694}\{F6CC25DF-6E8F-4cf8-A242-B1343F565884}\{BDB3AF7A-F67E-4d1e-945D-E2790352BE0A}"" /v Operator /t REG_DWORD /d 2 /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power\Profile\Events\{54533251-82be-4824-96c1-47b60b740d00}\{0DA965DC-8FCF-4c0b-8EFE-8DD5E7BC959A}\{7E01ADEF-81E6-4e1b-8075-56F373584694}\{F6CC25DF-6E8F-4cf8-A242-B1343F565884}\{BDB3AF7A-F67E-4d1e-945D-E2790352BE0A}"" /v Type /t REG_DWORD /d 0x0000103d /f >nul 2>&1"
@@ -642,8 +765,10 @@ function Invoke-DisablePowerSaving {
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power\Profile\Events\{54533251-82be-4824-96c1-47b60b740d00}\{0DA965DC-8FCF-4c0b-8EFE-8DD5E7BC959A}\{7E01ADEF-81E6-4e1b-8075-56F373584694}\{F6CC25DF-6E8F-4cf8-A242-B1343F565884}\{CD9230EE-218E-44b9-8AE5-EE7AA5DAD08F}"" /v Type /t REG_DWORD /d 0x0000100a /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power\Profile\Events\{54533251-82be-4824-96c1-47b60b740d00}\{0DA965DC-8FCF-4c0b-8EFE-8DD5E7BC959A}\{7E01ADEF-81E6-4e1b-8075-56F373584694}\{F6CC25DF-6E8F-4cf8-A242-B1343F565884}\{CD9230EE-218E-44b9-8AE5-EE7AA5DAD08F}"" /v Value /t REG_DWORD /d 0 /f >nul 2>&1"
 	# Disable CPPC
+	Write-Output "Disabling CPPC (Collaborative Processor Performance Control)..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Processor"" /v CPPCEnable /t REG_DWORD /d 0 /f >nul 2>&1"
 	# Disable Cstates (BIOS settings override)
+	# Write-Output "Disabling CPU C-States..."
 	# cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Processor"" /v Capabilities /t REG_DWORD /d 0x0007e066 /f >nul 2>&1"
 	# cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Processor"" /v Cstates /t REG_DWORD /d 0 /f >nul 2>&1"
 
@@ -754,32 +879,29 @@ function Invoke-WinActivation {
 <#
 .SYNOPSIS
     Activates a permanent Microsoft Digital License for Windows 10/11.
-
 .DESCRIPTION
     Downloads (irm) and executes (iex) the activation script from the official URL (https://get.activated.win) with the default specified argument (/Z-Windows)
 	Check Windows activation status and only proceeds with activation if Windows is not already activated
 	Fully Open Source and based on Batch scripts
-
 .EXAMPLE
     iex "& {$((irm https://get.activated.win))} /Z-Windows"
-
-	"HWID"      - Permanent HWID Digital License for Win 10/11
-	"KMS38"     - KMS Activation for Win 10/11/Server until 2038
-	"K-Windows" - Online KMS Activation (180-day renewable)
-	"Z-Windows" - TSforge Permanent Activation for older systems
-
+	Arguments:
+	Z-Windows - TSforge Permanent Activation for Win 10/11 (Offline)
+	HWID      - Permanent HWID Digital License for Win 10/11
+	KMS38     - KMS Activation for Win 10/11/Server until 2038
+	K-Windows - Online KMS Activation (180-day renewable)
 .NOTES
 	Name: Microsoft Activation Scripts
 	About: Open-source Windows and Office activator
     Version: Always uses the latest release (https://massgrave.dev/#mas-latest-release)
     Author: MASSGRAVE
-
 .LINK
     Website: https://massgrave.dev/
 	Source: https://github.com/massgravel/Microsoft-Activation-Scripts 
 #>
-
-	Write-Host "Activating Windows..." -ForegroundColor Green
+	Write-Host ""
+	Write-Host "Activating Windows..." -ForegroundColor White
+	Write-Host ""
 	# Permanently activates Windows using the TSforge activation method, 100% open-source and works completely offline. (suitable for older systems and VMs)
 	Invoke-Expression "& {$((Invoke-RestMethod https://get.activated.win))} /Z-Windows"
 }
@@ -5681,7 +5803,7 @@ Windows Registry Editor Version 5.00
 
 
 ; PERSONALIZATION
-; show all taskbar icons
+show all taskbar icons
 [HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer]
 "EnableAutoTray"=dword:00000000
 
@@ -12473,7 +12595,7 @@ Windows Registry Editor Version 5.00
 # WPD Automation
 function Invoke-WPDTweaks {
 	# Disable Firewall
-	Write-Output "Disabling Firewall..."
+	Write-Output "Disabling Windows Firewall..."
 	netsh advfirewall set allprofiles state off | Out-Null
 	reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.SecurityAndMaintenance" /v "Enabled" /t REG_DWORD /d 0 /f > $null 2>&1
 	# Run WPD Automation
@@ -12481,12 +12603,16 @@ function Invoke-WPDTweaks {
     Invoke-WebRequest -Uri "https://wpd.app/get/latest.zip" -OutFile "$env:TEMP\latest.zip"
     Expand-Archive "$env:TEMP\latest.zip" -DestinationPath "$env:TEMP" -Force
     Start-Process "$env:TEMP\WPD.exe" -ArgumentList "-wfpOnly","-wfp on","-recommended","-close" -Wait
+	# Enable Firewall
+	Write-Output "Renabling Windows Firewall..."
+	netsh advfirewall set allprofiles state on | Out-Null
+	reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.SecurityAndMaintenance" /v "Enabled" /t REG_DWORD /d 1 /f > $null 2>&1
 }
 
 function Invoke-WPDRevert {
 	# Enable Firewall
 	Write-Output "Enabling Firewall..."
-	netsh advfirewall set allprofiles state on
+	netsh advfirewall set allprofiles state on | Out-Null
 	reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.SecurityAndMaintenance" /v "Enabled" /t REG_DWORD /d 1 /f > $null 2>&1
 	# Run WPD Automation	
     Write-Output "Applying Windows Privacy Dashboard (WPD) Tweaks..."
@@ -19200,7 +19326,7 @@ function Invoke-PersonalizeWin {
 	
 	    Get-Process rundll32 | Where-Object { $_.Id -ne $PID } | Stop-Process -Force
 	}
-
+<#
 	# Wallpaper
 	Write-Output "Changing Wallpaper..."
 	$picturesFolder = [Environment]::GetFolderPath("MyPictures")
@@ -19220,7 +19346,7 @@ function Invoke-PersonalizeWin {
 	Set-ItemProperty "HKCU:\Control Panel\Desktop" -Name "WallpaperStyle" -Value "10"
 	Set-ItemProperty "HKCU:\Control Panel\Desktop" -Name "TileWallpaper" -Value "0"
 	[Wallpaper]::SystemParametersInfo(0x0014, 0, $persistentWallpaperPath, 3) | Out-Null
-<#
+
 	# MyDockFinder
 	Get-FileFromWeb -Url "https://github.com/ManueITest/Windows/raw/refs/heads/main/MyDockFinder.zip" -File "$env:TEMP\MyDockFinder.zip"
 	Expand-Archive -Path "$env:TEMP\MyDockFinder.zip" -DestinationPath "$env:TEMP\MyDockFinder" -Force
@@ -19238,6 +19364,7 @@ function Invoke-PersonalizeWin {
 #>
 	# if Windows 11+
 	if ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild -ge 22000) {
+
 		
 		# StartAllBack ROG Orb (W11)
 		$Dest = "$env:ProgramFiles\StartAllBack\Orbs\rog.png"
@@ -20172,9 +20299,11 @@ $ErrorActionPreference = 'SilentlyContinue'
 if ($PSBoundParameters.Count -gt 0) {
     try {
 		if ($Recommended) {
-			Invoke-CreateRestorePoint
+			# Invoke-CreateRestorePoint
 			Invoke-WinActivation
 			Invoke-ActivateUltimatePlan
+			Invoke-DisablePowerSaving
+			pause
 			Invoke-PauseUpdates
 			Invoke-DebloatEdge
 			Invoke-UninstallOneDrive
@@ -20200,6 +20329,7 @@ if ($PSBoundParameters.Count -gt 0) {
 			Invoke-ShutUp10Tweaks
 			Invoke-StartXback
 			Invoke-WindowsCleanup
+			pause
 		}
 		if ($Full) {
 
