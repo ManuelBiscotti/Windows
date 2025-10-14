@@ -52,6 +52,31 @@ $Host.PrivateData.ProgressBackgroundColor = 'Black'
 $Host.PrivateData.ProgressForegroundColor = 'DarkGray'
 Clear-Host
 
+# Opacity Settings (90%)
+$opacityCode = @"
+using System;
+using System.Runtime.InteropServices;
+public static class WindowOpacity {
+    [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
+    [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+    [DllImport("user32.dll")] public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+    [DllImport("user32.dll")] public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
+}
+"@
+Add-Type -TypeDefinition $opacityCode
+
+$hWnd = [WindowOpacity]::GetConsoleWindow()
+if ($hWnd -ne [IntPtr]::Zero) {
+    $GWL_EXSTYLE = -20
+    $WS_EX_LAYERED = 0x80000
+    $LWA_ALPHA = 0x2
+    
+    $style = [WindowOpacity]::GetWindowLong($hWnd, $GWL_EXSTYLE)
+    [WindowOpacity]::SetWindowLong($hWnd, $GWL_EXSTYLE, ($style -bor $WS_EX_LAYERED)) | Out-Null
+    [WindowOpacity]::SetLayeredWindowAttributes($hWnd, 0, 230, $LWA_ALPHA) | Out-Null  # 90% opacity
+}
+
+# Set Windows Terminal font to Consolas, size 14, bold
 function Set-WindowsTerminalFont {
     param(
         [string]$FontFace = "Consolas",
