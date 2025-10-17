@@ -52,74 +52,87 @@ $Host.PrivateData.ProgressBackgroundColor = 'Black'
 $Host.PrivateData.ProgressForegroundColor = 'DarkGray'
 Clear-Host
 
-# Opacity Settings (90%)
-$opacityCode = @"
+<# 
+:: Function: Center-PowerShellWindow
+:: Purpose:  Centers the current PowerShell console window on the screen. #>
+<# REM Get the main window handle of the current PowerShell process #>
+$psWindowHandle = Get-Process -Id $PID | ForEach-Object { $_.MainWindowHandle }
+
+<# REM Define a .NET class to interact with Windows API for window positioning #>
+Add-Type @"
 using System;
 using System.Runtime.InteropServices;
-public static class WindowOpacity {
-    [DllImport("kernel32.dll")] public static extern IntPtr GetConsoleWindow();
-    [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr hWnd, int nIndex);
-    [DllImport("user32.dll")] public static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
-    [DllImport("user32.dll")] public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
+
+public class WindowCentering {
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool MoveWindow(IntPtr hWnd, int X, int Y, int nWidth, int nHeight, bool bRepaint);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [DllImport("user32.dll")]
+    public static extern int GetSystemMetrics(int nIndex);
+
+    public static void CenterWindow(IntPtr hWnd) {
+        RECT rect;
+        GetWindowRect(hWnd, out rect);
+
+        int windowWidth = rect.Right - rect.Left;
+        int windowHeight = rect.Bottom - rect.Top;
+
+        int screenWidth = GetSystemMetrics(0);
+        int screenHeight = GetSystemMetrics(1);
+
+        int x = (screenWidth / 2) - (windowWidth / 2);
+        int y = (screenHeight / 2) - (windowHeight / 2);
+
+        MoveWindow(hWnd, x, y, windowWidth, windowHeight, true);
+    }
 }
 "@
-Add-Type -TypeDefinition $opacityCode
 
-$hWnd = [WindowOpacity]::GetConsoleWindow()
-if ($hWnd -ne [IntPtr]::Zero) {
-    $GWL_EXSTYLE = -20
-    $WS_EX_LAYERED = 0x80000
-    $LWA_ALPHA = 0x2
-    
-    $style = [WindowOpacity]::GetWindowLong($hWnd, $GWL_EXSTYLE)
-    [WindowOpacity]::SetWindowLong($hWnd, $GWL_EXSTYLE, ($style -bor $WS_EX_LAYERED)) | Out-Null
-    [WindowOpacity]::SetLayeredWindowAttributes($hWnd, 0, 230, $LWA_ALPHA) | Out-Null  # 90% opacity
+<# REM Center the PowerShell console window using the WindowCentering class #>
+[WindowCentering]::CenterWindow($psWindowHandle)
+
+$ProgressPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'SilentlyContinue'
+
+Function Show-WinLogo {
+    <#
+        .SYNOPSIS
+            Displays the Windows logo in ASCII art.
+        .DESCRIPTION
+            This function displays the Windows logo in ASCII art format.
+        .PARAMETER None
+            No parameters are required for this function.
+        .EXAMPLE
+            Show-WinLogo
+            Prints the Windows logo in ASCII art format to the console.
+    #>
+
+	Write-Host ""
+    $asciiArt = @"
+ _       _______   ______  ____ _       _______
+| |     / /  _/ | / / __ \/ __ \ |     / / ___/
+| | /| / // //  |/ / / / / / / / | /| / /\__ \ 
+| |/ |/ // // /|  / /_/ / /_/ /| |/ |/ /___/ / 
+|__/|__/___/_/ |_/_____/\____/ |__/|__//____/                                                
+"@
+
+    Write-Host $asciiArt -ForegroundColor Blue
+	Write-Host ""
 }
 
-# Set Windows Terminal font to Consolas, size 14, bold
-function Set-WindowsTerminalFont {
-    param(
-        [string]$FontFace = "Consolas",
-        [int]$FontSize = 14,
-        [string]$FontWeight = "bold"
-    )
-
-    # Locate the settings.json file
-    $settingsPath = "$env:USERPROFILE\AppData\Local\Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json"
-
-    # Check if file exists
-    if (-not (Test-Path $settingsPath)) {
-        Write-Warning "Windows Terminal settings file not found at: $settingsPath"
-        return
-    }
-
-    # Read and convert the JSON file
-    $settings = Get-Content $settingsPath | ConvertFrom-Json
-
-    # Ensure the 'profiles.defaults' section exists
-    if (-not $settings.profiles.PSObject.Properties['defaults']) {
-        $settings.profiles | Add-Member -MemberType NoteProperty -Name 'defaults' -Value (@{}) -Force
-    }
-
-    # Set the font properties
-    $settings.profiles.defaults | Add-Member -MemberType NoteProperty -Name 'fontFace' -Value $FontFace -Force
-    $settings.profiles.defaults | Add-Member -MemberType NoteProperty -Name 'fontSize' -Value $FontSize -Force
-    $settings.profiles.defaults | Add-Member -MemberType NoteProperty -Name 'fontWeight' -Value $FontWeight -Force
-
-    # Save the changes back to the file
-    $settings | ConvertTo-Json -Depth 10 | Set-Content $settingsPath -Encoding UTF8
-
-    Write-Host "Windows Terminal font updated to: $FontFace, Size $FontSize, Weight $FontWeight" -ForegroundColor Green
-}
-
-# Run the function
-Set-WindowsTerminalFont
-
-# -------------------------
-# Helper functions / stubs
-# -------------------------
-
-# Download file from web
+# Download files
 function Get-FileFromWeb {
     param (
         [Parameter(Mandatory)][string]$URL,
@@ -256,152 +269,106 @@ function Invoke-NETDesktopRunAIO {
 }
 
 function Invoke-ActivateUltimatePlan {
+<#
     # ULTIMATE PERFORMANCE POWER PLAN CONFIGURATION
     # Configures system for maximum performance by activating Ultimate Performance power plan
     # and optimizing power settings for high-performance scenarios
-
+#>
 	# POWER PLAN
-	Write-Host "`n=================================================================" -ForegroundColor White
-	Write-Host "		ULTIMATE PERFORMANCE POWER PLAN" -ForegroundColor White
-	Write-Host "=================================================================" -ForegroundColor White
-
-	Write-Host "`n--- Power Plan" -ForegroundColor Cyan
+	Write-Host "Activating Ultimate Performance Power Plan..." -ForegroundColor Green
     # Create a duplicate of the Ultimate Performance power scheme with fixed GUID
     # This ensures the custom plan persists and can be reliably referenced
-    Write-Output "Importing and duplicating Ultimate Performance power scheme..."
     cmd /c "powercfg /duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 99999999-9999-9999-9999-999999999999 >nul 2>&1"
     # Set the duplicated Ultimate Performance plan as active power scheme
-    Write-Output "Setting Ultimate Performance as active power scheme..."
     cmd /c "powercfg /SETACTIVE 99999999-9999-9999-9999-999999999999 >nul 2>&1"
 
     # POWER SETTINGS 
 
     # STORAGE SETTINGS
-    Write-Host "`n--- Storage Settings" -ForegroundColor Cyan
     # Prevent hard disks from turning off while on AC power to avoid latency from spin-up
-    Write-Output "Preventing hard disks from turning off during AC power..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 0012ee47-9041-4b5d-9b77-535fba8b1442 6738e2c4-e8a5-4a42-b16a-e040e769756e 0x00000000
-    
+
     # DESKTOP BACKGROUND SETTINGS
-    Write-Host "`n--- Desktop Background Settings" -ForegroundColor Cyan
     # Pause desktop background slideshow to reduce resource usage and improve performance
-    Write-Output "Pausing desktop background slideshow to conserve resources..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 0d7dbae2-4294-402a-ba8e-26777e8488cd 309dce9b-bef4-4119-9921-a851fb12f0f4 001
-    
+
     # WIRELESS ADAPTER SETTINGS
-    Write-Host "`n--- Wireless Adapter Settings" -ForegroundColor Cyan
     # Set wireless adapter to maximum performance on AC power for optimal network throughput
-    Write-Output "Setting wireless adapter to maximum performance mode..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 19cbb8fa-5279-450e-9fac-8a3d5fedd0c1 12bbebe6-58d6-4636-95bb-3217ef867c1a 000
-    
+
     # SLEEP AND HIBERNATION SETTINGS
-    Write-Host "`n--- Sleep and Hibernation Settings" -ForegroundColor Cyan
     # Disable automatic sleep on AC power to maintain system availability
-    Write-Output "Disabling automatic sleep during AC power..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 238c9fa8-0aad-41ed-83f4-97be242c8f20 29f6c1db-86da-48c5-9fdb-f2b67b1f44da 0x00000000
     # Disable hybrid sleep on AC power to prevent unnecessary sleep state transitions
-    Write-Output "Disabling hybrid sleep during AC power..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 238c9fa8-0aad-41ed-83f4-97be242c8f20 94ac6d29-73ce-41a6-809f-6363ba21b47e 000 
     # Disable hibernation timeout on AC power to maintain system state
-    Write-Output "Disabling hibernation timeout during AC power..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 238c9fa8-0aad-41ed-83f4-97be242c8f20 9d7815a6-7ee4-497e-8888-515a05f02364 0x00000000
-    
+
     # SYSTEM POWER MANAGEMENT
-    Write-Host "`n--- System Power Management" -ForegroundColor Cyan
     # Prevent scheduled tasks from waking the computer while on AC power
-    Write-Output "Preventing scheduled tasks from waking the computer..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 238c9fa8-0aad-41ed-83f4-97be242c8f20 bd3b718a-0680-4d9d-8ab2-e1d2b4ac806d 000
     # Configure power button to perform a full shutdown when pressed
-    Write-Output "Configuring power button for full shutdown..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 4f971e89-eebd-4455-a8de-9e59040e7347 a7066653-8d6c-40a8-910e-a1f54b84c7e5 002
-    
+
     # PCI EXPRESS AND PROCESSOR POWER MANAGEMENT
-    Write-Host "`n--- PCI Express and Processor Settings" -ForegroundColor Cyan
     # Disable PCI Express Link State Power Management for maximum throughput
-    Write-Output "Disabling PCI Express Link State Power Management..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 501a4d13-42af-4429-9fd1-a8218c268e20 ee12f906-d277-404b-b6da-e5fa1a576df5 000
     # Enable active cooling policy (fan priority over throttling)
-    Write-Output "Enabling active cooling policy..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 54533251-82be-4824-96c1-47b60b740d00 94d3a615-a899-4ac5-ae2b-e4d8f634367f 001
     # Set minimum processor state to 100% for consistent maximum performance
-    Write-Output "Setting minimum processor state to 100%..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 54533251-82be-4824-96c1-47b60b740d00 893dee8e-2bef-41e0-89c6-b55d0929964c 0x00000064
     # Set maximum processor state to 100% on AC power
-    Write-Output "Setting maximum processor state to 100%..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 54533251-82be-4824-96c1-47b60b740d00 bc5038f7-23e0-4960-96da-33abaf5935ec 0x00000064
-    
+
     # DISPLAY AND VIDEO SETTINGS
-    Write-Host "`n--- Display and Video Settings" -ForegroundColor Cyan
     # Set display brightness to 100% when on AC power
-    Write-Output "Setting display brightness to 100%..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 7516b95f-f776-4464-8c53-06167f40cc99 aded5e82-b909-4619-9949-f5d71dac0bcb 0x00000064
     # Set dimmed display brightness to 100% on AC power
-    Write-Output "Setting dimmed display brightness to 100%..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 7516b95f-f776-4464-8c53-06167f40cc99 f1fbfde2-a960-4165-9f88-50667911ce96 0x00000064
     # Disable adaptive brightness on AC power
-    Write-Output "Disabling adaptive brightness..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 7516b95f-f776-4464-8c53-06167f40cc99 fbd9aa66-9553-4097-ba44-ed6e9d65eab8 000
     # Prioritize performance over quality in video playback when on AC power
-    Write-Output "Prioritizing performance over quality in video playback..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 9596fb26-9850-41fd-ac3e-f7c3c00afd4b 10778347-1370-4ee0-8bbd-33bdacaade49 001
     # Optimize video playback for performance on AC power
-    Write-Output "Optimizing video playback for maximum performance..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 9596fb26-9850-41fd-ac3e-f7c3c00afd4b 34c7b99f-9a6d-4b3c-8dc7-b6693b78cef4 000
-    
+
     # GRAPHICS ADAPTER SETTINGS
-    Write-Host "`n--- Graphics Adapter Settings" -ForegroundColor Cyan
     # Force Intel integrated graphics to maximum performance on AC power
-    Write-Output "Forcing Intel integrated graphics to maximum performance..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 44f3beca-a7c0-460e-9df2-bb8b99e0cba6 3619c3f2-afb2-4afc-b0e9-e7fef372de36 002 *>$null
     # Set AMD Power Slider to best performance on AC power
-    Write-Output "Setting AMD Power Slider to best performance..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 c763b4ec-0e50-4b6b-9bed-2b92a6ee884e 7ec1751b-60ed-4588-afb5-9819d3d77d90 003 *>$null
     # Force AMD/ATI PowerPlay graphics mode to maximize performance
-    Write-Output "Forcing AMD/ATI PowerPlay graphics mode to maximum performance..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 f693fb01-e858-4f00-b20f-f30e12ac06d6 191f65b5-d45c-4a4f-8aae-1ab8bfd980e6 001 *>$null
     # Force dynamic graphics switching to maximum performance mode
-    Write-Output "Forcing dynamic graphics switching to maximum performance mode..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e276e160-7cb0-43c6-b20b-73f5dce39954 a1662ab2-9d34-4e53-ba8b-2639b9e20857 003 *>$null
-    
+
     # BATTERY MANAGEMENT (for systems with battery)
-    Write-Host "`n--- Battery Management Settings" -ForegroundColor Cyan
     # Disable critical battery notification on AC power
-    Write-Output "Disabling critical battery notification..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f 5dbb7c9f-38e9-40d2-9749-4f8a0e9f640f 000
     # Set critical battery action to "do nothing" when on AC power
-    Write-Output "Setting critical battery action to 'do nothing'..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f 637ea02f-bbcb-4015-8e2c-a1c7b9c0b546 000
     # Set low battery threshold to 0% on AC power
-    Write-Output "Setting low battery threshold to 0%..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f 8183ba9a-e910-48da-8769-14ae6dc1170a 0x00000000
     # Set critical battery threshold to 0% on AC power
-    Write-Output "Setting critical battery threshold to 0%..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f 9a66d8d7-4ff7-4ef9-b5a2-5a326ca2a469 0x00000000
     # Disable low battery notification on AC power
-    Write-Output "Disabling low battery notification..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f bcded951-187b-4d05-bccc-f7e51960c258 000
     # Set low battery action to "do nothing" on AC power
-    Write-Output "Setting low battery action to 'do nothing'..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f d8742dcb-3e6a-4b3c-b3fe-374623cdcf06 000
     # Set reserve battery threshold to 0% on AC power
-    Write-Output "Setting reserve battery threshold to 0%..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 e73a048d-bf27-4f12-9731-8b2076e8891f f3c5027d-cd16-4930-aa6b-90db844a8f00 0x00000000
-    
+
     # BATTERY SAVER SETTINGS
-    Write-Host "`n--- Battery Saver Settings" -ForegroundColor Cyan
     # Ensure brightness is not reduced by battery saver mode on AC power
-    Write-Output "Ensuring brightness is not reduced by battery saver mode..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 de830923-a562-41af-a086-e3a2c6bad2da 13d09884-f74e-474a-a852-b6bde8ad03a8 0x00000064
     # Prevent battery saver from activating automatically on AC power
-    Write-Output "Preventing battery saver from activating automatically..."
     powercfg /setacvalueindex 99999999-9999-9999-9999-999999999999 de830923-a562-41af-a086-e3a2c6bad2da e69653ca-cf7f-4f05-aa73-cb833fa90ad4 0x00000000
-	
-	Write-Host "`n=================================================================" -ForegroundColor Green
-    Write-Host "	ULTIMATE PERFORMANCE PLAN ACTIVATED SUCCESSFULLY.		 " -ForegroundColor Green
-	Write-Host "=================================================================" -ForegroundColor Green
-	Start-Sleep 3
 }
 
+<#
+.SYNOPSIS
+	DISABLE POWER SAVING
+#>
 function Invoke-DisablePowerSaving {
 	param (
 		[switch]$Silent
@@ -421,36 +388,30 @@ function Invoke-DisablePowerSaving {
 		}
 	}
 
-	# DISABLE POWER SAVING
-	Write-Output ""
-	Write-Host "Disabling Power Saving Features..." -ForegroundColor White
-	Write-Output ""
+	Write-Host "Disabling Power Saving Features..." -ForegroundColor Green
 	# DISABLE CPU POWER SAVING
-	Write-Host "Disabling CPU Power Saving..." -ForegroundColor Cyan
  	# Disable power throttling
 	Write-Output "Disabling Power Throttling..."
 	$powerKey = "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling"	
-	if (!(Test-Path $powerKey)) { New-Item $powerKey | Out-Null }	
+	if (!(Test-Path $powerKey)) { New-Item $powerKey | Out-Null }
 	New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Power\PowerThrottling" -Name "PowerThrottlingOff" -Value 1 -PropertyType DWORD -Force | Out-Null	
-	# Force all CPU cores to remain unparked for maximum responsiveness
-	Write-Output "Disabling CPU Core Parking..."
-	cmd /c "reg add `"HKLM\SYSTEM\ControlSet001\Control\Power\PowerSettings\54533251-82be-4824-96c1-47b60b740d00\0cc5b647-c1df-4637-891a-dec35c318583`" /v `"ValueMax`" /t REG_DWORD /d `"0`" /f >nul 2>&1"	
 	# Disable processor throttle states to prevent CPU frequency reduction
-	Write-Output "Disabling CPU Throttle States..."
 	powercfg /setacvalueindex scheme_current 54533251-82be-4824-96c1-47b60b740d00 3b04d4fd-1cc7-4f23-ab1c-d1337819c4bb 0
 	# Set processor performance time check interval to 200 milliseconds for optimized DPC management
 	# This setting reduces deferred procedure calls and can be increased to 5000ms for statically clocked systems
-	Write-Output "Setting Processor Performance Time Check Interval to 200ms..."
-	powercfg /setacvalueindex scheme_current 54533251-82be-4824-96c1-47b60b740d00 4d2b0152-7d5c-498b-88e2-34345392a2c5 200
-	# disable dynamic tick
+	powercfg /setacvalueindex scheme_current 54533251-82be-4824-96c1-47b60b740d00 4d2b0152-7d5c-498b-88e2-34345392a2c5 200	
+	# Force all CPU cores to remain unparked for maximum responsiveness
+	Write-Output "Disabling CPU Core Parking..."
+	cmd /c "reg add `"HKLM\SYSTEM\ControlSet001\Control\Power\PowerSettings\54533251-82be-4824-96c1-47b60b740d00\0cc5b647-c1df-4637-891a-dec35c318583`" /v `"ValueMax`" /t REG_DWORD /d `"0`" /f >nul 2>&1"	
+	# Disable dynamic tick
 	Write-Output "Disabling Dynamic Tick..."
 	bcdedit /set disabledynamictick yes | Out-Null
 	# Enable platform tick use the platform timer (usually HPET)
-	Write-Output "Enabling Platform Tick..." 
-	bcdedit /set useplatformtick yes | Out-Null		  
+	Write-Output "Enabling Platform Tick..."
+	bcdedit /set useplatformtick yes | Out-Null
 
 	# DISABLE SLEEP
-	Write-Host "Disabling Sleep..." -ForegroundColor Cyan
+	Write-Output "Disabling Sleep..."
 	# Disable system hibernation feature to free up disk space and improve system performance
 	Write-Output "Disabling Hibernation..."
 	powercfg /hibernate off
@@ -463,41 +424,31 @@ function Invoke-DisablePowerSaving {
 	cmd /c "reg add `"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power`" /v `"HiberbootEnabled`" /t REG_DWORD /d `"0`" /f >nul 2>&1"
 
 	# DISABLE DEVICE POWER SAVING
-	Write-Host "Disabling Device Power Saving..." -ForegroundColor Cyan
 	# DISPLAY
-	Write-Host "Disabling Display Power Saving..." -ForegroundColor Cyan
+	Write-Output "Disabling Display Power Saving..."
 	# Disable automatic display dimming feature to maintain consistent screen brightness at all times
-	Write-Output "Disabling Automatic Display Dimming..."
 	powercfg /setacvalueindex scheme_current 7516b95f-f776-4464-8c53-06167f40cc99 17aaa29b-8b43-4b94-aafe-35f64daaf1ee 0
 	# Disable automatic display turn-off to keep screen active indefinitely for uninterrupted workflow
-	Write-Output "Disabling Automatic Display Turn-Off..."
 	powercfg /setacvalueindex scheme_current 7516b95f-f776-4464-8c53-06167f40cc99 3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e 0
 	# NVME
-	Write-Host "Disabling NVMe Power Saving..." -ForegroundColor Cyan
+	Write-Output "Disabling NVME Power Saving..."
 	# Configure secondary NVMe drive idle timeout to 0 milliseconds
-	Write-Output "Disabling Secondary NVMe Drive Idle Timeout..."
 	powercfg /setacvalueindex scheme_current 0012ee47-9041-4b5d-9b77-535fba8b1442 d3d55efd-c1ff-424e-9dc3-441be7833010 0
 	# Configure primary NVMe drive idle timeout to 0 milliseconds to prevent drive sleep states
 	powercfg /setacvalueindex scheme_current 0012ee47-9041-4b5d-9b77-535fba8b1442 d639518a-e56d-4345-8af2-b9f32fb26109 0
 	# Disable NVMe NOPPME (Non-Operational Power Management Enable) 
-	Write-Output "Disabling NVMe NOPPME (Non-Operational Power Management Enable)..."
 	powercfg /setacvalueindex scheme_current 0012ee47-9041-4b5d-9b77-535fba8b1442 fc7372b6-ab2d-43ee-8797-15e9841f2cca 0
 	# Disable D3 support on SATA/NVMEs while using Modern Standby
-	Write-Output "Disabling D3 Support on SATA/NVMEs in Modern Standby..."
 	New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Storage" -Name "StorageD3InModernStandby" -Value 0 -PropertyType DWORD -Force | Out-Null	
 	# Disable IdlePowerMode for stornvme.sys (storage devices) - the device will never enter a low-power state	
-	Write-Output "Disabling IdlePowerMode for stornvme.sys (storage devices)..."
 	New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\stornvme\Parameters\Device" -Name "IdlePowerMode" -Value 0 -PropertyType DWORD -Force | Out-Null			
 	# USB
-	Write-Host "Disabling USB Power Saving..." -ForegroundColor Cyan
+	Write-Output "Disabling USB Power Saving..."
 	# Set USB hub selective suspend timeout to 0 milliseconds to prevent USB device sleep
-	Write-Output "Disabling USB Hub Selective Suspend Timeout..."
 	powercfg /setacvalueindex scheme_current 2a737441-1930-4402-8d77-b2bebba308a3 0853a681-27c8-4100-a2fd-82013e970683 0
 	# Disable USB selective suspend feature to prevent individual USB devices from entering low-power states
-	Write-Output "Disabling USB Selective Suspend..."
 	powercfg /setacvalueindex scheme_current 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0
 	# Disable USB 3.0 link power management to maintain maximum USB 3.0 device performance and connectivity
-	Write-Output "Disabling USB 3.0 Link Power Management..."
 	powercfg /setacvalueindex scheme_current 2a737441-1930-4402-8d77-b2bebba308a3 d4e98f31-5ffe-4ce1-be31-1b38b384c009 0
 	# disables power saving features for all devices (that support power saving) in Device Manager.	
 	# get all USB ROOT devices	
@@ -512,22 +463,22 @@ function Invoke-DisablePowerSaving {
 	}
 
 	# DISABLE NETWORK POWER SAVING
-	Write-Host "Disabling Network Power Saving..." -ForegroundColor Cyan
+	Write-Output "Disabling Network Power Saving..."
 	$properties = Get-NetAdapter -Physical | Get-NetAdapterAdvancedProperty	
 	foreach ($setting in @(	
     	# Stands for Ultra Low Power	
     	"ULPMode",	
-	
+
     	# Energy Efficient Ethernet	
     	"EEE",	
     	"EEELinkAdvertisement",	
     	"AdvancedEEE",	
     	"EnableGreenEthernet",	
     	"EeePhyEnable",	
-	
+
     	# Wi-Fi capability that saves power consumption	
     	"uAPSDSupport",	
-	
+
     	# Self-explanatory	
     	"EnablePowerManagement",	
     	"EnableSavePowerNow",	
@@ -571,83 +522,63 @@ function Invoke-DisablePowerSaving {
 	Get-CimInstance -ClassName MSPower_DeviceEnable -Namespace root/WMI | Set-CimInstance -Property @{ Enable = $false }	
 
 	# ADDITIONAL POWER OPTIMIZATIONS
-	Write-Host "Applying Additional Power Optimizations by @sherifmagdy32, creator of GoInterruptPolicy App..." -ForegroundColor Cyan
 	# Additional Power Optimizations by @sherifmagdy32, creator of "GoInterruptPolicy" app
+	Write-Host "Additional Power Optimizations by @sherifmagdy32..." -ForegroundColor Green
 	# Processor idle thresholds
-	Write-Output "Configuring Processor Idle Thresholds..."
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82BE-4824-96C1-47B60B740D00 4B92D758-5A24-4851-A470-815D78AEE119 100   # Idle demote threshold
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82BE-4824-96C1-47B60B740D00 7B224883-B3CC-4D79-819F-8374152CBE7C 100   # Idle promote threshold
 	# Allow Standby States
-	Write-Output "Allowing Standby States..."
 	powercfg /setacvalueindex SCHEME_CURRENT 238c9fa8-0aad-41ed-83f4-97be242c8f20 abfc2519-3608-4c2a-94ea-171b0ed546ab 0
  	# Deep Sleep
 	# powercfg /setacvalueindex SCHEME_CURRENT 2e601130-5351-4d9d-8e04-252966bad054 d502f7ee-1dc7-4efd-a55d-f04b6f5c0545 0
 	# Processor performance core parking
-	Write-Output "Configuring Processor Performance Core Parking..."
 	# undocumented setting (Unknown, not in official docs)
 	# powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 a55612aa-f624-42c6-a443-7397d064c04f 0   # Core override
 	# Ensures a minimum of 100% of logical processors remain unparked
-	Write-Output "Ensuring a minimum of 100% of logical processors remain unparked..."
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 ea062031-0e34-4ff1-9b6d-eb1059334028 100 # Max cores
   	# Processor performance boost mode
-	Write-Output "Configuring Processor Performance Boost Mode..."
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 be337238-0d82-4146-a960-4f3749d470c7 2	
  	# Processor autonomous modes
-	Write-Output "Configuring Processor Autonomous Modes..."
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 8baa4a8a-14c6-4451-8e8b-14bdbd197537 0
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 cfeda3d0-7697-4566-a922-a9086cd49dfa 0   # Activity window
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 4e4450b3-6179-4e91-b8f1-5bb9938f81a1 0   # Duty cycling
 	# NVMe Power State Transition Latency Tolerance
-	Write-Output "Configuring NVMe Power State Transition Latency Tolerance..."
 	powercfg /setacvalueindex SCHEME_CURRENT 0012ee47-9041-4b5d-9b77-535fba8b1442 fc95af4d-40e7-4b6d-835a-56d131dbc80e 0
 	# Processor idle disable. Only uncomment if on desktop with good CPU refrigeration and low temps, because it reduces input lag but raises temp even on idle. It keeps running the CPU at 100% all the time.
 	# powercfg /setacvalueindex SCHEME_CURRENT 54533251-82BE-4824-96C1-47B60B740D00 5d76a2ca-e8c0-402f-a133-2158492d58ad 1
 	
  	# (All safe on AC-powered laptops)
  	# System unattended sleep timeout
-	Write-Output "Configuring System Unattended Sleep Timeout..."
 	powercfg /setacvalueindex SCHEME_CURRENT 238c9fa8-0aad-41ed-83f4-97be242c8f20 7bc4a2f9-d8fc-4469-b07b-33eb785aaca0 0 
 	# Processor performance increase threshold
-	Write-Output "Configuring Processor Performance Increase Threshold..."
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 06cadf0e-64ed-448a-8927-ce7bf90eb35d 0
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 06cadf0e-64ed-448a-8927-ce7bf90eb35e 0   # Efficiency Class 1
 	# Latency sensitivity hint processor performance
-	Write-Output "Configuring Latency Sensitivity Hint Processor Performance..."
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 619b7505-003b-4e82-b7a6-4dd29c300971 0
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 619b7505-003b-4e82-b7a6-4dd29c300972 0   # Efficiency Class 1
 	# Disconnected standby mode
-	Write-Output "Disabling Disconnected Standby Mode..."
 	powercfg /setacvalueindex SCHEME_CURRENT fea3413e-7e05-4911-9a71-700331f1c294 68afb2d9-ee95-47a8-8f50-4115088073b1 0  
 	# Processor energy performance preference policy
-	Write-Output "Configuring Processor Energy Performance Preference Policy..."
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 36687f9e-e3a5-4dbf-b1dc-15eb381c6863 0
 	# Processor performance decrease thresholds/policies
-	Write-Output "Configuring Processor Performance Decrease Thresholds/Policies..."
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 12a0ab44-fe28-4fa9-b3bd-4b64f44960a6 10
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 40fbefc7-2e9d-4d25-a185-0cfd8574bac6 2
 	# Processor performance increase policies
-	Write-Output "Configuring Processor Performance Increase Policies..."
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 465e1f50-b610-473a-ab58-00d1077dc418 2
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 465e1f50-b610-473a-ab58-00d1077dc419 2   # Efficiency Class 1
 	# Sleep button action
-	Write-Output "Configuring Sleep Button Action..."
 	powercfg /setacvalueindex SCHEME_CURRENT 4f971e89-eebd-4455-a8de-9e59040e7347 96996bc0-ad50-47ec-923b-6f41874dd9eb 0
 	# Disable away mode
-	Write-Output "Disabling Away Mode..."
 	powercfg /setacvalueindex SCHEME_CURRENT 238c9fa8-0aad-41ed-83f4-97be242c8f20 25dfa149-5dd1-4736-b5ab-e8a37b5b8187 0
 	# Lid close action
-	Write-Output "Configuring Lid Close Action..."
 	powercfg /setacvalueindex SCHEME_CURRENT 4f971e89-eebd-4455-a8de-9e59040e7347 5ca83367-6e45-459f-a27b-476b1d01c936 0
 	# Media sharing
-	Write-Output "Disabling Media Sharing..."
 	powercfg /setacvalueindex SCHEME_CURRENT 9596fb26-9850-41fd-ac3e-f7c3c00afd4b 03680956-93bc-4294-bba6-4e0f09bb717f 1
 	# Processor performance boost policy
-	Write-Output "Configuring Processor Performance Boost Policy..."
 	powercfg /setacvalueindex SCHEME_CURRENT 54533251-82be-4824-96C1-47B60B740D00 45bcc044-d885-43e2-8605-ee0ec6e96b59 100
  	
 	# Disable power saving feature in devices
-	Write-Host "Disabling Power Saving Features in Devices..." -ForegroundColor Cyan
-	$keys = Get-ChildItem -Path "HKLM:\SYSTEM\CurrentControlSet\Enum" -Recurse -EA 0	
+	$keys = Get-ChildItem -Path "HKLM:\SYSTEM\CurrentControlSet\Enum" -Recurse	
 	foreach ($value in @(	
 		"DisableIdlePowerManagement"
 	)) {	
@@ -680,10 +611,7 @@ function Invoke-DisablePowerSaving {
     	}	
 	}
 
-	# Disable Energy Saving feature
-	Write-Host "Disabling Energy Saving Features..." -ForegroundColor Cyan
 	# Disable Coalescing Timer Interval to improve DPC latency
-	Write-Output "Disabling Coalescing Timer Interval..."
 	cmd /c "reg add ""HKLM\System\CurrentControlSet\Control\Power\ModernSleep"" /v CoalescingTimerInterval /t REG_DWORD /d 0 /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\System\CurrentControlSet\Control\Power"" /v CoalescingTimerInterval /t REG_DWORD /d 0 /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\System\CurrentControlSet\Control\Session Manager\Power"" /v CoalescingTimerInterval /t REG_DWORD /d 0 /f >nul 2>&1"
@@ -693,7 +621,6 @@ function Invoke-DisablePowerSaving {
 	cmd /c "reg add ""HKLM\System\CurrentControlSet\Control\Session Manager"" /v CoalescingTimerInterval /t REG_DWORD /d 0 /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\System\CurrentControlSet\Control"" /v CoalescingTimerInterval /t REG_DWORD /d 0 /f >nul 2>&1"
 	# Tell Windows to stop tolerating high DPC/ISR latencies
-	Write-Output "Optimizing DPC/ISR Latency Tolerance..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v ExitLatency /t REG_DWORD /d 1 /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v ExitLatencyCheckEnabled /t REG_DWORD /d 1 /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v Latency /t REG_DWORD /d 1 /f >nul 2>&1"
@@ -703,84 +630,62 @@ function Invoke-DisablePowerSaving {
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v LatencyToleranceScreenOffIR /t REG_DWORD /d 1 /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v LatencyToleranceVSyncEnabled /t REG_DWORD /d 1 /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v RtlCapabilityCheckLatency /t REG_DWORD /d 1 /f >nul 2>&1"
-	# Further optimizations to power
-	Write-Output "Disabling Energy Estimation..."
+
+	# Disable Energy Estimation
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v EnergyEstimationEnabled /t REG_DWORD /d 0 /f >nul 2>&1"
 	Write-Output "Disabling Connected Standby..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v CsEnabled /t REG_DWORD /d 0 /f >nul 2>&1"
-	Write-Output "Disabling Platform Sleep States..."
+	# Disable Platform Sleep States
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v PerfCalculateActualUtilization /t REG_DWORD /d 0 /f >nul 2>&1"
-	Write-Output "Disabling Sleep Reliability Detailed Diagnostics..."
+	# Disable Sleep Reliability Detailed Diagnostics
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v SleepReliabilityDetailedDiagnostics /t REG_DWORD /d 0 /f >nul 2>&1"
-	Write-Output "Disabling Power Throttling..."
+
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v EventProcessorEnabled /t REG_DWORD /d 0 /f >nul 2>&1"
 	
 	# Disable QoS management of idle processors to reduce latency
-	Write-Output "Disabling QoS Management of Idle Processors..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v QosManagesIdleProcessors /t REG_DWORD /d 0 /f >nul 2>&1"
 	# Disable Vsync Latency Update to reduce latency spikes
-	Write-Output "Disabling Vsync Latency Update..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v DisableVsyncLatencyUpdate /t REG_DWORD /d 1 /f >nul 2>&1"
 	# Disable Sensor Watchdog to prevent unnecessary power state changes
-	Write-Output "Disabling Sensor Watchdog..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v DisableSensorWatchdog /t REG_DWORD /d 1 /f >nul 2>&1"
 	# Disable Deep Io Coalescing to reduce latency
-	Write-Output "Disabling Deep Io Coalescing..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v DeepIoCoalescingEnabled /t REG_DWORD /d 0 /f >nul 2>&1"
 	# Setting CPU performance scaling to 64% for lower latency
-	Write-Output "Configuring CPU latency scaling for better performance..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v LowLatencyScalingPercentage /t REG_DWORD /d 64 /f >nul 2>&1"
 	# Disabling media foundation buffering threshold for real-time media processing
-	Write-Output "Disabling media buffering for real-time audio/video processing..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v MfBufferingThreshold /t REG_DWORD /d 0 /f >nul 2>&1"
 	# Disabling away mode which mimics sleep while keeping apps running
-	Write-Output "Disabling away mode to prevent background activity during sleep..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v AwayModeEnabled /t REG_DWORD /d 0 /f >nul 2>&1"
 	# Setting initial unparked CPU cores to maximum for immediate responsiveness
-	Write-Output "Configuring CPU core parking for maximum core availability..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v Class1InitialUnparkCount /t REG_DWORD /d 100 /f >nul 2>&1"
 	# Enabling power plan customization during system setup
-	Write-Output "Enabling power plan customization options..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v CustomizeDuringSetup /t REG_DWORD /d 1 /f >nul 2>&1"
 	# Setting hibernation file size to 0% to disable hibernation
-	Write-Output "Disabling hibernation to save disk space..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v HiberFileSizePercent /t REG_DWORD /d 0 /f >nul 2>&1"
 	# Setting timer threshold for better power state transitions
-	Write-Output "Optimizing power state transition timers..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v TimerRebaseThresholdOnDripsExit /t REG_DWORD /d 30 /f >nul 2>&1"
 	# Disabling energy estimation to prevent power-saving throttling
-	Write-Output "Disabling energy estimation to prevent performance throttling..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v EnergyEstimationDisabled /t REG_DWORD /d 1 /f >nul 2>&1"
 	# Enabling performance boost even at guaranteed power levels
-	Write-Output "Enabling performance boost at all power levels..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v PerfBoostAtGuaranteed /t REG_DWORD /d 1 /f >nul 2>&1"
 	# Disabling core parking to keep all CPU cores active
-	Write-Output "Disabling CPU core parking for consistent multi-core performance..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v CoreParkingDisabled /t REG_DWORD /d 1 /f >nul 2>&1"
 	# Set minimum processor state to 100%
-	Write-Output "Setting Minimum Processor State to 100%..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v MinimumThrottlePercent /t REG_DWORD /d 0 /f >nul 2>&1"
 	# Set maximum processor state to 100%
-	Write-Output "Setting Maximum Processor State to 100%..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v MaximumThrottlePercent /t REG_DWORD /d 0 /f >nul 2>&1"
 	# Disable power management in connected standby mode
-	Write-Output "Disabling Connected Standby Power Management..."
 	cmd /c "reg add ""HKLM\SOFTWARE\Policies\Microsoft\Windows\WcmSvc\GroupPolicy"" /v fDisablePowerManagement /t REG_DWORD /d 1 /f >nul 2>&1"
 	# Disable energy save from PDC
-	Write-Output "Disabling PDC Energy Saving Features..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power\PDC\Activators\Default\VetoPolicy"" /v EA:EnergySaverEngaged /t REG_DWORD /d 0 /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power\PDC\Activators\28\VetoPolicy"" /v EA:PowerStateDischarging /t REG_DWORD /d 0 /f >nul 2>&1"
 	# Disable ASPM
-	Write-Output "Disabling ASPM (Active State Power Management)..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Services\pci\Parameters"" /v ASPMOptOut /t REG_DWORD /d 1 /f >nul 2>&1"
 	# Disable Sleep study
-	Write-Output "Disabling Sleep Study..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power"" /v SleepStudyDisabled /t REG_DWORD /d 1 /f >nul 2>&1"
 	# High Performance Burst
-	Write-Output "Enabling High Performance Burst..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power\Profile\Events\{54533251-82be-4824-96c1-47b60b740d00}\{0DA965DC-8FCF-4c0b-8EFE-8DD5E7BC959A}\{7E01ADEF-81E6-4e1b-8075-56F373584694}"" /v TimeLimitInSeconds /t REG_DWORD /d 12 /f >nul 2>&1"
 	# Power profile tweaks (multiple entries)
-	Write-Output "Applying Power Profile Tweaks..."
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power\Profile\Events\{54533251-82be-4824-96c1-47b60b740d00}\{0DA965DC-8FCF-4c0b-8EFE-8DD5E7BC959A}\{7E01ADEF-81E6-4e1b-8075-56F373584694}\{F6CC25DF-6E8F-4cf8-A242-B1343F565884}\{BDB3AF7A-F67E-4d1e-945D-E2790352BE0A}"" /ve /t REG_SZ /d ""{db57eb61-1aa2-4906-9396-23e8b8024c32}"" /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power\Profile\Events\{54533251-82be-4824-96c1-47b60b740d00}\{0DA965DC-8FCF-4c0b-8EFE-8DD5E7BC959A}\{7E01ADEF-81E6-4e1b-8075-56F373584694}\{F6CC25DF-6E8F-4cf8-A242-B1343F565884}\{BDB3AF7A-F67E-4d1e-945D-E2790352BE0A}"" /v Operator /t REG_DWORD /d 2 /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power\Profile\Events\{54533251-82be-4824-96c1-47b60b740d00}\{0DA965DC-8FCF-4c0b-8EFE-8DD5E7BC959A}\{7E01ADEF-81E6-4e1b-8075-56F373584694}\{F6CC25DF-6E8F-4cf8-A242-B1343F565884}\{BDB3AF7A-F67E-4d1e-945D-E2790352BE0A}"" /v Type /t REG_DWORD /d 0x0000103d /f >nul 2>&1"
@@ -789,8 +694,7 @@ function Invoke-DisablePowerSaving {
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power\Profile\Events\{54533251-82be-4824-96c1-47b60b740d00}\{0DA965DC-8FCF-4c0b-8EFE-8DD5E7BC959A}\{7E01ADEF-81E6-4e1b-8075-56F373584694}\{F6CC25DF-6E8F-4cf8-A242-B1343F565884}\{CD9230EE-218E-44b9-8AE5-EE7AA5DAD08F}"" /v Operator /t REG_DWORD /d 2 /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power\Profile\Events\{54533251-82be-4824-96c1-47b60b740d00}\{0DA965DC-8FCF-4c0b-8EFE-8DD5E7BC959A}\{7E01ADEF-81E6-4e1b-8075-56F373584694}\{F6CC25DF-6E8F-4cf8-A242-B1343F565884}\{CD9230EE-218E-44b9-8AE5-EE7AA5DAD08F}"" /v Type /t REG_DWORD /d 0x0000100a /f >nul 2>&1"
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power\Profile\Events\{54533251-82be-4824-96c1-47b60b740d00}\{0DA965DC-8FCF-4c0b-8EFE-8DD5E7BC959A}\{7E01ADEF-81E6-4e1b-8075-56F373584694}\{F6CC25DF-6E8F-4cf8-A242-B1343F565884}\{CD9230EE-218E-44b9-8AE5-EE7AA5DAD08F}"" /v Value /t REG_DWORD /d 0 /f >nul 2>&1"
-	# Disable CPPC
-	Write-Output "Disabling CPPC (Collaborative Processor Performance Control)..."
+	# Disable CPPC (Collaborative Processor Performance Control)
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Processor"" /v CPPCEnable /t REG_DWORD /d 0 /f >nul 2>&1"
 	# Disable Cstates (BIOS settings override)
 	# Write-Output "Disabling CPU C-States..."
@@ -924,9 +828,7 @@ function Invoke-WinActivation {
     Website: https://massgrave.dev/
 	Source: https://github.com/massgravel/Microsoft-Activation-Scripts 
 #>
-	Write-Host ""
-	Write-Host "Activating Windows..." -ForegroundColor White
-	Write-Host ""
+	Write-Host "Activating Windows..." -ForegroundColor Green
 	# Permanently activates Windows using the TSforge activation method, 100% open-source and works completely offline. (suitable for older systems and VMs)
 	Invoke-Expression "& {$((Invoke-RestMethod https://get.activated.win))} /Z-Windows"
 }
@@ -934,21 +836,33 @@ function Invoke-WinActivation {
 # Chris Titus Tech's Windows Utility Automation
 function Invoke-WinUtilAutoStandard {
 <#
-TWEAKS.
+.EXAMPLE
 	Create Restore Point
     "WPFTweaksRestorePoint"
+.EXAMPLE
 	Run Disk Cleanup
 	"WPFTweaksDiskCleanup"
+.EXAMPLE
 	Disable hibernation
 	"WPFTweaksHiber"
+.EXAMPLE
 	Disable Full Screen optimization
 	"WPFTweaksDisableFSO"
+.EXAMPLE
 	Remove OneDrive
 	"WPFTweaksRemoveOnedrive"
+.EXAMPLE
+	Remove UWP Apps
+	"WPFTweaksDeBloat"
+.EXAMPLE
 	Powershell 7
     "WPFTweaksPowershell7"
-    
+.EXAMPLE
+    Disable Copilot
 	"WPFTweaksRemoveCopilot"
+.EXAMPLE
+	Disable Notifications
+    "WPFTweaksDisableNotifications"
 #>
 $json = @'
 {
@@ -961,7 +875,7 @@ $json = @'
                       "WPFTweaksDisableWpbtExecution",
                       "WPFTweaksDisableLMS1",
                       "WPFTweaksStorage",
-                      "WPFTweaksDeBloat",
+					  "WPFTweaksDisableCrossDeviceResume",
                       "WPFTweaksRemoveHome",
                       "WPFTweaksIPv46",
                       "WPFTweaksConsumerFeatures",
@@ -977,7 +891,6 @@ $json = @'
                       "WPFTweaksHome",
                       "WPFTweaksDisableExplorerAutoDiscovery",
                       "WPFTweaksBraveDebloat",
-                      "WPFTweaksDisableNotifications",
                       "WPFTweaksPowershell7Tele",
                       "WPFTweaksDeleteTempFiles",
                       "WPFTweaksUTC",
@@ -1019,9 +932,6 @@ $json = @'
 	    } else {
 	    }
 	}
- 
- 	# Rename Powershell 7 (x64) start menu shortcut
- 	# Rename-Item "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\PowerShell\PowerShell 7 (x64).lnk" -NewName "PowerShell 7.lnk" -Force
 }
 
 # WinUtil Redux
@@ -1120,7 +1030,9 @@ function Invoke-Win11Debloat {
 	    -HideSearchTb `
 	    -HideTaskview `
 	    -HideChat `
+		-DisableWidgets	`
 	    -EnableEndTask `
+		-EnableLastActiveClick `
 	    -HideHome `
 	    -HideGallery `
 	    -ExplorerToThisPC `
@@ -1131,18 +1043,15 @@ function Invoke-Win11Debloat {
 	    -HideShare
 }
 
-function Invoke-RemoveWinBloat {
+function Invoke-RemWinBloat {
 <#
 KEPT.
 	NVIDIA, CBS, Winget, Xbox, Snipping Tool
 	Notepad(system), VBSCRIPT, Microsoft Paint, Windows Media Player Legacy (App)
 	Media Features
 #>
-
-	Write-Host "Debloating Windows..." -ForegroundColor Green
-	
-    # Remove Universal Windows Platform Apps
-    Write-Output "Removing UWP Apps..."
+    # REMOVE UNIVERSAL WINDOWS PLATFORM APPS
+    Write-Host "Removing UWP Apps..." -ForegroundColor Green
 	Get-AppxPackage -AllUsers |
 	Where-Object {
 	    $_.Name -notlike '*NVIDIA*' -and
@@ -1154,120 +1063,86 @@ KEPT.
 	} |
 	Remove-AppxPackage
 
-	# Uninstall Remote Desktop Connection
-	Write-Output "Uninstalling Remote Desktop Connection..."
-
-
-	function Wait-ProcessWindow {
-	    param($ProcessName, $Timeout = 30)
-	    $startTime = Get-Date
-	    while (((Get-Date) - $startTime).TotalSeconds -lt $Timeout) {
-	        $proc = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
-	        if ($proc -and $proc.MainWindowTitle -ne "") {
-	            return $proc
-	        }
-	        Start-Sleep -Milliseconds 500
-	    }
-	    return $null
-	}
-	
-	function Test-RemoteDesktopInstalled {
-	    try {
-	        # Multiple methods to check if Remote Desktop is installed
-	        $methods = @(
-	            { Get-Command "mstsc.exe" -ErrorAction Stop | Out-Null },
-	            { Test-Path "$env:Windir\System32\mstsc.exe" },
-	            { Get-WindowsCapability -Online -Name "Microsoft.Windows.RemoteDesktop.Client*" -ErrorAction SilentlyContinue | Where-Object { $_.State -eq "Installed" } }
-	        )
-	        
-	        foreach ($method in $methods) {
-	            try {
-	                & $method
-	                return $true
-	            } catch {
-	                continue
-	            }
-	        }
-	        return $false
-	    } catch {
-	        return $true  # Assume installed if we can't determine
-	    }
-	}
-	
-	try {
-	    # Check if Remote Desktop is already uninstalled
-	    if (-not (Test-RemoteDesktopInstalled)) {
-	        Write-Host "Remote Desktop is already uninstalled - skipping process" -ForegroundColor Green
-	    } else {
-	        Write-Host "Starting Remote Desktop uninstall..." -ForegroundColor Yellow
-	        
-	        # Start the uninstall process
-	        $process = Start-Process "mstsc.exe" -ArgumentList "/uninstall" -PassThru -WindowStyle Hidden
-	        
-	        # Wait for the window to appear with timeout
-	        $windowProcess = Wait-ProcessWindow -ProcessName "mstsc" -Timeout 15
-	        
-	        if ($windowProcess) {
-	            # Close the window using the main window handle
-	            Add-Type @"
-	                using System;
-	                using System.Runtime.InteropServices;
-	                public class WindowHelper {
-	                    [DllImport("user32.dll")]
-	                    public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
-	                    
-	                    [DllImport("user32.dll")]
-	                    public static extern bool EndDialog(IntPtr hDlg, IntPtr nResult);
-	                    
-	                    public const uint WM_CLOSE = 0x0010;
-	                }
-"@
-	
-	            # Try to close the window gracefully first
-	            [WindowHelper]::SendMessage($windowProcess.MainWindowHandle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
-	            
-	            Start-Sleep -Seconds 2
-	            
-	            # If still running, force close
-	            if (!$process.HasExited) {
-	                $process | Stop-Process -Force -ErrorAction SilentlyContinue
-	            }
-	            
-	            # Write-Host "Remote Desktop uninstall completed silently" -ForegroundColor Green
-	        } else {
-	            # Write-Host "No uninstall window detected - process may have completed" -ForegroundColor Yellow
-	        }
-	    }
-	} catch {
-	    # Write-Host "Process completed with notes: $_" -ForegroundColor Yellow
-	} finally {
-	    # Write-Host "Remote Desktop uninstall process finished" -ForegroundColor Cyan
-	}
-
-    # Remove Windows Capabilities
-    Write-Output "Removing Optional features..."
-	@(
-	    "App.StepsRecorder~~~~0.0.1.0"
-	    "App.Support.QuickAssist~~~~0.0.1.0"
-	    "Browser.InternetExplorer~~~~0.0.11.0"
-	    "DirectX.Configuration.Database~~~~0.0.1.0"
-	    "Hello.Face.18967~~~~0.0.1.0"
-	    "Hello.Face.20134~~~~0.0.1.0"
-	    "MathRecognizer~~~~0.0.1.0"
-	    "Microsoft.Wallpapers.Extended~~~~0.0.1.0"
-	    "Microsoft.Windows.PowerShell.ISE~~~~0.0.1.0"
-	    "OneCoreUAP.OneSync~~~~0.0.1.0"
-	    "OpenSSH.Client~~~~0.0.1.0"
-	    "Print.Fax.Scan~~~~0.0.1.0"
-	    "Print.Management.Console~~~~0.0.1.0"
-	    "Windows.Kernel.LA57~~~~0.0.1.0"
-	    "Microsoft.Windows.WordPad~~~~0.0.1.0"
-	    "WMIC~~~~0.0.1.0"
-	) | ForEach-Object {
-	    Remove-WindowsCapability -Online -Name $_ | Out-Null
-	}
-
-	# Remove "Character Map" capability app
+<#
+.SYNOPSIS
+	Remove Windows Features on Demand (Capabilities)
+.DESCRIPTION
+	This function removes a predefined list of Windows capabilities that are often considered unnecessary for many users.
+	It targets features such as Steps Recorder, Quick Assist, Internet Explorer, Math Recognizer, PowerShell ISE, and more.
+	Some features are commented out due to potential system instability or breaking certain functionalities.
+.LINK
+	https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/features-on-demand-non-language-fod?view=windows-11
+#>
+    Write-Host "Removing Available Features on Demand (Capabilities)..." -ForegroundColor Green
+	# Remove Steps Recorder
+	Write-Output "Removing Steps Recorder..."
+	Remove-WindowsCapability -Online -Name "App.StepsRecorder~~~~0.0.1.0" | Out-Null
+	# Remove Quick Assist
+	Write-Output "Removing Quick Assist..."
+	Remove-WindowsCapability -Online -Name "App.Support.QuickAssist~~~~0.0.1.0" | Out-Null
+	# Remove Internet Explorer
+	Write-Output "Removing Internet Explorer..."
+	Remove-WindowsCapability -Online -Name "Browser.InternetExplorer~~~~0.0.11.0" | Out-Null
+	# Delete Internet Explorer shortcuts
+    Remove-Item "$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Accessories\Internet Explorer.lnk" -Force
+    Remove-Item "$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Internet Explorer.lnk" -Force
+    Remove-Item "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Accessories\Internet Explorer.lnk" -Force
+    Remove-Item "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Internet Explorer.lnk" -Force
+	# Remove DirectX Configuration Database
+	Write-Output "Removing DirectX Configuration Database..."
+	Remove-WindowsCapability -Online -Name "DirectX.Configuration.Database~~~~0.0.1.0" | Out-Null
+	# Remove Face Recognition
+	Write-Output "Removing Face Recognition..."
+	Remove-WindowsCapability -Online -Name "Hello.Face.18967~~~~0.0.1.0" | Out-Null
+	Remove-WindowsCapability -Online -Name "Hello.Face.20134~~~~0.0.1.0" | Out-Null
+	# Remove Math Recognizer
+	Write-Output "Removing Math Recognizer..."
+	Remove-WindowsCapability -Online -Name "MathRecognizer~~~~0.0.1.0" | Out-Null
+	# Remove Windows Media Player Legacy
+	# Write-Output "Removing Windows Media Player Legacy..."
+	# Remove-WindowsCapability -Online -Name "Media.WindowsMediaPlayer~~~~0.0.12.0" | Out-Null
+	# Remove Extended Theme Content
+	Write-Output "Removing Extended Theme Content..."
+	Remove-WindowsCapability -Online -Name "Microsoft.Wallpapers.Extended~~~~0.0.1.0" | Out-Null
+	# Remove Microsoft Paint Legacy
+	# Write-Output "Removing Paint Legacy..."
+	# Remove-WindowsCapability -Online -Name "Microsoft.Windows.MSPaint~~~~0.0.1.0" | Out-Null
+	# Remove Notepad (system)
+	# Write-Output "Removing Notepad (system)..."
+	# Remove-WindowsCapability -Online -Name "Microsoft.Windows.Notepad.System~~~~0.0.1.0" | Out-Null
+	# Remove-WindowsCapability -Online -Name "Microsoft.Windows.Notepad~~~~0.0.1.0" | Out-Null
+	# Remove PowerShell ISE
+	Write-Output "Removing PowerShell ISE..."
+	Remove-WindowsCapability -Online -Name "Microsoft.Windows.PowerShell.ISE~~~~0.0.1.0" | Out-Null
+	# Remove WordPad
+	Write-Output "Removing WordPad..."
+	Remove-WindowsCapability -Online -Name "Microsoft.Windows.WordPad~~~~0.0.1.0" | Out-Null
+	# Remove OneSync
+	Write-Output "Removing OneSync..."
+	Remove-WindowsCapability -Online -Name "OneCoreUAP.OneSync~~~~0.0.1.0" | Out-Null
+	# Remove OpenSSH Client
+	Write-Output "Removing OpenSSH Client..."
+	Remove-WindowsCapability -Online -Name "OpenSSH.Client~~~~0.0.1.0" | Out-Null
+	# Remove Windows Fax and Scan
+	Write-Output "Removing Fax and Scan..."
+	Remove-WindowsCapability -Online -Name "Print.Fax.Scan~~~~0.0.1.0" | Out-Null
+	# Remove Print Management Console
+	Write-Output "Removing Print Management Console..."
+	Remove-WindowsCapability -Online -Name "Print.Management.Console~~~~0.0.1.0" | Out-Null
+	# breaks installer & uninstaller programs
+	# Remove-WindowsCapability -Online -Name "VBSCRIPT~~~~" | Out-Null
+	# Remove WMIC
+	Write-Output "Removing WMIC..."
+	Remove-WindowsCapability -Online -Name "WMIC~~~~" | Out-Null
+	# Remove Windows Feature Experience Pack
+	# breaks uwp snippingtool w10
+	# Write-Output "Windows Feature Experience Pack..."
+	# Remove-WindowsCapability -Online -Name "Windows.Client.ShellComponents~~~~0.0.1.0" | Out-Null
+	# Remove Linear Address 57-bit
+	# Write-Output "Removing Linear Address 57-bit..."
+	# Remove-WindowsCapability -Online -Name "Windows.Kernel.LA57~~~~0.0.1.0" | Out-Null
+	# Remove Character Map
+	Write-Output "Removing Character Map..."
     function Set-ForceOwnership($p){
 		cmd /c "takeown /f `"$p`" /a /r /d y >nul 2>&1"
 		cmd /c "icacls `"$p`" /grant Administrators:F Everyone:F /t /c /q >nul 2>&1"
@@ -1307,45 +1182,172 @@ KEPT.
 	    }
 	} > $null 2>&1
 
-	# Delete Internet Explorer shortcuts
-	Write-Output "Deleting Internet Explorer shortcuts..."
-	@(
-    "$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Accessories\Internet Explorer.lnk",
-    "$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Internet Explorer.lnk",
-    "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Accessories\Internet Explorer.lnk",
-    "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Internet Explorer.lnk"
-	) | ForEach-Object {
-        if (Test-Path $_) {
-            Remove-Item $_ -Force
-        }
-    }
-	
-    # Disable Windows Features
-	Write-Output "Disabling Windows Features..."
-	@(
-	    'WCF-Services45'
-	    'WCF-TCP-PortSharing45'
-	    'Printing-PrintToPDFServices-Features'
-	    'Printing-XPSServices-Features'
-	    'Printing-Foundation-Features'
-	    'Printing-Foundation-InternetPrinting-Client'
-	    'MSRDC-Infrastructure'
-	    'SMB1Protocol'
-	    'SMB1Protocol-Client'
-	    'SMB1Protocol-Deprecation'
-	    'SmbDirect'
-	    'Windows-Identity-Foundation'
-	    'MicrosoftWindowsPowerShellV2Root'
-	    'MicrosoftWindowsPowerShellV2'
-	    'WorkFolders-Client'
-	    'Microsoft-Hyper-V-All'
-	    # 'Recall'
-	) | ForEach-Object {
-	    Dism /Online /NoRestart /Disable-Feature /FeatureName:$_ | Out-Null
+    # DISABLE WINDOWS FEATURES
+	Write-Host "Disabling Windows Features..." -ForegroundColor Green
+	# .NET Framework 4.8
+	# Dism /Online /NoRestart /Disable-Feature /FeatureName:NetFx4-AdvSrvs | Out-Null
+	# Disable WCF Services
+	Write-Output "Disabling WCF Services..."
+	Dism /Online /NoRestart /Disable-Feature /FeatureName:WCF-Services45 | Out-Null
+	# Disable TCP Port Sharing
+	Dism /Online /NoRestart /Disable-Feature /FeatureName:WCF-TCP-PortSharing45 | Out-Null
+	# Disable Media Features
+	# Write-Output "Disabling Media Features..."
+	# Dism /Online /NoRestart /Disable-Feature /FeatureName:MediaPlayback | Out-Null
+	# Disable Microsoft Print to PDF
+	Write-Output "Disabling Microsoft Print to PDF..."
+	Dism /Online /NoRestart /Disable-Feature /FeatureName:Printing-PrintToPDFServices-Features | Out-Null
+	# Disable Microsoft XPS Document Writer
+	Write-Output "Disabling Microsoft XPS Document Writer..."
+	Dism /Online /NoRestart /Disable-Feature /FeatureName:Printing-XPSServices-Features | Out-Null
+	# Disable Print and Document Services
+	Write-Output "Disabling Print and Document Services..."
+	Dism /Online /NoRestart /Disable-Feature /FeatureName:Printing-Foundation-Features | Out-Null
+	# Disable Internet Printing Client
+	Dism /Online /NoRestart /Disable-Feature /FeatureName:Printing-Foundation-InternetPrinting-Client | Out-Null
+	# Disable Remote Differential Compression API Support
+	Write-Output "Disabling Remote Differential Compression API Support..."
+	Dism /Online /NoRestart /Disable-Feature /FeatureName:MSRDC-Infrastructure | Out-Null
+	# breaks search
+	# Dism /Online /NoRestart /Disable-Feature /FeatureName:SearchEngine-Client-Package | Out-Null
+	# Disable SMB 1.0/CIFS File Sharing Support
+	Write-Output "Disabling SMB 1.0..."
+	Dism /Online /NoRestart /Disable-Feature /FeatureName:SMB1Protocol | Out-Null
+	Dism /Online /NoRestart /Disable-Feature /FeatureName:SMB1Protocol-Client | Out-Null
+	Dism /Online /NoRestart /Disable-Feature /FeatureName:SMB1Protocol-Deprecation | Out-Null
+	# Disable SMB Direct
+	Write-Output "Disabling SMB Direct..."
+	Dism /Online /NoRestart /Disable-Feature /FeatureName:SmbDirect | Out-Null
+	# Disable Windows Identity Foundation 3.5
+	Write-Output "Disabling Windows Identity Foundation 3.5..."
+	Dism /Online /NoRestart /Disable-Feature /FeatureName:Windows-Identity-Foundation | Out-Null
+	# Disable Windows Powershell 2.0
+	Write-Output "Disabling Windows Powershell 2.0..."
+	Dism /Online /NoRestart /Disable-Feature /FeatureName:MicrosoftWindowsPowerShellV2Root | Out-Null
+	Dism /Online /NoRestart /Disable-Feature /FeatureName:MicrosoftWindowsPowerShellV2 | Out-Null
+	# Disable Work Folders Client
+	Write-Output "Disabling Work Folders Client..."
+	Dism /Online /NoRestart /Disable-Feature /FeatureName:WorkFolders-Client | Out-Null
+	# Disable Hyper-V
+	# Write-Output "Disabling Hyper-V..."
+	# Dism /Online /NoRestart /Disable-Feature /FeatureName:Microsoft-Hyper-V-All | Out-Null
+	# Disable Recall
+	# Write-Output "Disabling Recall..."
+	# Dism /Online /NoRestart /Disable-Feature /FeatureName:Recall | Out-Null
+
+	# Uninstall Microsoft Update Health Tools 
+	Write-Host "Uninstalling Microsoft Update Health Tools..." -ForegroundColor Green
+	# Windows 11
+	Start-Process "msiexec.exe" -ArgumentList '/X{C6FD611E-7EFE-488C-A0E0-974C09EF6473}', '/qn' -Wait -WindowStyle Hidden
+	# Windows 10
+	Start-Process "msiexec.exe" -ArgumentList '/X{1FC1A6C2-576E-489A-9B4A-92D21F542136}', '/qn' -Wait -WindowStyle Hidden
+	# Clean Microsoft Update Health Tools
+    Remove-Item 'HKLM:\SYSTEM\ControlSet001\Services\uhssvc' -Recurse -Force | Out-Null
+	Unregister-ScheduledTask -TaskName PLUGScheduler -Confirm:$false
+	# Uninstall Update for x64-based Windows Systems
+	Write-Host "Uninstalling Update for x64-based Windows Systems..." -ForegroundColor Green	
+	Start-Process "msiexec.exe" -ArgumentList '/X{B9A7A138-BFD5-4C73-A269-F78CCA28150E}', '/qn' -Wait -WindowStyle Hidden
+	Start-Process "msiexec.exe" -ArgumentList '/X{85C69797-7336-4E83-8D97-32A7C8465A3B}', '/qn' -Wait -WindowStyle Hidden
+	# (KB5001716)
+	Start-Process "msiexec.exe" -ArgumentList '/x {B8D93870-98D1-4980-AFCA-E26563CDFB79} /qn /norestart' -Wait -WindowStyle Hidden
+
+	# Uninstall Remote Desktop Connection
+	Write-Host "Uninstalling Remote Desktop Connection..." -ForegroundColor Green
+	function Wait-ProcessWindow {
+	    param($ProcessName, $Timeout = 30)
+	    $startTime = Get-Date
+	    while (((Get-Date) - $startTime).TotalSeconds -lt $Timeout) {
+	        $proc = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
+	        if ($proc -and $proc.MainWindowTitle -ne "") {
+	            return $proc
+	        }
+	        Start-Sleep -Milliseconds 500
+	    }
+	    return $null
 	}
 
- 	# Windows Stuff
-	
+	function Test-RemoteDesktopInstalled {
+	    try {
+	        # Multiple methods to check if Remote Desktop is installed
+	        $methods = @(
+	            { Get-Command "mstsc.exe" -ErrorAction Stop | Out-Null },
+	            { Test-Path "$env:Windir\System32\mstsc.exe" },
+	            { Get-WindowsCapability -Online -Name "Microsoft.Windows.RemoteDesktop.Client*" -ErrorAction SilentlyContinue | Where-Object { $_.State -eq "Installed" } }
+	        )
+	        
+	        foreach ($method in $methods) {
+	            try {
+	                & $method
+	                return $true
+	            } catch {
+	                continue
+	            }
+	        }
+	        return $false
+	    } catch {
+	        return $true  # Assume installed if we can't determine
+	    }
+	}
+
+	try {
+	    # Check if Remote Desktop is already uninstalled
+	    if (-not (Test-RemoteDesktopInstalled)) {
+	        # Write-Host "Remote Desktop is already uninstalled - skipping process" -ForegroundColor Green
+	    } else {
+	        # Write-Host "Starting Remote Desktop uninstall..." -ForegroundColor Yellow
+	        
+	        # Start the uninstall process
+	        $process = Start-Process "mstsc.exe" -ArgumentList "/uninstall" -PassThru -WindowStyle Hidden
+	        
+	        # Wait for the window to appear with timeout
+	        $windowProcess = Wait-ProcessWindow -ProcessName "mstsc" -Timeout 15
+	        
+	        if ($windowProcess) {
+	            # Close the window using the main window handle
+	            Add-Type @"
+	                using System;
+	                using System.Runtime.InteropServices;
+	                public class WindowHelper {
+	                    [DllImport("user32.dll")]
+	                    public static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
+	                    
+	                    [DllImport("user32.dll")]
+	                    public static extern bool EndDialog(IntPtr hDlg, IntPtr nResult);
+	                    
+	                    public const uint WM_CLOSE = 0x0010;
+	                }
+"@
+
+	            # Try to close the window gracefully first
+	            [WindowHelper]::SendMessage($windowProcess.MainWindowHandle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) *> $null
+	            
+	            Start-Sleep -Seconds 3
+	            
+	            # If still running, force close
+	            if (!$process.HasExited) {
+	                $process | Stop-Process -Force 
+	            }
+	            
+	            # Write-Host "Remote Desktop uninstall completed silently" -ForegroundColor Green
+	        } else {
+	            # Write-Host "No uninstall window detected - process may have completed" -ForegroundColor Yellow
+	        }
+	    }
+	} catch {
+	    # Write-Host "Process completed with notes: $_" -ForegroundColor Yellow
+	} finally {
+	    # Write-Host "Remote Desktop uninstall process finished" -ForegroundColor Cyan
+	}
+
+ 	# WINDOWS STUFF
+
+  	# Activate Windows Photo Viewer
+	Write-Output "Activating Windows Photo Viewer..."
+	'tif','tiff','bmp','dib','gif','jfif','jpe','jpeg','jpg','jxr','png','ico'|ForEach-Object{
+ 		reg add "HKLM\SOFTWARE\Microsoft\Windows Photo Viewer\Capabilities\FileAssociations" /v ".${_}" /t REG_SZ /d "PhotoViewer.FileAssoc.Tiff" /f >$null 2>&1
+ 		reg add "HKCU\SOFTWARE\Classes\.${_}" /ve /t REG_SZ /d "PhotoViewer.FileAssoc.Tiff" /f >$null 2>&1
+  	}
+
   	# Bloatware Killer Task
 	Write-Output "Scheduling Bloatware Killer Task..."
 	try {
@@ -1386,8 +1388,6 @@ for ($i = 1; $i -le 3; $i++) {
 	New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" -Name "EnableDynamicContentInWSB" -PropertyType DWord -Value 0 -Force | Out-Null
 	New-ItemProperty -Path "HKCU:\SOFTWARE\Policies\Microsoft\Windows\Explorer" -Name "DisableSearchBoxSuggestions" -PropertyType DWord -Value 1 -Force | Out-Null
 	New-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\SearchSettings" -Name "IsDynamicSearchBoxEnabled" -PropertyType DWord -Value 0 -Force | Out-Null
-	# Stop-Process -Name SearchHost -Force
-	# Stop-Process -Name SystemSettings -Force
 
 	# Disable Windows Spotlight	
 	# Disable cloud/Spotlight features via registry
@@ -1405,6 +1405,7 @@ for ($i = 1; $i -le 3; $i++) {
 	New-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel" -Force | Out-Null
 	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\HideDesktopIcons\NewStartPanel" -Name "{2cc5ca98-6485-489a-920e-b3e88a6ccce3}" -Type DWord -Value 1 | Out-Null
 
+	# TASKS
 	# Disable Unnecessary Tasks
 	Write-Output "Disabling Unnecessary Tasks..."
 	# Disable OneDrive, Edge, Brave and Google tasks
@@ -1417,7 +1418,7 @@ for ($i = 1; $i -le 3; $i++) {
 	schtasks /Change /TN "Microsoft\Windows\Windows Defender\Windows Defender Verification" /Disable | Out-Null
 
 	# Kill Microsoft Text Input Application
-	Write-Output "Disabling Microsoft Text Input Application..."
+	Write-Output "Killing Microsoft Text Input Application..."
 	cmd /c "taskkill /F /IM TextInputHost.exe >nul 2>&1"; $d=Get-ChildItem "$env:SystemRoot\SystemApps" -Dir -Filter "MicrosoftWindows.Client.CBS_*"|Select-Object -First 1 -ExpandProperty FullName
 	if($d){$x=Join-Path $d "TextInputHost.exe"
 		if(Test-Path $x){cmd /c "takeown /f `"$x`" >nul 2>&1 & icacls `"$x`" /grant *S-1-3-4:F >nul 2>&1 & move /y `"$x`" `"$env:SystemRoot\TextInputHost.exe.bak`" >nul 2>&1"}
@@ -1429,22 +1430,15 @@ for ($i = 1; $i -le 3; $i++) {
 	Remove-Item -Recurse -Force "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp" | Out-Null
 	New-Item -Path "$env:AppData\Microsoft\Windows\Start Menu\Programs\Startup" -ItemType Directory | Out-Null
 	New-Item -Path "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp" -ItemType Directory | Out-Null
-	
+
 	# Prevent Print Spooler to start automatically with windows
 	Write-Output "Preventing Print Spooler to start automatically with windows..."
 	Set-ItemProperty -Path 'HKLM:\SYSTEM\ControlSet001\Services\Spooler' -Name 'Start' -Value 3
-	
+
 	# Disable Windows Search Indexing
 	Write-Output "Disabling Windows Search Indexing..."
 	Set-ItemProperty -Path 'HKLM:\SYSTEM\ControlSet001\Services\WSearch' -Name 'Start' -Value 4
 
-  	# Activate Windows Photo Viewer
-	Write-Output "Activating Windows Photo Viewer..."
-	'tif','tiff','bmp','dib','gif','jfif','jpe','jpeg','jpg','jxr','png','ico'|ForEach-Object{
- 		reg add "HKLM\SOFTWARE\Microsoft\Windows Photo Viewer\Capabilities\FileAssociations" /v ".${_}" /t REG_SZ /d "PhotoViewer.FileAssoc.Tiff" /f >$null 2>&1
- 		reg add "HKCU\SOFTWARE\Classes\.${_}" /ve /t REG_SZ /d "PhotoViewer.FileAssoc.Tiff" /f >$null 2>&1
-  	}
-	
 	# Create System Properties Start menu shortcut
 	Write-Output "Creating System Properties Start shortcut..."
 	$t="$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Administrative Tools\System Properties.lnk"
@@ -1453,29 +1447,51 @@ for ($i = 1; $i -le 3; $i++) {
 	$s.IconLocation="$env:SystemRoot\System32\SystemPropertiesAdvanced.exe"
 	$s.Save() >$null 2>&1
 
-	# Uninstall Microsoft Update Health Tools W11
-	Write-Output "Uninstalling Microsoft Update Health Tools..."
-	cmd /c "MsiExec.exe /X{C6FD611E-7EFE-488C-A0E0-974C09EF6473} /qn >nul 2>&1"
-		
-	# uninstall Microsoft Update Health Tools W10
-	Write-Output "Uninstalling Microsoft Update Health Tools..."		
-	cmd /c "MsiExec.exe /X{1FC1A6C2-576E-489A-9B4A-92D21F542136} /qn >nul 2>&1"	
-	# clean microsoft update health tools w10		
-	cmd /c "reg delete `"HKLM\SYSTEM\ControlSet001\Services\uhssvc`" /f >nul 2>&1"
-	Unregister-ScheduledTask -TaskName PLUGScheduler -Confirm:$false
-		
-	# uninstall update for windows 10 for x64-based systems
-	Write-Output "Uninstalling update for Windows 10 for x64-based systems..."		
-	cmd /c "MsiExec.exe /X{B9A7A138-BFD5-4C73-A269-F78CCA28150E} /qn >nul 2>&1"
-	cmd /c "MsiExec.exe /X{85C69797-7336-4E83-8D97-32A7C8465A3B} /qn >nul 2>&1"
-		
-	# clean adobe type manager w10
-	Write-Output "Cleaning Adobe Type Manager..."
-	cmd /c "reg delete `"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Font Drivers`" /f >nul 2>&1"
-	
-  	# Windows 10 Stuff
+	# WINDOWS 10 STUFF
  	if ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild -le 19045) {
-		Write-Host "Windows 10 Stuff..." -ForegroundColor Cyan
+		Write-Host "Windows 10 Stuff..." -ForegroundColor Green
+
+		# Clean Adobe Type Manager
+		Write-Output "Cleaning Adobe Type Manager..."
+		Remove-Item -Path 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Font Drivers' -Recurse -Force | Out-Null
+
+<#
+	# Uninstall SnippingTool Legacy
+	Start-Process "C:\Windows\System32\SnippingTool.exe" -ArgumentList "/Uninstall"
+	# silent window for old snippingtool w10
+	$processExists = Get-Process -Name SnippingTool -ErrorAction SilentlyContinue
+	if ($processExists) {
+		$running = $true
+		do {
+			$openWindows = Get-Process | Where-Object { $_.MainWindowTitle -ne '' } | Select-Object MainWindowTitle
+			foreach ($window in $openWindows) {
+				if ($window.MainWindowTitle -eq 'Snipping Tool') {
+					Stop-Process -Force -Name SnippingTool -ErrorAction SilentlyContinue | Out-Null
+					$running = $false
+				}
+			}
+		} while ($running)
+	} else {
+	}
+#>
+
+		# Set Desktop Wallpaper and Style
+		Write-Output "Setting Desktop Wallpaper and Style..."
+		Add-Type @"
+using System.Runtime.InteropServices;
+public class Wallpaper {
+    public const int SPI_SETDESKWALLPAPER = 0x0014;
+    public const int SPIF_UPDATEINIFILE = 0x01;
+    public const int SPIF_SENDWININICHANGE = 0x02;
+    [DllImport("user32.dll", CharSet=CharSet.Auto)]
+    public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+}
+"@
+		$WallpaperPath = "C:\Windows\web\wallpaper\Windows\img0.jpg"
+		Set-ItemProperty "HKCU:\Control Panel\Desktop" -Name "WallpaperStyle" -Value "10"
+		Set-ItemProperty "HKCU:\Control Panel\Desktop" -Name "TileWallpaper" -Value "0"
+		[Wallpaper]::SystemParametersInfo(0x0014, 0, $WallpaperPath, 3) | Out-Null
+
 	
 		# Disable AppX Deployment Service
 		Write-Output "Disabling AppX Deployment Service..."
@@ -1532,8 +1548,26 @@ for ($i = 1; $i -le 3; $i++) {
 
  	# Windows 11 Stuff
   	elseif ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild -ge 22000) {
-		# Set Classic Right-Click Menu
-		Write-Output "Setting Classic Right-Click Menu..."
+		Write-Host "Windows 11 Stuff..." -ForegroundColor Green
+		# Set Desktop Wallpaper and Style
+		Write-Output "Setting Desktop Wallpaper and Style..."
+Add-Type @"
+using System.Runtime.InteropServices;
+public class Wallpaper {
+    public const int SPI_SETDESKWALLPAPER = 0x0014;
+    public const int SPIF_UPDATEINIFILE = 0x01;
+    public const int SPIF_SENDWININICHANGE = 0x02;
+    [DllImport("user32.dll", CharSet=CharSet.Auto)]
+    public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+}
+"@
+		$WallpaperPath = "C:\Windows\web\Wallpaper\Windows\img19.jpg"
+		Set-ItemProperty "HKCU:\Control Panel\Desktop" -Name "WallpaperStyle" -Value "10"
+		Set-ItemProperty "HKCU:\Control Panel\Desktop" -Name "TileWallpaper" -Value "0"
+		[Wallpaper]::SystemParametersInfo(0x0014, 0, $WallpaperPath, 3) | Out-Null
+	
+		# Revert to Classic Right-Click Menu
+		Write-Output "Enabling Classic Right-Click Menu..."
 		New-Item -Path "HKCU:\Software\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}" -Name "InprocServer32" -force -value "" | Out-Null
 
 		# Set taskbar alignment to left (0 = left, 1 = center)
@@ -1600,6 +1634,21 @@ for ($i = 1; $i -le 3; $i++) {
 		Write-Output "Restoring New Text Document context menu item..."
 		Invoke-WebRequest -Uri "https://github.com/vishnusai-karumuri/Registry-Fixes/raw/refs/heads/master/Restore_New_Text_Document_context_menu_item.reg" -OutFile "$env:TEMP\Restore_New_Text_Document_context_menu_item.reg"
   		Start-Process regedit.exe -ArgumentList "/s `"$env:TEMP\Restore_New_Text_Document_context_menu_item.reg`"" -Wait	
+		# Add "Edit with Notepad" to right-click context menu
+		Write-Output "Adding Edit with Notepad to right-click context menu..."
+		# Create .reg file
+		$MultilineComment = @'
+Windows Registry Editor Version 5.00
+
+[HKEY_CLASSES_ROOT\*\shell\Edit with &Notepad]
+"Icon"="C:\\Windows\\System32\\notepad.exe,0"
+
+[HKEY_CLASSES_ROOT\*\shell\Edit with &Notepad\command]
+@="C:\\Windows\\System32\\notepad.exe \"%1\""
+'@
+		Set-Content -Path "$env:TEMP\EditWithNotepad.reg" -Value $MultilineComment -Force
+		# import reg file
+		Regedit.exe /S "$env:TEMP\EditWithNotepad.reg"
 	}
 
 	else {	
@@ -1620,333 +1669,38 @@ function Invoke-DebloatEdge {
 	Write-Host "Debloating Edge..." -ForegroundColor Green
 	# edge-debloat
 	Invoke-WebRequest -Uri "https://github.com/marlock9/edge-debloat/raw/refs/heads/main/edge-debloat.reg" -OutFile "$env:TEMP\edge-debloat.reg"
-	Start-Process regedit.exe -ArgumentList "/s `"$env:TEMP\edge-debloat.reg`"" -Wait
-	# Edge policies
-	$MultilineComment = @'
-Windows Registry Editor Version 5.00
-
-[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Edge]
-"Edge3PSerpTelemetryEnabled"=dword:00000000
-"EdgeAssetDeliveryServiceEnabled"=dword:00000000
-"EdgeDiscoverEnabled"=dword:00000000
-"EdgeEDropEnabled"=dword:00000000
-"EdgeEnhanceImagesEnabled"=dword:00000000
-"EdgeWalletCheckoutEnabled"=dword:00000000
-"EdgeWalletEtreeEnabled"=dword:00000000
-"ExperimentationAndConfigurationServiceControl"=dword:00000000
-"ForceSync"=dword:00000000
-"ImageEditorServiceEnabled"=dword:00000000
-"InAppSupportEnabled"=dword:00000000
-"InternetExplorerIntegrationLevel"=dword:00000000
-"LiveCaptionsAllowed"=dword:00000000
-"LiveTranslationAllowed"=dword:00000000
-"MathSolverEnabled"=dword:00000000
-"MicrosoftEdgeInsiderPromotionEnabled"=dword:00000000
-"MicrosoftEditorSynonymsEnabled"=dword:00000000
-"MicrosoftOfficeMenuEnabled"=dword:00000000
-"OutlookHubMenuEnabled"=dword:00000000
-"PersonalizeTopSitesInCustomizeSidebarEnabled"=dword:00000000
-"PictureInPictureOverlayEnabled"=dword:00000000
-"PromptForDownloadLocation"=dword:00000000
-"SpeechRecognitionEnabled"=dword:00000000
-"TextPredictionEnabled"=dword:00000000
-"TranslateEnabled"=dword:00000001
-"TravelAssistanceEnabled"=dword:00000000
-"UploadFromPhoneEnabled"=dword:00000000
-"UrlDiagnosticDataEnabled"=dword:00000000
-"VisualSearchEnabled"=dword:00000000
-"WalletDonationEnabled"=dword:00000000
-"DefaultGeolocationSetting"=dword:00000002
-"DefaultNotificationsSetting"=dword:00000002
-"DefaultLocalFontsSetting"=dword:00000002
-"DefaultSensorsSetting"=dword:00000002
-"DefaultSerialGuardSetting"=dword:00000002
-"CloudReportingEnabled"=dword:00000000
-"DriveDisabled"=dword:00000001
-"PasswordSharingEnabled"=dword:00000000
-"PasswordLeakDetectionEnabled"=dword:00000000
-"QuickAnswersEnabled"=dword:00000000
-"SafeBrowsingExtendedReportingEnabled"=dword:00000000
-"SafeBrowsingSurveysEnabled"=dword:00000000
-"SafeBrowsingDeepScanningEnabled"=dword:00000000
-"DeviceActivityHeartbeatEnabled"=dword:00000000
-"DeviceMetricsReportingEnabled"=dword:00000000
-"HeartbeatEnabled"=dword:00000000
-"LogUploadEnabled"=dword:00000000
-"ReportAppInventory"="00000000"
-"ReportDeviceActivityTimes"=dword:00000000
-"ReportDeviceAppInfo"=dword:00000000
-"ReportDeviceSystemInfo"=dword:00000000
-"ReportDeviceUsers"=dword:00000000
-"ReportWebsiteTelemetry"=""
-"BrowserGuestModeEnabled"=dword:0000000
-"BuiltInDnsClientEnabled"=dword:00000000
-"ParcelTrackingEnabled"=dword:00000000
-"ShoppingListEnabled"=dword:00000000
-"ControlDefaultStateOfAllowExtensionFromOtherStoresSettingEnabled"=dword:00000001
-"BlockExternalExtensions"=dword:00000000
-"GenAILocalFoundationalModelSettings"=dword:00000001
-"LinkedAccountEnabled"=dword:00000000
-"ProactiveAuthWorkflowEnabled"=dword:00000000
-"WebToBrowserSignInEnabled"=dword:00000000
-"EdgeManagementEnabled"=dword:00000000
-"EdgeManagementExtensionsFeedbackEnabled"=dword:00000000
-"MAMEnabled"=dword:00000000
-"PasswordGeneratorEnabled"=dword:00000000
-"PasswordRevealEnabled"=dword:00000000
-"PasswordMonitorAllowed"=dword:00000000
-"RelatedWebsiteSetsEnabled"=dword:00000000
-"ScarewareBlockerProtectionEnabled"=dword:00000000
-"SmartScreenEnabled"=dword:00000000
-"SmartScreenPuaEnabled"=dword:00000000
-"SmartScreenForTrustedDownloadsEnabled"=dword:00000000
-"SmartScreenDnsRequestsEnabled"=dword:00000000
-"NewTabPageAppLauncherEnabled"=dword:00000000
-"NewTabPageBingChatEnabled"=dword:00000000
-"NewTabPagePrerenderEnabled"=dword:00000000
-"AADWebSiteSSOUsingThisProfileEnabled"=dword:00000000
-"AccessibilityImageLabelsEnabled"=dword:00000000
-"AIGenThemesEnabled"=dword:00000000
-"AllowGamesMenu"=dword:00000000
-"AmbientAuthenticationInPrivateModesEnabled"=dword:00000000
-"AutomaticHttpsDefault"=dword:00000001
-"BingAdsSuppression"=dword:00000001
-"ComposeInlineEnabled"=dword:00000000
-"CryptoWalletEnabled"=dword:00000000
-"ExtensionManifestV2Availability"=dword:00000002
-"ApplicationGuardTrafficIdentificationEnabled"=dword:00000000
-"PasswordExportEnabled"=dword:00000000
-"ExtensionsPerformanceDetectorEnabled"=dword:00000000
-"PerformanceDetectorEnabled"=dword:00000000
-"GamerModeEnabled"=dword:00000000
-"SeamlessWebToBrowserSignInEnabled"=dword:00000000
-"ImmersiveReaderGrammarToolsEnabled"=dword:00000000
-"ImmersiveReaderPictureDictionaryEnabled"=dword:00000000
-"ShoppingAssistantEnabled"=dword:00000000
-"PriceComparisonEnabled"=dword:00000000
-"SidebarEnabled"=dword:00000000
-"PinnedToTaskbar"=dword:00000000
-"CreateDesktopShortcutDefault"=dword:00000000
-"RunAllTime"=dword:00000000
-"MetricsReportingEnabled"=dword:00000000
-"TrackingPrevention"=dword:00000003
-"PromotionalTabsEnabled"=dword:00000000
-"SpotlightExperiencesAndRecommendationsEnabled"=dword:00000000
-"HardwareAccelerationModeEnabled"=dword:00000000
-"NewTabPageLocation"="about:blank"
-"EdgeHistoryAISearchEnabled"=dword:00000000
-"BackgroundModeEnabled"=dword:00000000
-"DiagnosticData"=dword:00000000
-"ConfigureDoNotTrack"=dword:00000001
-"ConfigureOnStartup"=dword:00000000
-"PaymentMethodQueryEnabled"=dword:00000000
-"PersonalizationReportingEnabled"=dword:00000000
-"AddressBarMicrosoftSearchInBingProviderEnabled"=dword:00000000
-"UserFeedbackAllowed"=dword:00000000
-"AutofillCreditCardEnabled"=dword:00000000
-"AutofillAddressEnabled"=dword:00000000
-"LocalProvidersEnabled"=dword:00000000
-"SearchSuggestEnabled"=dword:00000000
-"EdgeShoppingAssistantEnabled"=dword:00000000
-"WebWidgetAllowed"=dword:00000000
-"HubsSidebarEnabled"=dword:00000000
-"BrowserSignin"=dword:00000000
-"MicrosoftEditorProofingEnabled"=dword:00000000
-"ResolveNavigationErrorsUseWebService"=dword:00000000
-"AlternateErrorPagesEnabled"=dword:00000000
-"NetworkPredictionOptions"=dword:00000002
-"PasswordManagerEnabled"=dword:00000000
-"SiteSafetyServicesEnabled"=dword:00000000
-"TyposquattingCheckerEnabled"=dword:00000000
-"AutoImportAtFirstRun"=dword:00000004
-"ShowRecommendationsEnabled"=dword:00000000
-"HideFirstRunExperience"=dword:00000001
-"FirstRunExperience"=dword:00000000
-"PinBrowserEssentialsToolbarButton"=dword:00000000
-"DefaultBrowserSettingEnabled"=dword:00000000
-"EdgeFollowEnabled"=dword:00000000
-"StandaloneHubsSidebarEnabled"=dword:00000000
-"SyncDisabled"=dword:00000001
-"HideRestoreDialogEnabled"=dword:00000001
-"ShowMicrosoftRewards"=dword:00000000
-"QuickSearchShowMiniMenu"=dword:00000000
-"ImplicitSignInEnabled"=dword:00000000
-"EdgeCollectionsEnabled"=dword:00000000
-"SplitScreenEnabled"=dword:00000000
-"SearchbarAllowed"=dword:00000000
-"StartupBoostEnabled"=dword:00000000
-"NewTabPageHideDefaultTopSites"=dword:00000001
-"NewTabPageQuickLinksEnabled"=dword:00000000
-"NewTabPageAllowedBackgroundTypes"=dword:00000003
-"NewTabPageContentEnabled"=dword:00000000
-"UpdateNotificationsAllowed"=dword:00000000
-"ApplicationGuardFavoritesSyncEnabled"=dword:00000000
-"ApplicationGuardPassiveModeEnabled"=dword:00000000
-"ApplicationGuardUploadBlockingEnabled"=dword:00000000
-"EdgeWorkspacesEnabled"=dword:00000000
-"ReadAloudEnabled"=dword:00000000
-"ShowAcrobatSubscriptionButton"=dword:00000000
-"ShowOfficeShortcutInFavoritesBar"=dword:00000000
-"SpellcheckEnabled"=dword:00000000
-"TabServiceEnabled"=dword:00000000
-"HttpsUpgradesEnabled"=dword:00000001
-"NonRemovableProfileEnabled"=dword:00000000
-"ProactiveAuthEnabled"=dword:00000000
-"SearchInSidebarEnabled"=dword:00000002
-"FavoritesBarEnabled"=dword:00000000
-"GuidedSwitchEnabled"=dword:00000000
-"EdgeDefaultProfileEnabled"="Default"
-"BrowserAddProfileEnabled"=dword:00000000
-"ConfigureOnPremisesAccountAutoSignIn"=dword:00000000
-"ConfigureOnlineTextToSpeech"=dword:00000000
-"ConfigureShare"=dword:00000000
-"DefaultBrowserSettingsCampaignEnabled"=dword:00000000
-"ImportOnEachLaunch"=dword:00000000
-"LocalBrowserDataShareEnabled"=dword:00000000
-"MSAWebSiteSSOUsingThisProfileAllowed"=dword:00000000
-"PinningWizardAllowed"=dword:00000000
-"QuickViewOfficeFilesEnabled"=dword:00000000
-"RemoteDebuggingAllowed"=dword:00000000
-"RoamingProfileSupportEnabled"=dword:00000000
-"SearchForImageEnabled"=dword:00000000
-"SearchFiltersEnabled"=dword:00000000
-"SharedLinksEnabled"=dword:00000000
-"TabServicesEnabled"=dword:00000000
-"NewTabPageSearchBox"="redirect"
-"PasswordProtectionWarningTrigger"=dword:00000000
-"AskBeforeCloseEnabled"=dword:00000000
-"AutofillMembershipsEnabled"=dword:00000000
-"AADWebSSOAllowed"=dword:00000000
-"AccessCodeCastEnabled"=dword:00000000
-"AdsTransparencyEnabled"=dword:00000000
-"EdgeAdminCenterEnabled"=dword:00000000
-"SigninInterceptionEnabled"=dword:00000000
-"SideSearchEnabled"=dword:00000000
-"ShowPDFDefaultRecommendationsEnabled"=dword:00000000
-"ShowHomeButton"=dword:00000000
-"SafeBrowsingProxiedRealTimeChecksAllowed"=dword:00000000
-"PasswordDismissCompromisedAlertEnabled"=dword:00000000
-"DesktopSharingHubEnabled"=dword:00000000
-"CopilotPageContextEnabled"=dword:00000000
-"QRCodeGeneratorEnabled"=dword:00000000
-"EdgeAutofillMlEnabled"=dword:00000000
-"EdgeEntraCopilotPageContext"=dword:00000000
-"MouseGestureEnabled"=dword:00000000
-"DisableScreenshots"=dword:00000000
-"WebCaptureEnabled"=dword:00000000
-"AddressBarWorkSearchResultsEnabled"=dword:00000000
-"AddressBarTrendingSuggestEnabled"=dword:00000000
-"BuiltInAIAPIsEnabled"=dword:00000000
-"AllowSystemNotifications"=dword:00000000
-"AutoplayAllowed"=dword:00000000
-"ClickOnceEnabled"=dword:00000000
-"InternetExplorerIntegrationReloadInIEModeAllowed"=dword:00000000
-"HideInternetExplorerRedirectUXForIncompatibleSitesEnabled"=dword:00000001
-"Microsoft365CopilotChatIconEnabled"=dword:00000000
-"HttpsOnlyMode"="force_enabled"
-"LiveVideoTranslationEnabled"=dword:00000000
-
-[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Edge\SyncTypesListDisabled]
-"1"="favorites"
-"2"="settings"
-"3"="passwords"
-"4"="addressesAndMore"
-"5"="extensions"
-"6"="history"
-"7"="openTabs"
-"8"="edgeWallet"
-"9"="collections"
-"10"="apps"
-"11"="edgeFeatureUsage"
-
-; block desktop shortcut for all edge channels
-[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\EdgeUpdate]
-"CreateDesktopShortcutDefault"=dword:00000000
-
-; disable edge updates
-[HKEY_CURRENT_USER\Software\Policies\Microsoft\EdgeUpdate]
-"UpdateDefault"=dword:00000000
-
-; disable auto-updates for all users
-; prevent edge from staying up-to-date automatically
-[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\EdgeUpdate]
-"UpdateDefault"=dword:00000000
-"AutoUpdateCheckPeriodMinutes"=dword:00000000
-
-; block all update channels
-[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\EdgeUpdate]
-"Update{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}"=dword:00000000
-"Update{2CD8A007-E189-4D47-B5A4-DD5A7A6D2766}"=dword:00000000
-"Update{65C35B14-6C1D-4122-AC46-7148CC9D6497}"=dword:00000000
-
-; disable Edge as default PDF viewer
-[HKEY_CLASSES_ROOT\.pdf]
-@="AcroExch.Document.DC"
-
-[HKEY_CLASSES_ROOT\.pdf\OpenWithProgids]
-"AppXd4nrz8ff68srnhf9t5a8sbjyar1cr723"=-
-
-; Disable Edge update notifications
-[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\EdgeUpdate]
-"UpdateDefault"=dword:00000000
-"AutoUpdateCheckPeriodMinutes"=dword:00000000
-
-; edge telemetry
-[-HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run]
-[-HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tree\Microsoft\Windows\UpdateOrchestrator\USO_UxBroker]
-
-[HKEY_CURRENT_USER\Software\Policies\Microsoft\MicrosoftEdge\BooksLibrary]
-"EnableExtendedBooksTelemetry"=dword:00000000
-
-[HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\MicrosoftEdge\BooksLibrary]
-"EnableExtendedBooksTelemetry"=dword:00000000
-
-; dont send edge data
-[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection]
-"MicrosoftEdgeDataOptIn"=dword:00000000
-
-; edge preload
-[HKEY_CURRENT_USER\Software\Policies\Microsoft\MicrosoftEdge\TabPreloader]
-"AllowTabPreloading"=dword:00000000
-
-[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\MicrosoftEdge\TabPreloader]
-"AllowTabPreloading"=dword:00000000
-
-; force install uBlock origin and webrtc control extensions in edge
-[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist]
-"1"="odfafepnkmbhccpbejgmiehpchacaeak;https://edge.microsoft.com/extensionwebstorebase/v1/crx"
-"2"="eepeadgljpkkjpbfecfkijnnliikglpl;https://edge.microsoft.com/extensionwebstorebase/v1/crx"
-'@
-	Set-Content -Path "$env:TEMP\DebloatEdge.reg" -Value $MultilineComment -Force
-	# edit reg file
-	$path = "$env:TEMP\DebloatEdge.reg"
-	(Get-Content $path) -replace "\?","$" | Out-File $path
 	# import reg file
-	Regedit.exe /S "$env:TEMP\DebloatEdge.reg"
+	Regedit.exe /S "$env:TEMP\edge-debloat.reg"
+	# disable edge tasks
+	Get-ScheduledTask | Where-Object { $_.TaskName -like "*Edge*" } | ForEach-Object { Disable-ScheduledTask -TaskName $_.TaskName | Out-Null }
 }
 
 # Uninstall Onedrive
 function Invoke-UninstallOneDrive {
     Write-Host "Uninstalling OneDrive..." -ForegroundColor Green
-    Invoke-RestMethod asheroto.com/uninstallonedrive | Invoke-Expression *> $null
+    Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"Invoke-RestMethod 'https://asheroto.com/uninstallonedrive' | Invoke-Expression`"" -Wait
 }
 
 # Remove Edge
 function Invoke-RemoveEdge {
     Write-Host "Removing Edge..." -ForegroundColor Green
+<#
 	# Remove Edge and Webview2
-	# WORKS PERFECT BUT GET FLAGGED BY AV
-	# Get-FileFromWeb -URL "https://github.com/ShadowWhisperer/Remove-MS-Edge/releases/latest/download/Remove-EdgeWeb.exe" -File "$env:TEMP\Remove-EdgeWeb.exe"; Start-Process "$env:TEMP\Remove-EdgeWeb.exe" -Args "/s" -Wait -NoNewWindow; Remove-Item "$env:TEMP\Remove-EdgeWeb.exe" -Force
+	# flagged by av
+	Get-FileFromWeb -URL "https://github.com/ShadowWhisperer/Remove-MS-Edge/releases/latest/download/Remove-EdgeWeb.exe" -File "$env:TEMP\Remove-EdgeWeb.exe"
+	Start-Process "$env:TEMP\Remove-EdgeWeb.exe" -Args "/s" -Wait -NoNewWindow
+	Remove-Item "$env:TEMP\Remove-EdgeWeb.exe" -Force
+
 	# UAC ISSUE (SOMETIMES IT ALSO GET FLAGGED BY AV)
 	# Get-FileFromWeb -URL "https://github.com/ShadowWhisperer/Remove-MS-Edge/raw/refs/heads/main/Batch/Both.bat" -File "$env:TEMP\Both.bat"
 	# Start-Process "cmd.exe" -ArgumentList "/c echo Y | `"%TEMP%\Both.bat`""
-	
+#>
 	# Remove Edge with its own uninstaller
 	$temp = "$env:TEMP\EdgeRemover.ps1"
 	Invoke-WebRequest -Uri "https://cdn.jsdelivr.net/gh/he3als/EdgeRemover@main/get.ps1" -OutFile $temp -UseBasicParsing
 	Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$temp`" -UninstallEdge -RemoveEdgeData -NonInteractive" -Wait
 
-<#
+	<#
 	Write-Output "Uninstalling EdgeUpdate...."
 	# find edgeupdate.exe
 	$edgeupdate = @(); "LocalApplicationData", "ProgramFilesX86", "ProgramFiles" | ForEach-Object {
@@ -2037,6 +1791,14 @@ Windows Registry Editor Version 5.00
 	Get-AppxPackage -allusers *Microsoft.XboxGamingOverlay* | Remove-AppxPackage
 	Get-AppxPackage -allusers *Microsoft.XboxIdentityProvider* | Remove-AppxPackage
 	Get-AppxPackage -allusers *Microsoft.XboxSpeechToTextOverlay* | Remove-AppxPackage
+
+	# Remove Gaming Services
+	Write-Output "Removing Gaming Services..."
+	Get-AppxPackage -allusers *Microsoft.GamingServices* | Remove-AppxPackage
+
+	# Uninstall Microsoft GameInput
+	Write-Output "Uninstalling Microsoft GameInput..."
+	Start-Process "msiexec.exe" -ArgumentList '/x {F563DC73-9550-F772-B4BF-2F72C83F9F30} /qn /norestart'
 }
 
 function Invoke-DisableWidgets {
@@ -2079,12 +1841,9 @@ function Invoke-RemoveWindowsAI {
 
 function Invoke-PauseUpdates {
     Write-Host "Pausing Windows Updates for a long period of time..." -ForegroundColor Green
-    Write-Output "Extending updates delay beyond 35 days..."
-    Write-Output "Disabling automatic updates..."
-
     $reg = Join-Path $env:TEMP 'windows-updates-pause.reg'
     Invoke-WebRequest -Uri 'https://github.com/Aetherinox/pause-windows-updates/raw/refs/heads/main/windows-updates-pause.reg' -OutFile $reg -UseBasicParsing
-    Start-Process reg.exe -ArgumentList "import `"$reg`"" -NoNewWindow -Wait | Out-Null
+	Start-Process reg.exe -ArgumentList "import `"$reg`"" -Wait
 
 	# Setting Security Updates only
 	$batchCode = @'
@@ -2125,7 +1884,7 @@ if (Get-Command Invoke-WPFUpdatessecurity -ErrorAction SilentlyContinue) {
 
 	$batPath = "$env:TEMP\Invoke-WPFUpdatessecurity.bat"
 	Set-Content -Path $batPath -Value $batchCode -Encoding ASCII
-	Start-Process -FilePath $batPath -Wait -NoNewWindow
+	Start-Process -FilePath $batPath -Wait -NoNewWindow | Out-Null
 }
 
 
@@ -2133,38 +1892,54 @@ if (Get-Command Invoke-WPFUpdatessecurity -ErrorAction SilentlyContinue) {
 
 # Disable Updates
 function Invoke-DisableUpdates {
-    Write-Host "Disabling Updates..." -ForegroundColor Green
-    $batch = Join-Path $env:TEMP 'disable-updates.bat'
-    Invoke-WebRequest -Uri 'https://github.com/tsgrgo/windows-update-disabler/raw/refs/heads/main/disable%20updates.bat' -OutFile $batch -ErrorAction SilentlyContinue
-    
-    (Get-Content $batch) | Where-Object {
-        $_ -notmatch 'if not "%1"=="admin"' -and $_ -notmatch 'if not "%2"=="system"' -and $_ -notmatch '^\s*pause\s*$'
-    } | Set-Content -Path $batch -Encoding ASCII
-    
-    RunAsTI $batch ""
-    
-    do {
-        Start-Sleep -Seconds 2
-        $processes = Get-WmiObject Win32_Process -Filter "Name='cmd.exe'" 2>$null | Where-Object { $_.CommandLine -like "*disable-updates.bat*" }
-    } while ($processes)
+	Write-Host "Disabling Updates..." -ForegroundColor Green
+
+	$zip = Join-Path $env:TEMP 'windows-update-disabler-main.zip'
+	$batch = Join-Path $env:TEMP 'windows-update-disabler-main\disable updates.bat'
+
+	Invoke-WebRequest -Uri 'https://github.com/tsgrgo/windows-update-disabler/releases/latest/download/windows-update-disabler-main.zip' -OutFile $zip
+	Expand-Archive -Path $zip -DestinationPath "$env:TEMP" -Force
+
+	(Get-Content $batch) | Where-Object {
+    	$_ -notmatch 'if not "%1"=="admin"' -and
+    	$_ -notmatch 'if not "%2"=="system"' -and
+    	$_ -notmatch '^\s*pause\s*$'
+	} | Set-Content -Path $batch -Encoding ASCII
+
+	RunAsTI $batch ""
+
+	# Wait for process completion
+	do {
+    	Start-Sleep -Seconds 2
+    	$running = Get-WmiObject Win32_Process -Filter "Name='cmd.exe'" 2>$null |
+        	Where-Object { $_.CommandLine -like "*disable updates.bat*" }
+	} while ($running)
 }
 
 # Enable Updates
 function Invoke-EnableUpdates {
 	Write-Host "Enabling Updates..." -ForegroundColor Green
-	
-	$batch = Join-Path $env:TEMP 'enable-updates.bat'
-	Invoke-WebRequest -Uri  'https://github.com/tsgrgo/windows-update-disabler/raw/refs/heads/main/enable%20updates.bat' -OutFile $batch 
-	
-	(Get-Content $batch) |
-	  Where-Object {
-	    $_ -notmatch 'if not "%1"=="admin"' -and
-	    $_ -notmatch 'if not "%2"=="system"' -and
-	    $_ -notmatch '^\s*pause\s*$'
-	  } |
-	  Set-Content -Path $batch -Encoding ASCII
-	
-	RunAsTI -TargetPath $batch -Wait
+
+	$zip = Join-Path $env:TEMP 'windows-update-disabler-main.zip'
+	$batch = Join-Path $env:TEMP 'windows-update-disabler-main\enable updates.bat'
+
+	Invoke-WebRequest -Uri 'https://github.com/tsgrgo/windows-update-disabler/releases/latest/download/windows-update-disabler-main.zip' -OutFile $zip
+	Expand-Archive -Path $zip -DestinationPath "$env:TEMP" -Force
+
+	(Get-Content $batch) | Where-Object {
+    	$_ -notmatch 'if not "%1"=="admin"' -and
+    	$_ -notmatch 'if not "%2"=="system"' -and
+    	$_ -notmatch '^\s*pause\s*$'
+	} | Set-Content -Path $batch -Encoding ASCII
+
+	RunAsTI $batch ""
+
+	# Wait for process completion
+	do {
+    	Start-Sleep -Seconds 2
+    	$running = Get-WmiObject Win32_Process -Filter "Name='cmd.exe'" 2>$null |
+        	Where-Object { $_.CommandLine -like "*enable updates.bat*" }
+	} while ($running)
 }
 
 # Fix Windows Update
@@ -2765,8 +2540,8 @@ Windows Registry Editor Version 5.00
 "WasEnabledBy"=-
 
 ; disable uac
-[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System]
-"EnableLUA"=dword:00000000
+; [HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System]
+; "EnableLUA"=dword:00000000
 
 ; disable smartscreen
 [HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer]
@@ -3148,10 +2923,10 @@ Windows Registry Editor Version 5.00
 [HKEY_CURRENT_USER\Software\Microsoft\GameBar]
 "UseNexusForGameBarEnabled"=dword:00000000
 
-; disable game mode
+; enable game mode
 [HKEY_CURRENT_USER\SOFTWARE\Microsoft\GameBar]
-"AllowAutoGameMode"=dword:00000000
-"AutoGameModeEnabled"=dword:00000000
+"AllowAutoGameMode"=dword:00000001
+"AutoGameModeEnabled"=dword:00000001
 
 ; other settings
 [HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\GameDVR]
@@ -3251,11 +3026,11 @@ Windows Registry Editor Version 5.00
 "EnableAutoTray"=-
 
 ; solid color personalize your background
-[HKEY_CURRENT_USER\Control Panel\Desktop]
-"Wallpaper"=""
+; [HKEY_CURRENT_USER\Control Panel\Desktop]
+; "Wallpaper"=""
 
-[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Wallpapers]
-"BackgroundType"=dword:00000001
+; [HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer\Wallpapers]
+; "BackgroundType"=dword:00000001
 
 ; dark theme 
 [HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize]
@@ -3587,6 +3362,302 @@ E0,F6,C5,D5,0E,CA,50,00,00
 
 
 
+; EDGE
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Edge]
+"Edge3PSerpTelemetryEnabled"=dword:00000000
+"EdgeAssetDeliveryServiceEnabled"=dword:00000000
+"EdgeDiscoverEnabled"=dword:00000000
+"EdgeEDropEnabled"=dword:00000000
+"EdgeEnhanceImagesEnabled"=dword:00000000
+"EdgeWalletCheckoutEnabled"=dword:00000000
+"EdgeWalletEtreeEnabled"=dword:00000000
+"ExperimentationAndConfigurationServiceControl"=dword:00000000
+"ForceSync"=dword:00000000
+"ImageEditorServiceEnabled"=dword:00000000
+"InAppSupportEnabled"=dword:00000000
+"InternetExplorerIntegrationLevel"=dword:00000000
+"LiveCaptionsAllowed"=dword:00000000
+"LiveTranslationAllowed"=dword:00000000
+"MathSolverEnabled"=dword:00000000
+"MicrosoftEdgeInsiderPromotionEnabled"=dword:00000000
+"MicrosoftEditorSynonymsEnabled"=dword:00000000
+"MicrosoftOfficeMenuEnabled"=dword:00000000
+"OutlookHubMenuEnabled"=dword:00000000
+"PersonalizeTopSitesInCustomizeSidebarEnabled"=dword:00000000
+"PictureInPictureOverlayEnabled"=dword:00000000
+"PromptForDownloadLocation"=dword:00000000
+"SpeechRecognitionEnabled"=dword:00000000
+"TextPredictionEnabled"=dword:00000000
+"TranslateEnabled"=dword:00000001
+"TravelAssistanceEnabled"=dword:00000000
+"UploadFromPhoneEnabled"=dword:00000000
+"UrlDiagnosticDataEnabled"=dword:00000000
+"VisualSearchEnabled"=dword:00000000
+"WalletDonationEnabled"=dword:00000000
+"DefaultGeolocationSetting"=dword:00000002
+"DefaultNotificationsSetting"=dword:00000002
+"DefaultLocalFontsSetting"=dword:00000002
+"DefaultSensorsSetting"=dword:00000002
+"DefaultSerialGuardSetting"=dword:00000002
+"CloudReportingEnabled"=dword:00000000
+"DriveDisabled"=dword:00000001
+"PasswordSharingEnabled"=dword:00000000
+"PasswordLeakDetectionEnabled"=dword:00000000
+"QuickAnswersEnabled"=dword:00000000
+"SafeBrowsingExtendedReportingEnabled"=dword:00000000
+"SafeBrowsingSurveysEnabled"=dword:00000000
+"SafeBrowsingDeepScanningEnabled"=dword:00000000
+"DeviceActivityHeartbeatEnabled"=dword:00000000
+"DeviceMetricsReportingEnabled"=dword:00000000
+"HeartbeatEnabled"=dword:00000000
+"LogUploadEnabled"=dword:00000000
+"ReportAppInventory"="00000000"
+"ReportDeviceActivityTimes"=dword:00000000
+"ReportDeviceAppInfo"=dword:00000000
+"ReportDeviceSystemInfo"=dword:00000000
+"ReportDeviceUsers"=dword:00000000
+"ReportWebsiteTelemetry"=""
+"BrowserGuestModeEnabled"=dword:0000000
+"BuiltInDnsClientEnabled"=dword:00000000
+"ParcelTrackingEnabled"=dword:00000000
+"ShoppingListEnabled"=dword:00000000
+"ControlDefaultStateOfAllowExtensionFromOtherStoresSettingEnabled"=dword:00000001
+"BlockExternalExtensions"=dword:00000000
+"GenAILocalFoundationalModelSettings"=dword:00000001
+"LinkedAccountEnabled"=dword:00000000
+"ProactiveAuthWorkflowEnabled"=dword:00000000
+"WebToBrowserSignInEnabled"=dword:00000000
+"EdgeManagementEnabled"=dword:00000000
+"EdgeManagementExtensionsFeedbackEnabled"=dword:00000000
+"MAMEnabled"=dword:00000000
+"PasswordGeneratorEnabled"=dword:00000000
+"PasswordRevealEnabled"=dword:00000000
+"PasswordMonitorAllowed"=dword:00000000
+"RelatedWebsiteSetsEnabled"=dword:00000000
+"ScarewareBlockerProtectionEnabled"=dword:00000000
+"SmartScreenEnabled"=dword:00000000
+"SmartScreenPuaEnabled"=dword:00000000
+"SmartScreenForTrustedDownloadsEnabled"=dword:00000000
+"SmartScreenDnsRequestsEnabled"=dword:00000000
+"NewTabPageAppLauncherEnabled"=dword:00000000
+"NewTabPageBingChatEnabled"=dword:00000000
+"NewTabPagePrerenderEnabled"=dword:00000000
+"AADWebSiteSSOUsingThisProfileEnabled"=dword:00000000
+"AccessibilityImageLabelsEnabled"=dword:00000000
+"AIGenThemesEnabled"=dword:00000000
+"AllowGamesMenu"=dword:00000000
+"AmbientAuthenticationInPrivateModesEnabled"=dword:00000000
+"AutomaticHttpsDefault"=dword:00000001
+"BingAdsSuppression"=dword:00000001
+"ComposeInlineEnabled"=dword:00000000
+"CryptoWalletEnabled"=dword:00000000
+"ExtensionManifestV2Availability"=dword:00000002
+"ApplicationGuardTrafficIdentificationEnabled"=dword:00000000
+"PasswordExportEnabled"=dword:00000000
+"ExtensionsPerformanceDetectorEnabled"=dword:00000000
+"PerformanceDetectorEnabled"=dword:00000000
+"GamerModeEnabled"=dword:00000000
+"SeamlessWebToBrowserSignInEnabled"=dword:00000000
+"ImmersiveReaderGrammarToolsEnabled"=dword:00000000
+"ImmersiveReaderPictureDictionaryEnabled"=dword:00000000
+"ShoppingAssistantEnabled"=dword:00000000
+"PriceComparisonEnabled"=dword:00000000
+"SidebarEnabled"=dword:00000000
+"PinnedToTaskbar"=dword:00000000
+"CreateDesktopShortcutDefault"=dword:00000000
+"RunAllTime"=dword:00000000
+"MetricsReportingEnabled"=dword:00000000
+"TrackingPrevention"=dword:00000003
+"PromotionalTabsEnabled"=dword:00000000
+"SpotlightExperiencesAndRecommendationsEnabled"=dword:00000000
+"HardwareAccelerationModeEnabled"=dword:00000000
+"NewTabPageLocation"="about:blank"
+"EdgeHistoryAISearchEnabled"=dword:00000000
+"BackgroundModeEnabled"=dword:00000000
+"DiagnosticData"=dword:00000000
+"ConfigureDoNotTrack"=dword:00000001
+"ConfigureOnStartup"=dword:00000000
+"PaymentMethodQueryEnabled"=dword:00000000
+"PersonalizationReportingEnabled"=dword:00000000
+"AddressBarMicrosoftSearchInBingProviderEnabled"=dword:00000000
+"UserFeedbackAllowed"=dword:00000000
+"AutofillCreditCardEnabled"=dword:00000000
+"AutofillAddressEnabled"=dword:00000000
+"LocalProvidersEnabled"=dword:00000000
+"SearchSuggestEnabled"=dword:00000000
+"EdgeShoppingAssistantEnabled"=dword:00000000
+"WebWidgetAllowed"=dword:00000000
+"HubsSidebarEnabled"=dword:00000000
+"BrowserSignin"=dword:00000000
+"MicrosoftEditorProofingEnabled"=dword:00000000
+"ResolveNavigationErrorsUseWebService"=dword:00000000
+"AlternateErrorPagesEnabled"=dword:00000000
+"NetworkPredictionOptions"=dword:00000002
+"PasswordManagerEnabled"=dword:00000000
+"SiteSafetyServicesEnabled"=dword:00000000
+"TyposquattingCheckerEnabled"=dword:00000000
+"AutoImportAtFirstRun"=dword:00000004
+"ShowRecommendationsEnabled"=dword:00000000
+"HideFirstRunExperience"=dword:00000001
+"FirstRunExperience"=dword:00000000
+"PinBrowserEssentialsToolbarButton"=dword:00000000
+"DefaultBrowserSettingEnabled"=dword:00000000
+"EdgeFollowEnabled"=dword:00000000
+"StandaloneHubsSidebarEnabled"=dword:00000000
+"SyncDisabled"=dword:00000001
+"HideRestoreDialogEnabled"=dword:00000001
+"ShowMicrosoftRewards"=dword:00000000
+"QuickSearchShowMiniMenu"=dword:00000000
+"ImplicitSignInEnabled"=dword:00000000
+"EdgeCollectionsEnabled"=dword:00000000
+"SplitScreenEnabled"=dword:00000000
+"SearchbarAllowed"=dword:00000000
+"StartupBoostEnabled"=dword:00000000
+"NewTabPageHideDefaultTopSites"=dword:00000001
+"NewTabPageQuickLinksEnabled"=dword:00000000
+"NewTabPageAllowedBackgroundTypes"=dword:00000003
+"NewTabPageContentEnabled"=dword:00000000
+"UpdateNotificationsAllowed"=dword:00000000
+"ApplicationGuardFavoritesSyncEnabled"=dword:00000000
+"ApplicationGuardPassiveModeEnabled"=dword:00000000
+"ApplicationGuardUploadBlockingEnabled"=dword:00000000
+"EdgeWorkspacesEnabled"=dword:00000000
+"ReadAloudEnabled"=dword:00000000
+"ShowAcrobatSubscriptionButton"=dword:00000000
+"ShowOfficeShortcutInFavoritesBar"=dword:00000000
+"SpellcheckEnabled"=dword:00000000
+"TabServiceEnabled"=dword:00000000
+"HttpsUpgradesEnabled"=dword:00000001
+"NonRemovableProfileEnabled"=dword:00000000
+"ProactiveAuthEnabled"=dword:00000000
+"SearchInSidebarEnabled"=dword:00000002
+"FavoritesBarEnabled"=dword:00000000
+"GuidedSwitchEnabled"=dword:00000000
+"EdgeDefaultProfileEnabled"="Default"
+"BrowserAddProfileEnabled"=dword:00000000
+"ConfigureOnPremisesAccountAutoSignIn"=dword:00000000
+"ConfigureOnlineTextToSpeech"=dword:00000000
+"ConfigureShare"=dword:00000000
+"DefaultBrowserSettingsCampaignEnabled"=dword:00000000
+"ImportOnEachLaunch"=dword:00000000
+"LocalBrowserDataShareEnabled"=dword:00000000
+"MSAWebSiteSSOUsingThisProfileAllowed"=dword:00000000
+"PinningWizardAllowed"=dword:00000000
+"QuickViewOfficeFilesEnabled"=dword:00000000
+"RemoteDebuggingAllowed"=dword:00000000
+"RoamingProfileSupportEnabled"=dword:00000000
+"SearchForImageEnabled"=dword:00000000
+"SearchFiltersEnabled"=dword:00000000
+"SharedLinksEnabled"=dword:00000000
+"TabServicesEnabled"=dword:00000000
+"NewTabPageSearchBox"="redirect"
+"PasswordProtectionWarningTrigger"=dword:00000000
+"AskBeforeCloseEnabled"=dword:00000000
+"AutofillMembershipsEnabled"=dword:00000000
+"AADWebSSOAllowed"=dword:00000000
+"AccessCodeCastEnabled"=dword:00000000
+"AdsTransparencyEnabled"=dword:00000000
+"EdgeAdminCenterEnabled"=dword:00000000
+"SigninInterceptionEnabled"=dword:00000000
+"SideSearchEnabled"=dword:00000000
+"ShowPDFDefaultRecommendationsEnabled"=dword:00000000
+"ShowHomeButton"=dword:00000000
+"SafeBrowsingProxiedRealTimeChecksAllowed"=dword:00000000
+"PasswordDismissCompromisedAlertEnabled"=dword:00000000
+"DesktopSharingHubEnabled"=dword:00000000
+"CopilotPageContextEnabled"=dword:00000000
+"QRCodeGeneratorEnabled"=dword:00000000
+"EdgeAutofillMlEnabled"=dword:00000000
+"EdgeEntraCopilotPageContext"=dword:00000000
+"MouseGestureEnabled"=dword:00000000
+"DisableScreenshots"=dword:00000000
+"WebCaptureEnabled"=dword:00000000
+"AddressBarWorkSearchResultsEnabled"=dword:00000000
+"AddressBarTrendingSuggestEnabled"=dword:00000000
+"BuiltInAIAPIsEnabled"=dword:00000000
+"AllowSystemNotifications"=dword:00000000
+"AutoplayAllowed"=dword:00000000
+"ClickOnceEnabled"=dword:00000000
+"InternetExplorerIntegrationReloadInIEModeAllowed"=dword:00000000
+"HideInternetExplorerRedirectUXForIncompatibleSitesEnabled"=dword:00000001
+"Microsoft365CopilotChatIconEnabled"=dword:00000000
+"HttpsOnlyMode"="force_enabled"
+"LiveVideoTranslationEnabled"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Edge\SyncTypesListDisabled]
+"1"="favorites"
+"2"="settings"
+"3"="passwords"
+"4"="addressesAndMore"
+"5"="extensions"
+"6"="history"
+"7"="openTabs"
+"8"="edgeWallet"
+"9"="collections"
+"10"="apps"
+"11"="edgeFeatureUsage"
+
+; block desktop shortcut for all edge channels
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\EdgeUpdate]
+"CreateDesktopShortcutDefault"=dword:00000000
+
+; disable edge updates
+[HKEY_CURRENT_USER\Software\Policies\Microsoft\EdgeUpdate]
+"UpdateDefault"=dword:00000000
+
+; disable auto-updates for all users
+; prevent edge from staying up-to-date automatically
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\EdgeUpdate]
+"UpdateDefault"=dword:00000000
+"AutoUpdateCheckPeriodMinutes"=dword:00000000
+
+; block all update channels
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\EdgeUpdate]
+"Update{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}"=dword:00000000
+"Update{2CD8A007-E189-4D47-B5A4-DD5A7A6D2766}"=dword:00000000
+"Update{65C35B14-6C1D-4122-AC46-7148CC9D6497}"=dword:00000000
+
+; disable Edge as default PDF viewer
+[HKEY_CLASSES_ROOT\.pdf]
+@="AcroExch.Document.DC"
+
+[HKEY_CLASSES_ROOT\.pdf\OpenWithProgids]
+"AppXd4nrz8ff68srnhf9t5a8sbjyar1cr723"=-
+
+; Disable Edge update notifications
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\EdgeUpdate]
+"UpdateDefault"=dword:00000000
+"AutoUpdateCheckPeriodMinutes"=dword:00000000
+
+; edge telemetry
+[-HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run]
+[-HKEY_LOCAL_MACHINE\Software\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache\Tree\Microsoft\Windows\UpdateOrchestrator\USO_UxBroker]
+
+[HKEY_CURRENT_USER\Software\Policies\Microsoft\MicrosoftEdge\BooksLibrary]
+"EnableExtendedBooksTelemetry"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\MicrosoftEdge\BooksLibrary]
+"EnableExtendedBooksTelemetry"=dword:00000000
+
+; dont send edge data
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\DataCollection]
+"MicrosoftEdgeDataOptIn"=dword:00000000
+
+; edge preload
+[HKEY_CURRENT_USER\Software\Policies\Microsoft\MicrosoftEdge\TabPreloader]
+"AllowTabPreloading"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\MicrosoftEdge\TabPreloader]
+"AllowTabPreloading"=dword:00000000
+
+; force install uBlock origin and webrtc control extensions in edge
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Edge\ExtensionInstallForcelist]
+"1"="odfafepnkmbhccpbejgmiehpchacaeak;https://edge.microsoft.com/extensionwebstorebase/v1/crx"
+"2"="eepeadgljpkkjpbfecfkijnnliikglpl;https://edge.microsoft.com/extensionwebstorebase/v1/crx"
+
+
+
+
 ; CHROME
 [HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome]
 "StartupBoostEnabled"=dword:00000000
@@ -3849,8 +3920,8 @@ E0,F6,C5,D5,0E,CA,50,00,00
 [-HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Explorer\MyComputer\NameSpace\{0DB7E03F-FC29-4DC6-9020-FF41B59E513A}]
 
 ; remove quick access
-[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer]
-"HubMode"=dword:00000001
+; [HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer]
+; "HubMode"=dword:00000001
 
 ; remove home
 [-HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Desktop\NameSpace\{f874310e-b6b7-47dc-bc84-b9e6b38f5903}]
@@ -4814,11 +4885,7 @@ E0,F6,C5,D5,0E,CA,50,00,00
     	New-Item -Path 'HKCR:\Applications\powershell.exe\shell\open\command' -Force | Out-Null
 	}
  	Set-ItemProperty -Path 'HKCR:\Applications\powershell.exe\shell\open\command' -Name '(default)' -Value 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoLogo -ExecutionPolicy Unrestricted -File "%1"'	
-	# PowerShell 7
-	$regPathPwsh = 'HKCR:\Applications\pwsh.exe\shell\open\command'
-	if (-not (Test-Path $regPathPwsh)) { New-Item -Path $regPathPwsh -Force | Out-Null }
-	Set-ItemProperty -Path $regPathPwsh -Name '(default)' -Value 'C:\Program Files\PowerShell\7\pwsh.exe -NoLogo -ExecutionPolicy Unrestricted -File "%1"'  
-	
+
 	# Set account password to never expires
 	Write-Output "Setting account password to never expires..."
 	Get-LocalUser | ForEach-Object { Set-LocalUser -Name $_.Name -PasswordNeverExpires $true | Out-Null }
@@ -8763,7 +8830,7 @@ Windows Registry Editor Version 5.00
 ; --SERVICES--
 
 
-; 25H2
+; NEW 25H2
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\GamingServicesNet]
 "Start"=dword:00000004
 
@@ -9748,7 +9815,7 @@ Windows Registry Editor Version 5.00
 "Start"=dword:00000004
 
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\camsvc]
-"Start"=dword:00000004
+"Start"=dword:00000003
 
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\CaptureService]
 "Start"=dword:00000004
@@ -9848,7 +9915,7 @@ Windows Registry Editor Version 5.00
 "Start"=dword:00000004
 
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\Dnscache]
-"Start"=dword:00000004
+"Start"=dword:00000002
 
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\DoSvc]
 "Start"=dword:00000004
@@ -9921,7 +9988,7 @@ Windows Registry Editor Version 5.00
 "Start"=dword:00000004
 
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\gpsvc]
-"Start"=dword:00000004
+"Start"=dword:00000002
 
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\GraphicsPerfSvc]
 "Start"=dword:00000004
@@ -10036,7 +10103,7 @@ Windows Registry Editor Version 5.00
 "Start"=dword:00000003
 
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\netprofm]
-"Start"=dword:00000004
+"Start"=dword:00000003
 
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\NetSetupSvc]
 "Start"=dword:00000003
@@ -10602,7 +10669,10 @@ Windows Registry Editor Version 5.00
 		# Disable AppXSvc (AppX Deployment Service)	
 		Set-ItemProperty -Path "HKLM:\SYSTEM\ControlSet001\Services\AppXSvc" -Name "Start" -Value 4 -Type DWord	| Out-Null	
 		# Disable TextInputManagementService (TextInput Management Service)	
-		Set-ItemProperty -Path "HKLM:\SYSTEM\ControlSet001\Services\TextInputManagementService" -Name "Start" -Value 4 -Type DWord | Out-Null	
+		Set-ItemProperty -Path "HKLM:\SYSTEM\ControlSet001\Services\TextInputManagementService" -Name "Start" -Value 4 -Type DWord | Out-Null
+		# Disable DNS Cache
+		Set-ItemProperty -Path "HKLM:\SYSTEM\ControlSet001\Services\Dnscache" -Name "Start" -Value 4 -Type DWord | Out-Null
+
 	} else { $null }
 }
 
@@ -12312,7 +12382,7 @@ for ($i = 1; $i -le 3; $i++) {
 		Register-ScheduledTask -TaskName "KillBloatwareAtStartup" -Action $action -Trigger $trigger -RunLevel Highest -User "SYSTEM" -Force *> $null
 	} catch {
 	}
-	
+
 	# StartIsBack (Windows 10)
 	if ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild -le 19045) {
 		Write-Host "Installing StartIsBack..." -ForegroundColor Green
@@ -12320,15 +12390,15 @@ for ($i = 1; $i -le 3; $i++) {
 		Invoke-WebRequest -Uri "https://startisback.sfo3.cdn.digitaloceanspaces.com/StartIsBackPlusPlus_setup.exe" -OutFile $exe
 		Start-Process $exe -ArgumentList "/elevated /silent" -Wait
 		Start-Process explorer
-
+		
 		# StartIsBack Orb (W10)
 		$Dest="C:\Program Files (x86)\StartIsBack\Orbs\6801-6009.bmp"
 		if (!(Test-Path (Split-Path $Dest))) { New-Item -Path (Split-Path $Dest) -ItemType Directory -Force | Out-Null }
 		Invoke-WebRequest -Uri "https://github.com/ManueITest/Windows/raw/refs/heads/main/6801-6009.bmp" -OutFile $Dest	
 		New-Item -Path "HKCU:\Software\StartIsBack" -Force | Out-Null
-		Set-ItemProperty -Path "HKCU:\Software\StartIsBack" -Name "OrbBitmap" -Value "C:\Program Files (x86)\StartIsBack\Orbs\6801-6009.bmp"
-	
-		Write-Output "Applying Registry tweaks..."
+		Set-ItemProperty -Path "HKCU:\Software\StartIsBack" -Name "OrbBitmap" -Value "C:\Program Files (x86)\StartIsBack\Orbs\6801-6009.bmp" | Out-Null
+		
+		# StartIsBack Registry Tweaks
 		$MultilineComment = @"
 Windows Registry Editor Version 5.00
 
@@ -12400,31 +12470,32 @@ Windows Registry Editor Version 5.00
 "IdealWidth.9"="Control Panel"
 "@
 		Set-Content -Path "$env:TEMP\StartIsBack.reg" -Value $MultilineComment -Force
-		# edit reg file				
+		# edit reg file
 		$path = "$env:TEMP\StartIsBack.reg"				
 		(Get-Content $path) -replace "\?","$" | Out-File $path				
-		# import reg file				
+		# import reg file
 		Regedit.exe /S "$env:TEMP\StartIsBack.reg"
-		
+
 		<#
 			Start X Back
 			ABOUT.
 				Developed in collaboration with MAS & ASDCORP
 			LINK.
 				https://github.com/WitherOrNot/StartXBack
-		
+
 		#>
+		
 		function Update-Exp($DLL) {
 			$UserDLL = "$Env:LocalAppData\$DLL"
 			$SystemDLL64 = "$Env:ProgramFiles\$DLL"
 			$SystemDLL32 = "${Env:ProgramFiles(x86)}\$DLL"
-		
+			
 			$Paths = @()
-		
+			
 			if(Test-Path -Path $UserDLL) { $Paths += ,$UserDLL }
 			if(Test-Path -Path $SystemDLL64) { $Paths += ,$SystemDLL64 }
 			if(Test-Path -Path $SystemDLL32) { $Paths += ,$SystemDLL32 }
-		
+			
 			foreach($Path in $Paths) {
 				$Backup = "$Path.bak"
 				if(Test-Path -Path $Backup) {
@@ -12471,7 +12542,7 @@ Windows Registry Editor Version 5.00
 		
 		Write-Host "Done"
 		Start-Process explorer
-	}			
+	}
 
 	# StartAllBack (Windows 11)
 	elseif ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild -ge 22000) {
@@ -12651,7 +12722,7 @@ function Invoke-DisableTelemetry {
 	Write-Host "Disabling Telemetry..." -ForegroundColor Green
 	Invoke-WPDTweaks
 	Invoke-ShutUp10Tweaks
-	Invoke-PrivacyScript
+	# Invoke-PrivacyScript [Flagged by AV]
 	# Disable Event Trace Sessions (ETS)
 	Write-Output "Disabling Event Trace Sessions (ETS)..."
 	$sessions = @(
@@ -12720,7 +12791,7 @@ P067	+	# Disable showing suggested content in the Settings app (Category: Privac
 P070	+	# Disable the possibility of suggesting to finish the setup of the device (Category: Privacy)
 P069	+	# Disable Windows Error Reporting (Category: Privacy)
 P009	+	# Disable biometrical features (Category: Privacy)
-P010	+	# Disable app notifications (Category: Privacy)
+P010	-	# Disable app notifications (Category: Privacy)
 P015	+	# Disable access to local language for browsers (Category: Privacy)
 P068	+	# Disable text suggestions when typing on the software keyboard (Category: Privacy)
 P016	+	# Disable sending URLs from apps to Windows Store (Category: Privacy)
@@ -12744,8 +12815,8 @@ P035	-	# Disable app access to microphone (Category: App Privacy)
 P062	+	# Disable app access to use voice activation (Category: App Privacy)
 P063	+	# Disable app access to use voice activation when device is locked (Category: App Privacy)
 P081	+	# Disable the standard app for the headset button (Category: App Privacy)
-P047	+	# Disable app access to notifications (Category: App Privacy)
-P019	+	# Disable app access to notifications (Category: App Privacy)
+P047	-	# Disable app access to notifications (Category: App Privacy)
+P019	-	# Disable app access to notifications (Category: App Privacy)
 P048	+	# Disable app access to motion (Category: App Privacy)
 P049	+	# Disable app access to movements (Category: App Privacy)
 P020	+	# Disable app access to contacts (Category: App Privacy)
@@ -13763,13 +13834,13 @@ PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWAR
 
 
 :: Disable the display of recently used files in Quick Access
-echo --- Disable the display of recently used files in Quick Access
+@REM echo --- Disable the display of recently used files in Quick Access
 :: Set the registry value: "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer!ShowRecent"
-PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer'; $data =  '0'; reg add 'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer' /v 'ShowRecent' /t 'REG_DWORD' /d "^""$data"^"" /f"
+@REM PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer'; $data =  '0'; reg add 'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer' /v 'ShowRecent' /t 'REG_DWORD' /d "^""$data"^"" /f"
 :: Delete the registry value "(Default)" from the key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\HomeFolderDesktop\NameSpace\DelegateFolders\{3134ef9c-6b18-4996-ad04-ed5912e00eb5}" 
-PowerShell -ExecutionPolicy Unrestricted -Command "$keyName = 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\HomeFolderDesktop\NameSpace\DelegateFolders\{3134ef9c-6b18-4996-ad04-ed5912e00eb5}'; $valueName = '(Default)'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
+@REM PowerShell -ExecutionPolicy Unrestricted -Command "$keyName = 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\HomeFolderDesktop\NameSpace\DelegateFolders\{3134ef9c-6b18-4996-ad04-ed5912e00eb5}'; $valueName = '(Default)'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
 :: Delete the registry value "(Default)" from the key "HKLM\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Explorer\HomeFolderDesktop\NameSpace\DelegateFolders\{3134ef9c-6b18-4996-ad04-ed5912e00eb5}" 
-PowerShell -ExecutionPolicy Unrestricted -Command "$keyName = 'HKLM\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Explorer\HomeFolderDesktop\NameSpace\DelegateFolders\{3134ef9c-6b18-4996-ad04-ed5912e00eb5}'; $valueName = '(Default)'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
+@REM PowerShell -ExecutionPolicy Unrestricted -Command "$keyName = 'HKLM\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Explorer\HomeFolderDesktop\NameSpace\DelegateFolders\{3134ef9c-6b18-4996-ad04-ed5912e00eb5}'; $valueName = '(Default)'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
 :: ----------------------------------------------------------
 
 
@@ -19271,6 +19342,10 @@ function Invoke-BCDEditTweaks {
 # Personalization tweaks
 function Invoke-PersonalizeWin {
 	Write-Host "Personalizing Windows..." -ForegroundColor Green
+	# Enable dark mode (apps + system)
+	Write-Output "Enabling dark mode globally..."
+	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "AppsUseLightTheme" -Type DWord -Value 0 -Force
+	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "SystemUsesLightTheme" -Type DWord -Value 0 -Force
 
 	# Unpin all taskbar icons
 	Write-Output "Unpinning all Taskbar icons..."
@@ -19287,11 +19362,7 @@ function Invoke-PersonalizeWin {
 	Write-Output "Enabling animations..."
 	Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "UserPreferencesMask" -Value ([byte[]](0x9E,0x3E,0x07,0x80,0x12,0x00,0x00,0x00)) -Force
 
-	# Enable dark mode (apps + system)
-	Write-Output "Enabling dark mode globally..."
-	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "AppsUseLightTheme" -Type DWord -Value 0 -Force
-	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "SystemUsesLightTheme" -Type DWord -Value 0 -Force
-
+<#
 	# 🟨 Set accent color
 	Write-Output "Setting Colors..."
 
@@ -19319,7 +19390,7 @@ function Invoke-PersonalizeWin {
 	$color = "255 165 0"  # RGB (light orange)
 	Set-ItemProperty -Path "HKCU:\Control Panel\Colors" -Name "Hilight" -Value $color
 	Set-ItemProperty -Path "HKCU:\Control Panel\Colors" -Name "HotTrackingColor" -Value $color
-	
+#>	
 	# 🟧 Show accent color on title bars & borders
 	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\DWM" -Name "ColorPrevalence" -Type DWord -Value 1 | Out-Null
 
@@ -19389,8 +19460,6 @@ function Invoke-PersonalizeWin {
 #>
 	# if Windows 11+
 	if ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild -ge 22000) {
-
-		
 		# StartAllBack ROG Orb (W11)
 		$Dest = "$env:ProgramFiles\StartAllBack\Orbs\rog.png"
 		$Dir  = Split-Path $Dest
@@ -19825,10 +19894,148 @@ $startMenuSC.Save()
 	[System.GC]::WaitForPendingFinalizers()
 }
 
+# Install CoreTemp
+function Invoke-CoreTemp {
+	$Installer = Join-Path $env:TEMP 'CoreTempSetup.exe'
+	$Url       = "https://www.alcpu.com/CoreTemp/Core-Temp-setup.exe"
+
+	try{
+		# Downloading Core Temp
+		Write-Host "Downloading Core Temp installer..." -ForegroundColor Green
+		Get-FileFromWeb -URL $Url -File $Installer	
+
+		if (Test-Path $Installer) {
+			# install Core Temp
+			Write-Host "Installing Core Temp..." -ForegroundColor Green	
+			Start-Process -FilePath $Installer -ArgumentList '/verysilent' -Wait	
+		}
+	}catch{
+	}
+
+	Write-Host "`nCreating Core Temp configuration file"
+	$MultilineComment = @'
+[General]
+ReadInt=1000;
+LogInt=10;
+Language=English;
+Plugins=0;
+EnLog=0;
+SingleInstance=1;
+AutoUpdateCheck=0;
+
+[Display]
+Fahr=0;
+Minimized=1;
+CloseToSystray=0;
+HideTaskbarButton=0;
+TextColor=FF000000;
+StatusColor=C0FF,FF;
+LabelColor=FF000000;
+
+[System tray]
+SystrayOption=2;
+SystrayTransparentBack=1;
+SystrayColorAllBack=0,0;
+SystrayColorAllText=D8FF,90FF00;
+SystrayColorHighCpuBack=0;
+SystrayColorHighCpuText=D8FF;
+SystrayColorHighBack=0;
+SystrayColorHighText=D8FF;
+SystrayColorClockBack=0;
+SystrayColorClockText=C0C0C0;
+SystrayColorLoadBack=0;
+SystrayColorLoadText=C0C0C0;
+SystrayColorRamBack=0;
+SystrayColorRamText=C0C0C0;
+SystrayColorPowerBack=0;
+SystrayColorPowerText=C0C0C0;
+SystrayDisplayFrequency=0;
+SystrayDisplayLoad=0;
+SystrayDisplayRam=1;
+SystrayDisplayPower=1;
+SystrayFontName=Tahoma;
+SystrayFontSize=8;
+
+[Windows 7 Taskbar button settings]
+W7TBEnable=1;
+W7TBOption=0;
+W7TBCycleDelay=10;
+W7TBFrequencyColor=2;
+W7TBDisableMinimizeToTray=0;
+
+[G15 LCD settings]
+G15BuiltInFont=1;
+G15Time=1;
+G1524HTime=0;
+G15FontName=Tahoma;
+G15FontSize=8;
+
+[Advanced]
+ShowDTJ=0;
+BusClk=0;
+SnmpSharedMemory=0;
+
+[Overheat protection settings]
+EnableOHP=0;
+NotifyHot=0;
+Balloon=1;
+Flash=0;
+Execute=;
+EnableShutDown=0;
+ProtectionType=0;
+ActivateAt=0;
+Seconds=30;
+ExecuteOnce=1;
+Degrees=90;
+
+[Misc]
+Version=0;
+TjMaxOffset=0;
+AlwaysOnTop=0;
+MiniMode=0;
+AltFreq=0;
+
+[UI]
+SPX=276;
+SPY=149;
+CoreFrequencySelector=-1;
+'@
+	Set-Content -Path "C:\Program Files\Core Temp\CoreTemp.ini" -Value $MultilineComment -Force
+
+	@("Core Temp.lnk", "Goodgame Empire.Url") | ForEach-Object {
+		$Dsc = "$env:USERPROFILE\Desktop\$_"
+		if (Test-Path $Dsc) { Remove-Item $Dsc -Force }
+	}
+}
+
 # Install and configure Process Explorer
 function Invoke-ProcessExplorer {
+	# Define paths and URLs
+	$Url  = "https://download.sysinternals.com/files/ProcessExplorer.zip"
+	$Zip  = Join-Path $env:TEMP "ProcessExplorer.zip"
+	$Dest = Join-Path $env:ProgramFiles "ProcessExplorer"
+	$Exe  = Join-Path $Dest "procexp64.exe"
 
-<#
+	# Download Process Explorer
+	Write-Host "Downloading Process Explorer..." -ForegroundColor Green
+	Invoke-WebRequest -Uri $Url -OutFile $Zip -UseBasicParsing -ErrorAction Stop
+
+	# Extract if not already present
+	if (-not (Test-Path $Dest)) {
+	    New-Item -Path $Dest -ItemType Directory -Force | Out-Null
+	}
+	Expand-Archive -Path $Zip -DestinationPath $Dest -Force
+
+	# Registry setup
+	Write-Host "Replacing Task Manager..." -ForegroundColor Green
+	New-Item -Path "HKCU:\SOFTWARE\Sysinternals\Process Explorer" -Force | Out-Null
+	New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\taskmgr.exe" -Force | Out-Null
+
+	# Allow only one instance
+	# Set-ItemProperty -Path "HKCU:\SOFTWARE\Sysinternals\Process Explorer" -Name "OneInstance" -Value 1
+	Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\taskmgr.exe" `
+	    -Name "Debugger" -Value "`"$Exe`" /e"
+
 	$MultilineComment = @'				
 Windows Registry Editor Version 5.00
 
@@ -19861,7 +20068,7 @@ Windows Registry Editor Version 5.00
 "SymbolWarningShown"=dword:00000000
 "HideWhenMinimized"=dword:00000000
 "AlwaysOntop"=dword:00000000
-"OneInstance"=dword:00000001
+;"OneInstance"=dword:00000001
 "NumColumnSets"=dword:00000000
 "Windowplacement"=hex(3):2C,00,00,00,02,00,00,00,03,00,00,00,00,00,00,00,00,\
 00,00,00,FF,FF,FF,FF,FF,FF,FF,FF,37,02,00,00,8C,01,00,00,57,05,00,00,E4,03,\
@@ -19987,13 +20194,12 @@ Windows Registry Editor Version 5.00
 "6"=dword:00000022
 "0"=dword:000000c8   
 '@
-	Set-Content -Path "$env:TEMP\ProcessExplorerSettings.reg" -Value $MultilineComment -Force				
-	# edit reg file				
-	$path = "$env:TEMP\ProcessExplorerSettings.reg"				
-	(Get-Content $path) -replace "\?","$" | Out-File $path				
-	# import reg file				
-	Regedit.exe /S "$env:TEMP\ProcessExplorerSettings.reg"	
-#>
+	Set-Content -Path "$env:TEMP\ProcessExplorerSettings.reg" -Value $MultilineComment -Force			
+	# edit reg file
+	$path = "$env:TEMP\ProcessExplorerSettings.reg"	
+	(Get-Content $path) -replace "\?","$" | Out-File $path		
+	# import reg file
+	Regedit.exe /S "$env:TEMP\ProcessExplorerSettings.reg"
 }
 
 # Install or upgrade Everything Search
@@ -20131,6 +20337,7 @@ function Invoke-7Zip {
     Start-Process -FilePath $exePath -ArgumentList '/S' -Wait
 
     # 7-Zip file associations
+	Write-Output "Configuring 7-Zip file associations..."
     $7zExe = Join-Path $env:ProgramFiles '7-Zip\7zFM.exe'
     if (Test-Path $7zExe) {
         $exts = '7z','xz','bzip2','gzip','tar','zip','wim','apfs','ar','arj','cab','chm','cpio','cramfs','dmg','ext','fat','gpt','hfs','ihex',
@@ -20142,6 +20349,9 @@ function Invoke-7Zip {
 
         cmd /c "ftype 7zFM.exe=`"$7zExe`" `"%1`" `"%*`"" > $null
     }
+
+	# Remove "New > Compressed (zipped) Folder" context menu entry
+	Remove-Item -Path "HKCR:\.zip\CompressedFolder\ShellNew" -Recurse -Force
 }
 
 # Install or upgrade VLC Media Player
@@ -20162,6 +20372,62 @@ function Invoke-VLC {
 
     # Optional: remove Windows Media Player legacy features
     # Start-Process dism.exe -ArgumentList '/Online','/NoRestart','/Disable-Feature','/FeatureName:MediaPlayback' -Wait
+}
+
+function Invoke-Powershell7 {
+	<#
+		.SYNOPSIS
+		.DESCRIPTION
+			This function installs and configures latest Powershell 7 to be the default Terminal
+	#>
+
+	# Installs Windows Terminal
+	Write-Host "Installing Windows Terminal..." -ForegroundColor Green
+	Get-AppXPackage -AllUsers *Microsoft.WindowsTerminal* | ForEach-Object {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"}
+
+	Write-Host "Installing Powershell 7..." -ForegroundColor Green
+	# download & install latest PowerShell 7 silently
+	$api = "https://api.github.com/repos/PowerShell/PowerShell/releases/latest"
+	$rel = Invoke-RestMethod -Uri $api
+	$asset = $rel.assets | Where-Object { $_.name -match "win-x64.msi$" } | Select-Object -First 1
+	$url = $asset.browser_download_url
+	$dest = "$env:TEMP\pwsh-latest.msi"
+	Get-FileFromWeb -Url $url -File $dest
+	Start-Process msiexec.exe -ArgumentList "/i `"$dest`" /quiet ADD_PATH=1 ENABLE_PSREMOTING=1" -Wait -NoNewWindow
+
+	# Rename Powershell 7 (x64) start menu shortcut
+ 	Rename-Item "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\PowerShell\PowerShell 7 (x64).lnk" -NewName "PowerShell 7.lnk" -Force
+	
+	# Allow double-click of .ps1 files
+	$regPathPwsh = 'HKCR:\Applications\pwsh.exe\shell\open\command'
+	if (-not (Test-Path $regPathPwsh)) { New-Item -Path $regPathPwsh -Force | Out-Null }
+	Set-ItemProperty -Path $regPathPwsh -Name '(default)' -Value 'C:\Program Files\PowerShell\7\pwsh.exe -NoLogo -ExecutionPolicy Unrestricted -File "%1"'  
+	
+	# fetch Invoke-WPFTweakPS7 and set PS7 default
+	$ps1 = Join-Path $env:TEMP 'Invoke-WPFTweakPS7.ps1'
+	Invoke-WebRequest -Uri 'https://github.com/ChrisTitusTech/winutil/raw/refs/heads/main/functions/public/Invoke-WPFTweakPS7.ps1' -OutFile $ps1 -UseBasicParsing
+	
+	# clean messageboxes
+	(Get-Content $ps1) | Where-Object {$_ -notmatch '\[System\.Windows\.MessageBox'} | Set-Content -Path $ps1 -Encoding UTF8
+	
+	# run tweak to set PS7 default
+	. "$ps1"
+	Invoke-WPFTweakPS7 -action PS7
+<#	
+	# Oh My Posh
+	# Auto-accept NuGet provider
+	if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
+    	Install-PackageProvider -Name NuGet -Force -Confirm:$false
+	}
+
+	# set TLS to 1.2 to avoid web issues
+	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+	# Then run the script non-interactively
+	Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://ohmyposh.dev/install.ps1'))
+#>
+	# CTT PowerShell Profile 
+	Invoke-RestMethod "https://github.com/ChrisTitusTech/powershell-profile/raw/main/setup.ps1" | Invoke-Expression
 }
 
 # Perform comprehensive Windows cleanup
@@ -20315,9 +20581,6 @@ function Get-ConsoleWidth {
     return 80
 }
 
-$ProgressPreference = 'SilentlyContinue'
-$ErrorActionPreference = 'SilentlyContinue'
-
 # -------------------------
 # If switches used -> run them and exit (no menu)
 # -------------------------
@@ -20328,11 +20591,11 @@ if ($PSBoundParameters.Count -gt 0) {
 			Invoke-WinActivation
 			Invoke-ActivateUltimatePlan
 			Invoke-DisablePowerSaving
-			pause
 			Invoke-PauseUpdates
 			Invoke-DebloatEdge
 			Invoke-UninstallOneDrive
-			Invoke-RemoveWinBloat
+			Invoke-RemWinBloat
+
 			# Win11Debloat Remove HP Apps
 			Write-Output "Removing HP Apps..."
 			Start-Process "powershell.exe" -ArgumentList @(
@@ -20353,40 +20616,35 @@ if ($PSBoundParameters.Count -gt 0) {
 			Invoke-WPDTweaks
 			Invoke-ShutUp10Tweaks
 			Invoke-StartXback
+			Invoke-DisableServices
 			Invoke-WindowsCleanup
 			pause
 		}
 		if ($Full) {
-
 			Invoke-CreateRestorePoint
 			Invoke-Win11Debloat
-			Invoke-WinUtilAutoStandard
+			# Invoke-WinUtilAutoStandard
+			Show-WinLogo
+			# Invoke-Powershell7
 			Invoke-WinActivation
+			Invoke-ActivateUltimatePlan
+			Invoke-DisablePowerSaving
 			Invoke-PauseUpdates
 			Invoke-DisableUpdates
 			Invoke-RemoveEdge
 			Invoke-UninstallOneDrive
 			Invoke-RemoveGaming
 			Invoke-RemoveWindowsAI
-			Invoke-RemoveWinBloat # remote desktop not working
-			Invoke-NET35Run
-			Invoke-DirectXRun
-			Invoke-CPlusPlusAIO
-			Invoke-Winget # ui too invasive
-			Invoke-LibreWolf
+			Invoke-RemWinBloat # remote desktop not working
+			# Invoke-NET35Run
+			# Invoke-DirectXRun
+			# Invoke-CPlusPlusAIO
+			# Invoke-Winget # ui too invasive
+			# Invoke-LibreWolf
 			Invoke-Brave
 			Invoke-DebloatBrave
-			Invoke-7Zip
-			Invoke-ProcessExplorer
-			Invoke-EverythingSearch
-			
-			Invoke-Steam
-			Invoke-VLC
-			Invoke-WebCord
-			Invoke-SpotX # Flag by Windows Defender
+			# Invoke-SpotX # Flag by Windows Defender
 			Invoke-DisableTelemetry
-			Invoke-ActivateUltimatePlan
-			Invoke-DisablePowerSaving
 			Invoke-OptimizeRegistry
 			Invoke-OptimizeNetwork
 			Invoke-BCDEditTweaks
