@@ -20623,8 +20623,9 @@ if ($PSBoundParameters.Count -gt 0) {
 		if ($Full) {
 			Invoke-CreateRestorePoint
 			# Invoke-WinUtilAutoStandard
-			Show-WinLogo
 			Invoke-Win11Debloat
+			Clear-Host
+			Show-WinLogo
 			Invoke-WinActivation
 			Invoke-ActivateUltimatePlan
 			Invoke-DisablePowerSaving
