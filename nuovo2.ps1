@@ -1492,7 +1492,6 @@ public class Wallpaper {
 		Set-ItemProperty "HKCU:\Control Panel\Desktop" -Name "TileWallpaper" -Value "0"
 		[Wallpaper]::SystemParametersInfo(0x0014, 0, $WallpaperPath, 3) | Out-Null
 
-	
 		# Disable AppX Deployment Service
 		Write-Output "Disabling AppX Deployment Service..."
 		Set-ItemProperty -Path "HKLM:\SYSTEM\ControlSet001\Services\AppXSvc" -Name "Start" -Value 4 -Type DWord | Out-Null
@@ -1561,7 +1560,7 @@ public class Wallpaper {
     public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
 }
 "@
-		$WallpaperPath = "C:\Windows\web\Wallpaper\Windows\img19.jpg"
+		$WallpaperPath = "C:\Windows\web\Wallpaper\Windows\img20.jpg"
 		Set-ItemProperty "HKCU:\Control Panel\Desktop" -Name "WallpaperStyle" -Value "10"
 		Set-ItemProperty "HKCU:\Control Panel\Desktop" -Name "TileWallpaper" -Value "0"
 		[Wallpaper]::SystemParametersInfo(0x0014, 0, $WallpaperPath, 3) | Out-Null
@@ -20413,7 +20412,7 @@ function Invoke-Powershell7 {
 	# run tweak to set PS7 default
 	. "$ps1"
 	Invoke-WPFTweakPS7 -action PS7
-<#	
+
 	# Oh My Posh
 	# Auto-accept NuGet provider
 	if (-not (Get-PackageProvider -Name NuGet -ErrorAction SilentlyContinue)) {
@@ -20425,7 +20424,7 @@ function Invoke-Powershell7 {
 
 	# Then run the script non-interactively
 	Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://ohmyposh.dev/install.ps1'))
-#>
+
 	# CTT PowerShell Profile 
 	Invoke-RestMethod "https://github.com/ChrisTitusTech/powershell-profile/raw/main/setup.ps1" | Invoke-Expression
 }
