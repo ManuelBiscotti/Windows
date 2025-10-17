@@ -20622,10 +20622,9 @@ if ($PSBoundParameters.Count -gt 0) {
 		}
 		if ($Full) {
 			Invoke-CreateRestorePoint
-			Invoke-Win11Debloat
 			# Invoke-WinUtilAutoStandard
 			Show-WinLogo
-			Invoke-Powershell7
+			Invoke-Win11Debloat
 			Invoke-WinActivation
 			Invoke-ActivateUltimatePlan
 			Invoke-DisablePowerSaving
@@ -20654,6 +20653,7 @@ if ($PSBoundParameters.Count -gt 0) {
 			Invoke-DisableUAC
 			Invoke-DisableMitigations
 			Invoke-DisableDefenderV2
+			Invoke-Powershell7
 			Invoke-WindowsCleanup
 			pause
 			# reboot

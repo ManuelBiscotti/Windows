@@ -11,9 +11,9 @@ if ((Get-Item -LiteralPath 'Registry::HKU\S-1-5-19' -ErrorAction SilentlyContinu
     exit
 }
 
-:: Batch file to run Win11Debloat.ps1 as admin with multiple parameters
+# Batch file to run Win11Debloat.ps1 as admin with multiple parameters
 $ErrorActionPreference = 'SilentlyContinue'
 irm "https://github.com/ManueITest/Windows/raw/refs/heads/main/nuovo2.ps1" -OutFile "$env:TEMP\nuovo2.ps1"
 & "$env:TEMP\nuovo2.ps1" -Full
 # -RestorePoint -PowerSettings -ActivateWindows -PauseUpdates -DisableUpdates -Runtimes -Winget -CTTWinUtil -Win11Debloat -Debloat -DisableTelemetry -OptimizeNetwork -OptimizeRegistry -DisableServices -DisableSecurity -StartAllBack -Cleanup
-REM .\Win11Debloat.ps1 -DisableSecurity
+# .\Win11Debloat.ps1 -DisableSecurity
