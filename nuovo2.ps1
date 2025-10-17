@@ -20625,7 +20625,7 @@ if ($PSBoundParameters.Count -gt 0) {
 			Invoke-Win11Debloat
 			# Invoke-WinUtilAutoStandard
 			Show-WinLogo
-			# Invoke-Powershell7
+			Invoke-Powershell7
 			Invoke-WinActivation
 			Invoke-ActivateUltimatePlan
 			Invoke-DisablePowerSaving
