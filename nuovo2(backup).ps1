@@ -52,86 +52,6 @@ $Host.PrivateData.ProgressBackgroundColor = 'Black'
 $Host.PrivateData.ProgressForegroundColor = 'DarkGray'
 Clear-Host
 
-<# 
-:: Function: Center-PowerShellWindow
-:: Purpose:  Centers the current PowerShell console window on the screen. #>
-<# REM Get the main window handle of the current PowerShell process #>
-$psWindowHandle = Get-Process -Id $PID | ForEach-Object { $_.MainWindowHandle }
-
-<# REM Define a .NET class to interact with Windows API for window positioning #>
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-
-public class WindowCentering {
-
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern bool MoveWindow(IntPtr hWnd, int X, int Y, int nWidth, int nHeight, bool bRepaint);
-
-    [StructLayout(LayoutKind.Sequential)]
-    public struct RECT {
-        public int Left;
-        public int Top;
-        public int Right;
-        public int Bottom;
-    }
-
-    [DllImport("user32.dll")]
-    public static extern int GetSystemMetrics(int nIndex);
-
-    public static void CenterWindow(IntPtr hWnd) {
-        RECT rect;
-        GetWindowRect(hWnd, out rect);
-
-        int windowWidth = rect.Right - rect.Left;
-        int windowHeight = rect.Bottom - rect.Top;
-
-        int screenWidth = GetSystemMetrics(0);
-        int screenHeight = GetSystemMetrics(1);
-
-        int x = (screenWidth / 2) - (windowWidth / 2);
-        int y = (screenHeight / 2) - (windowHeight / 2);
-
-        MoveWindow(hWnd, x, y, windowWidth, windowHeight, true);
-    }
-}
-"@
-
-<# REM Center the PowerShell console window using the WindowCentering class #>
-[WindowCentering]::CenterWindow($psWindowHandle)
-
-$ProgressPreference = 'SilentlyContinue'
-$ErrorActionPreference = 'SilentlyContinue'
-
-Function Show-WinLogo {
-    <#
-        .SYNOPSIS
-            Displays the Windows logo in ASCII art.
-        .DESCRIPTION
-            This function displays the Windows logo in ASCII art format.
-        .PARAMETER None
-            No parameters are required for this function.
-        .EXAMPLE
-            Show-WinLogo
-            Prints the Windows logo in ASCII art format to the console.
-    #>
-
-	Write-Host ""
-    $asciiArt = @"
- _       _______   ______  ____ _       _______
-| |     / /  _/ | / / __ \/ __ \ |     / / ___/
-| | /| / // //  |/ / / / / / / / | /| / /\__ \ 
-| |/ |/ // // /|  / /_/ / /_/ /| |/ |/ /___/ / 
-|__/|__/___/_/ |_/_____/\____/ |__/|__//____/                                                
-"@
-
-    Write-Host $asciiArt -ForegroundColor Blue
-	Write-Host ""
-}
-
 # Download files
 function Get-FileFromWeb {
     param (
@@ -214,10 +134,9 @@ function Invoke-CPlusPlus {
 	Start-Process -wait "$env:TEMP\vcredist2015_2017_2019_2022_x64.exe" -ArgumentList "/passive /norestart" 	
 }
 
-#################################################
-# Microsoft Visual C++ Redistributable Runtimes #
+# Download and install All Microsoft Visual C++ Redistributable Runtimes
 function Invoke-CPlusPlusAIO { 
- 	Write-Host "Installing Visual C++ Redistributable All in One..." -ForegroundColor Green
+ 	Write-Output "Installing Visual C++ Redistributable All in One..."
 	Get-FileFromWeb -URL "https://download.microsoft.com/download/8/B/4/8B42259F-5D70-43F4-AC2E-4B208FD8D66A/vcredist_x86.EXE" -File "$env:TEMP\vcredist2005_x86.exe"			
 	Get-FileFromWeb -URL "https://download.microsoft.com/download/8/B/4/8B42259F-5D70-43F4-AC2E-4B208FD8D66A/vcredist_x64.EXE" -File "$env:TEMP\vcredist2005_x64.exe"	    	
 	Get-FileFromWeb -URL "https://download.microsoft.com/download/5/D/8/5D8C65CB-C849-4025-8E95-C3966CAFD8AE/vcredist_x86.exe" -File "$env:TEMP\vcredist2008_x86.exe"	    	
@@ -244,90 +163,24 @@ function Invoke-CPlusPlusAIO {
 	Start-Process -wait "$env:TEMP\vcredist2015_2017_2019_2022_x64.exe" -ArgumentList "/passive /norestart" 
 }
 
-###########
-# DirectX #
-
-function Invoke-DirectX { 
-
-	<#
-		.SYNOPSIS
-			DirectX
-		.LINK
-			https://www.microsoft.com/en-us/download/details.aspx?id=35
-		.LINK
-			https://github.com/HakanFly/Windows-Tweaks/tree/main/DirectX%20Tweaks
-	#>
-
+function Invoke-DirectXRun { 
+	# DirectX Runtime
  	Write-Host "Installing DirectX..." -ForegroundColor Green
 	Remove-Item "$env:TEMP\DirectX","$env:SystemRoot\Temp\DirectX" -Recurse -Force
 	Get-FileFromWeb -URL "https://download.microsoft.com/download/8/4/A/84A35BF1-DAFE-4AE8-82AF-AD2AE20B6B14/directx_Jun2010_redist.exe" -File "$env:TEMP\DirectX.exe"
 	Start-Process "$env:TEMP\DirectX.exe" -ArgumentList "/Q /T:`"$env:TEMP\DirectX`"" -Wait
-	Start-Process "$env:TEMP\DirectX\DXSETUP.exe" -ArgumentList "/silent" -Wait	
-	
-	# DirectX Registry Tweaks
-	$MultilineComment = @"
-Windows Registry Editor Version 5.00
-
-; D3D11 - D3D12 Tweaks
-[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\DirectX]
-"D3D12_ENABLE_UNSAFE_COMMAND_BUFFER_REUSE"=dword:00000001
-"D3D12_ENABLE_RUNTIME_DRIVER_OPTIMIZATIONS"=dword:00000001
-"D3D12_RESOURCE_ALIGNMENT"=dword:00000001
-"D3D11_MULTITHREADED"=dword:00000001
-"D3D12_MULTITHREADED"=dword:00000001
-"D3D11_DEFERRED_CONTEXTS"=dword:00000001
-"D3D12_DEFERRED_CONTEXTS"=dword:00000001
-"D3D11_ALLOW_TILING"=dword:00000001
-"D3D11_ENABLE_DYNAMIC_CODEGEN"=dword:00000001
-"D3D12_ALLOW_TILING"=dword:00000001
-"D3D12_CPU_PAGE_TABLE_ENABLED"=dword:00000001
-"D3D12_HEAP_SERIALIZATION_ENABLED"=dword:00000001
-"D3D12_MAP_HEAP_ALLOCATIONS"=dword:00000001
-"D3D12_RESIDENCY_MANAGEMENT_ENABLED"=dword:00000001
-
-; DirectX Driver DXGKrnl Advanced Tweaks (2)
-[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\DXGKrnl]
-"CreateGdiPrimaryOnSlaveGPU"=dword:00000001
-"DriverSupportsCddDwmInterop"=dword:00000001
-"DxgkCddSyncDxAccess"=dword:00000001
-"DxgkCddSyncGPUAccess"=dword:00000001
-"DxgkCddWaitForVerticalBlankEvent"=dword:00000001
-"DxgkCreateSwapChain"=dword:00000001
-"DxgkFreeGpuVirtualAddress"=dword:00000001
-"DxgkOpenSwapChain"=dword:00000001
-"DxgkShareSwapChainObject"=dword:00000001
-"DxgkWaitForVerticalBlankEvent"=dword:00000001
-"DxgkWaitForVerticalBlankEvent2"=dword:00000001
-"SwapChainBackBuffer"=dword:00000001
-"TdrResetFromTimeoutAsync"=dword:00000001
-"@
-
-	Set-Content -Path "$env:TEMP\DirectXTweaks.reg" -Value $MultilineComment -Force
-	# edit reg file
-	$path = "$env:TEMP\DirectXTweaks.reg"			
-	(Get-Content $path) -replace "\?","$" | Out-File $path			
-	# import reg file
-	Regedit.exe /S "$env:TEMP\DirectXTweaks.reg"
-
+	Start-Process "$env:TEMP\DirectX\DXSETUP.exe" -ArgumentList "/silent" -Wait		
 }
 
-###################################################
-# .NET Freamework 3.5 (includes .NET 2.0 and 3.0) #
-
-function Invoke-NETFreamework3.5 {   
-
-	<#
-		.SYNOPSIS
-			.NET Freamework 3.5 (includes .NET 2.0 and 3.0)
-	#>
-	
+function Invoke-NET35Run {   
+	# .NET Freamework 3.5 (includes .NET 2.0 and 3.0)
  	Write-Host "Installing .NET Freamework 3.5..." -ForegroundColor Green
 	Get-FileFromWeb -URL "https://github.com/abbodi1406/dotNetFx35W10/releases/download/v0.20.01/dotNetFx35_WX_9_x86_x64.zip" -File "$env:TEMP\dotNetFx35_WX_9_x86_x64.zip"
 	Expand-Archive "$env:TEMP\dotNetFx35_WX_9_x86_x64.zip" $env:TEMP -Force
-	Start-Process "$env:TEMP\dotNetFx35_WX_9_x86_x64.exe" -ArgumentList "/ai /S /NORESTART" -Wait
+	Start-Process "$env:TEMP\dotNetFx35_WX_9_x86_x64.exe" -ArgumentList "/ai /S /NORESTART" -Wait -NoNewWindow
 }
 
-function Invoke-NETDesktopAIO {
+function Invoke-NETDesktopRunAIO {
 	Write-Host "Installing All latest .NET Desktop Runtimes..." -ForegroundColor Green
 	# install latest .net desktop runtimes
 	foreach($id in "Microsoft.DotNet.DesktopRuntime.3_1","Microsoft.DotNet.DesktopRuntime.5","Microsoft.DotNet.DesktopRuntime.6","Microsoft.DotNet.DesktopRuntime.7","Microsoft.DotNet.DesktopRuntime.8","Microsoft.DotNet.DesktopRuntime.9"){
@@ -903,31 +756,23 @@ function Invoke-WinActivation {
 # Chris Titus Tech's Windows Utility Automation
 function Invoke-WinUtilAutoStandard {
 <#
-.EXAMPLE
+TWEAKS.
 	Create Restore Point
     "WPFTweaksRestorePoint"
-.EXAMPLE
 	Run Disk Cleanup
 	"WPFTweaksDiskCleanup"
-.EXAMPLE
 	Disable hibernation
 	"WPFTweaksHiber"
-.EXAMPLE
 	Disable Full Screen optimization
 	"WPFTweaksDisableFSO"
-.EXAMPLE
 	Remove OneDrive
 	"WPFTweaksRemoveOnedrive"
-.EXAMPLE
 	Remove UWP Apps
 	"WPFTweaksDeBloat"
-.EXAMPLE
 	Powershell 7
     "WPFTweaksPowershell7"
-.EXAMPLE
     Disable Copilot
 	"WPFTweaksRemoveCopilot"
-.EXAMPLE
 	Disable Notifications
     "WPFTweaksDisableNotifications"
 #>
@@ -999,6 +844,9 @@ $json = @'
 	    } else {
 	    }
 	}
+ 
+ 	# Rename Powershell 7 (x64) start menu shortcut
+ 	# Rename-Item "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\PowerShell\PowerShell 7 (x64).lnk" -NewName "PowerShell 7.lnk" -Force
 }
 
 # WinUtil Redux
@@ -1097,9 +945,7 @@ function Invoke-Win11Debloat {
 	    -HideSearchTb `
 	    -HideTaskview `
 	    -HideChat `
-		-DisableWidgets	`
 	    -EnableEndTask `
-		-EnableLastActiveClick `
 	    -HideHome `
 	    -HideGallery `
 	    -ExplorerToThisPC `
@@ -1726,33 +1572,12 @@ Windows Registry Editor Version 5.00
 	Stop-Process -Name explorer -Force | Out-Null
 }
 
-#############################
-# Reinstall Microsoft Store #
-
 function Invoke-FixStore {
-
-	<#
-		.SYNOPSIS
-			Microsoft Store
-		.DESCRIPTION
-			Long description
-		.EXAMPLE
-			An example
-		.NOTES
-			General notes
-	#>
-
-	#
 	Get-AppXPackage -AllUsers *Microsoft.WindowsStore* | ForEach-Object {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"}
-	
-	#
 	Get-AppXPackage -AllUsers *Microsoft.Microsoft.StorePurchaseApp * | ForEach-Object {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"}
-
 }
 
-################
-# Debloat Edge #
-
+# Debloat Edge
 function Invoke-DebloatEdge {
 	Write-Host "Debloating Edge..." -ForegroundColor Green
 	# edge-debloat
@@ -1763,9 +1588,7 @@ function Invoke-DebloatEdge {
 	Get-ScheduledTask | Where-Object { $_.TaskName -like "*Edge*" } | ForEach-Object { Disable-ScheduledTask -TaskName $_.TaskName | Out-Null }
 }
 
-######################
-# Uninstall OneDrive #
-
+# Uninstall Onedrive
 function Invoke-UninstallOneDrive {
     Write-Host "Uninstalling OneDrive..." -ForegroundColor Green
     Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -Command `"Invoke-RestMethod 'https://asheroto.com/uninstallonedrive' | Invoke-Expression`"" -Wait
@@ -1816,8 +1639,7 @@ function Invoke-RemoveEdge {
 #>
 }
 
-#########################
-# Remove Windows Gaming #
+# Remove Xbox Gamebar
 function Invoke-RemoveGaming {
 	Write-Host "Removing Windows Gaming..." -ForegroundColor Green
 	Write-Output "Disabling Xbox & Game Bar features..."
@@ -1975,7 +1797,7 @@ if (Get-Command Invoke-WPFUpdatessecurity -ErrorAction SilentlyContinue) {
 
 	$batPath = "$env:TEMP\Invoke-WPFUpdatessecurity.bat"
 	Set-Content -Path $batPath -Value $batchCode -Encoding ASCII
-	Start-Process -FilePath $batPath -Wait -NoNewWindow | Out-Null
+	Start-Process -FilePath $batPath -Wait
 }
 
 
@@ -2146,8 +1968,8 @@ Windows Registry Editor Version 5.00
 "LaunchTo"=dword:00000001
 
 ; hide frequent folders in quick access
-[HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer]
-"ShowFrequent"=dword:00000000
+; [HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Explorer]
+; "ShowFrequent"=dword:00000000
 
 ; show file name extensions
 ; show hidden files
@@ -4011,8 +3833,8 @@ E0,F6,C5,D5,0E,CA,50,00,00
 [-HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Explorer\MyComputer\NameSpace\{0DB7E03F-FC29-4DC6-9020-FF41B59E513A}]
 
 ; remove quick access
-; [HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer]
-; "HubMode"=dword:00000001
+[HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer]
+"HubMode"=dword:00000001
 
 ; remove home
 [-HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Desktop\NameSpace\{f874310e-b6b7-47dc-bc84-b9e6b38f5903}]
@@ -4976,7 +4798,11 @@ E0,F6,C5,D5,0E,CA,50,00,00
     	New-Item -Path 'HKCR:\Applications\powershell.exe\shell\open\command' -Force | Out-Null
 	}
  	Set-ItemProperty -Path 'HKCR:\Applications\powershell.exe\shell\open\command' -Name '(default)' -Value 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -NoLogo -ExecutionPolicy Unrestricted -File "%1"'	
-
+	# PowerShell 7
+	$regPathPwsh = 'HKCR:\Applications\pwsh.exe\shell\open\command'
+	if (-not (Test-Path $regPathPwsh)) { New-Item -Path $regPathPwsh -Force | Out-Null }
+	Set-ItemProperty -Path $regPathPwsh -Name '(default)' -Value 'C:\Program Files\PowerShell\7\pwsh.exe -NoLogo -ExecutionPolicy Unrestricted -File "%1"'  
+	
 	# Set account password to never expires
 	Write-Output "Setting account password to never expires..."
 	Get-LocalUser | ForEach-Object { Set-LocalUser -Name $_.Name -PasswordNeverExpires $true | Out-Null }
@@ -8921,7 +8747,7 @@ Windows Registry Editor Version 5.00
 ; --SERVICES--
 
 
-; NEW 25H2
+; 25H2
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\GamingServicesNet]
 "Start"=dword:00000004
 
@@ -9906,7 +9732,7 @@ Windows Registry Editor Version 5.00
 "Start"=dword:00000004
 
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\camsvc]
-"Start"=dword:00000003
+"Start"=dword:00000004
 
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\CaptureService]
 "Start"=dword:00000004
@@ -10006,7 +9832,7 @@ Windows Registry Editor Version 5.00
 "Start"=dword:00000004
 
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\Dnscache]
-"Start"=dword:00000002
+"Start"=dword:00000004
 
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\DoSvc]
 "Start"=dword:00000004
@@ -10079,7 +9905,7 @@ Windows Registry Editor Version 5.00
 "Start"=dword:00000004
 
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\gpsvc]
-"Start"=dword:00000002
+"Start"=dword:00000004
 
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\GraphicsPerfSvc]
 "Start"=dword:00000004
@@ -10194,7 +10020,7 @@ Windows Registry Editor Version 5.00
 "Start"=dword:00000003
 
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\netprofm]
-"Start"=dword:00000003
+"Start"=dword:00000004
 
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\NetSetupSvc]
 "Start"=dword:00000003
@@ -10760,10 +10586,7 @@ Windows Registry Editor Version 5.00
 		# Disable AppXSvc (AppX Deployment Service)	
 		Set-ItemProperty -Path "HKLM:\SYSTEM\ControlSet001\Services\AppXSvc" -Name "Start" -Value 4 -Type DWord	| Out-Null	
 		# Disable TextInputManagementService (TextInput Management Service)	
-		Set-ItemProperty -Path "HKLM:\SYSTEM\ControlSet001\Services\TextInputManagementService" -Name "Start" -Value 4 -Type DWord | Out-Null
-		# Disable DNS Cache
-		Set-ItemProperty -Path "HKLM:\SYSTEM\ControlSet001\Services\Dnscache" -Name "Start" -Value 4 -Type DWord | Out-Null
-
+		Set-ItemProperty -Path "HKLM:\SYSTEM\ControlSet001\Services\TextInputManagementService" -Name "Start" -Value 4 -Type DWord | Out-Null	
 	} else { $null }
 }
 
@@ -12779,53 +12602,36 @@ Windows Registry Editor Version 5.00
 	else { $null }	
 }
 
-#######
-# WPD #
+# WPD Automation
 function Invoke-WPDTweaks {
-
-	<#
-		.LINK
-			https://wpd.app/
-	#>
-
 	# Disable Firewall
+	Write-Output "Disabling Windows Firewall..."
 	netsh advfirewall set allprofiles state off | Out-Null
 	reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.SecurityAndMaintenance" /v "Enabled" /t REG_DWORD /d 0 /f > $null 2>&1
-	
-	# Run WPD automation
-    Write-Output "Running WPD (Privacy dashboard for Windows)..."
+	# Run WPD Automation
+    Write-Output "WPD automation tweaks..."
     Invoke-WebRequest -Uri "https://wpd.app/get/latest.zip" -OutFile "$env:TEMP\latest.zip"
     Expand-Archive "$env:TEMP\latest.zip" -DestinationPath "$env:TEMP" -Force
     Start-Process "$env:TEMP\WPD.exe" -ArgumentList "-wfpOnly","-wfp on","-recommended","-close" -Wait
-	
 	# Enable Firewall
+	Write-Output "Renabling Windows Firewall..."
 	netsh advfirewall set allprofiles state on | Out-Null
 	reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.SecurityAndMaintenance" /v "Enabled" /t REG_DWORD /d 1 /f > $null 2>&1
-
 }
 
 function Invoke-WPDRevert {
-
-	<#
-		.LINK
-			https://wpd.app/
-	#>
-
 	# Enable Firewall
+	Write-Output "Enabling Firewall..."
 	netsh advfirewall set allprofiles state on | Out-Null
 	reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.SecurityAndMaintenance" /v "Enabled" /t REG_DWORD /d 1 /f > $null 2>&1
-	
 	# Run WPD Automation	
-    Write-Output "Reverting WPD (Privacy dashboard for Windows) Tweaks..."
+    Write-Output "Applying Windows Privacy Dashboard (WPD) Tweaks..."
     Invoke-WebRequest -Uri "https://wpd.app/get/latest.zip" -OutFile "$env:TEMP\latest.zip"
     Expand-Archive "$env:TEMP\latest.zip" -DestinationPath "$env:TEMP" -Force
-    Start-Process "$env:TEMP\WPD.exe" -ArgumentList "-wfpOnly","-wfp off","-default","-close" -Wait
-
+    Start-Process "$env:TEMP\WPD.exe" -ArgumentList "-wfpOnly","-wfp off","-default","-close" -Wait			
 }
 
-#####################
-# Disable Telemetry #
-
+# Disable Telemetry
 function Invoke-DisableTelemetry {
 	Write-Host "Disabling Telemetry..." -ForegroundColor Green
 	Invoke-WPDTweaks
@@ -12859,18 +12665,8 @@ function Invoke-DisableTelemetry {
 	}
 }
 
-##################
-# O&O ShutUp10++ #
-
+# ShutUp10 Automation
 function Invoke-ShutUp10Tweaks {
-
-	<#
-		.SYNOPSIS
-			O&O ShutUp10++: Free antispy tool for Windows 10 and 11
-		.LINK
-			https://www.oo-software.com/en/shutup10
-	#>
-
     Write-Output "ShutUp10 automation tweaks..."
     $configCode = @'
 ############################################################################
@@ -19460,10 +19256,6 @@ function Invoke-BCDEditTweaks {
 # Personalization tweaks
 function Invoke-PersonalizeWin {
 	Write-Host "Personalizing Windows..." -ForegroundColor Green
-	# Enable dark mode (apps + system)
-	Write-Output "Enabling dark mode globally..."
-	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "AppsUseLightTheme" -Type DWord -Value 0 -Force
-	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "SystemUsesLightTheme" -Type DWord -Value 0 -Force
 
 	# Unpin all taskbar icons
 	Write-Output "Unpinning all Taskbar icons..."
@@ -19480,6 +19272,10 @@ function Invoke-PersonalizeWin {
 	Write-Output "Enabling animations..."
 	Set-ItemProperty -Path "HKCU:\Control Panel\Desktop" -Name "UserPreferencesMask" -Value ([byte[]](0x9E,0x3E,0x07,0x80,0x12,0x00,0x00,0x00)) -Force
 
+	# Enable dark mode (apps + system)
+	Write-Output "Enabling dark mode globally..."
+	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "AppsUseLightTheme" -Type DWord -Value 0 -Force
+	Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize" -Name "SystemUsesLightTheme" -Type DWord -Value 0 -Force
 <#
 	# 🟨 Set accent color
 	Write-Output "Setting Colors..."
@@ -19578,6 +19374,8 @@ function Invoke-PersonalizeWin {
 #>
 	# if Windows 11+
 	if ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild -ge 22000) {
+
+		
 		# StartAllBack ROG Orb (W11)
 		$Dest = "$env:ProgramFiles\StartAllBack\Orbs\rog.png"
 		$Dir  = Split-Path $Dest
@@ -20492,59 +20290,6 @@ function Invoke-VLC {
     # Start-Process dism.exe -ArgumentList '/Online','/NoRestart','/Disable-Feature','/FeatureName:MediaPlayback' -Wait
 }
 
-################
-# Powershell 7 #
-
-function Invoke-Powershell7 {
-
-	<#
-		.SYNOPSIS
-		.DESCRIPTION
-			This function installs and configures latest Powershell 7 to be the default Terminal
-	#>
-
-	# Installs Windows Terminal
-	Write-Host "Installing Windows Terminal..." -ForegroundColor Green
-	Get-AppXPackage -AllUsers *Microsoft.WindowsTerminal* | ForEach-Object {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"}
-
-	# Oh My Posh
-	Invoke-Winget
-	choco install oh-my-posh -y -r --no-progress --quiet | Out-Null
-	
-	Write-Host "Installing Powershell 7..." -ForegroundColor Green
-	# download & install latest PowerShell 7 silently
-	$api = "https://api.github.com/repos/PowerShell/PowerShell/releases/latest"
-	$rel = Invoke-RestMethod -Uri $api
-	$asset = $rel.assets | Where-Object { $_.name -match "win-x64.msi$" } | Select-Object -First 1
-	$url = $asset.browser_download_url
-	$dest = "$env:TEMP\pwsh-latest.msi"
-	Get-FileFromWeb -Url $url -File $dest
-	Start-Process msiexec.exe -ArgumentList "/i `"$dest`" /quiet ADD_PATH=1 ENABLE_PSREMOTING=1" -Wait -NoNewWindow
-
-	# Rename Powershell 7 (x64) start menu shortcut
- 	Rename-Item "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\PowerShell\PowerShell 7 (x64).lnk" -NewName "PowerShell 7.lnk" -Force
-	
-	# Allow double-click of .ps1 files
-	$regPathPwsh = 'HKCR:\Applications\pwsh.exe\shell\open\command'
-	if (-not (Test-Path $regPathPwsh)) { New-Item -Path $regPathPwsh -Force | Out-Null }
-	Set-ItemProperty -Path $regPathPwsh -Name '(default)' -Value 'C:\Program Files\PowerShell\7\pwsh.exe -NoLogo -ExecutionPolicy Unrestricted -File "%1"'  
-	
-	# fetch Invoke-WPFTweakPS7 and set PS7 default
-	$ps1 = Join-Path $env:TEMP 'Invoke-WPFTweakPS7.ps1'
-	Invoke-WebRequest -Uri 'https://github.com/ChrisTitusTech/winutil/raw/refs/heads/main/functions/public/Invoke-WPFTweakPS7.ps1' -OutFile $ps1 -UseBasicParsing
-	
-	# clean messageboxes
-	(Get-Content $ps1) | Where-Object {$_ -notmatch '\[System\.Windows\.MessageBox'} | Set-Content -Path $ps1 -Encoding UTF8
-	
-	# run tweak to set PS7 default
-	. "$ps1"
-	Invoke-WPFTweakPS7 -action PS7
-
-	# CTT PowerShell Profile 
-	Invoke-RestMethod "https://github.com/ChrisTitusTech/powershell-profile/raw/main/setup.ps1" | Invoke-Expression
-
-}
-
 # Perform comprehensive Windows cleanup
 function Invoke-WindowsCleanup {
 	# Define all cleanup options
@@ -20696,6 +20441,9 @@ function Get-ConsoleWidth {
     return 80
 }
 
+$ProgressPreference = 'SilentlyContinue'
+$ErrorActionPreference = 'SilentlyContinue'
+
 # -------------------------
 # If switches used -> run them and exit (no menu)
 # -------------------------
@@ -20736,11 +20484,11 @@ if ($PSBoundParameters.Count -gt 0) {
 			pause
 		}
 		if ($Full) {
+			<#
 			Invoke-CreateRestorePoint
 			Invoke-Win11Debloat
-			Clear-Host
-			# Invoke-WinUtilAutoStandard
-			Show-WinLogo
+			Invoke-WinUtilAutoStandard
+			#>
 			Invoke-WinActivation
 			Invoke-ActivateUltimatePlan
 			Invoke-DisablePowerSaving
@@ -20751,10 +20499,11 @@ if ($PSBoundParameters.Count -gt 0) {
 			Invoke-RemoveGaming
 			Invoke-RemoveWindowsAI
 			Invoke-RemWinBloat # remote desktop not working
-			Invoke-NETFreamework3.5
-			Invoke-DirectX
-			Invoke-CPlusPlusAIO
-			Invoke-Winget # ui too invasive
+			pause
+			# Invoke-NET35Run
+			# Invoke-DirectXRun
+			# Invoke-CPlusPlusAIO
+			# Invoke-Winget # ui too invasive
 			# Invoke-LibreWolf
 			Invoke-Brave
 			Invoke-DebloatBrave
@@ -21220,16 +20969,7 @@ while ($true) {
 				}
 				############################################################################
 				10 {
-					$appsOptions = @(
-						'C++','.NET','DirectX',
-						'Brave','LibreWolf','Chrome',
-						'Start(X)back','Everything','7-Zip',
-						'VLC media player','Microsoft Store','Powershell 7',
-						'simplewall','Winget','SpotX (Spotify)',
-						'WebCord (Discord)','Steam','Process Explorer',
-						'Core Temp','Microsoft 365 Basic','Notepad++',
-						'UniGetUI'
-					)
+					$appsOptions = @('Brave','StartXback')
 					$exitSubMenu = $false   # flag
                     while (-not $exitSubMenu) {
                         Clear-Host
@@ -21240,69 +20980,25 @@ while ($true) {
 						
 				        1..2 | ForEach-Object { '' }
 						
-					    # Show submenu
-					    Show-Menu $appsOptions
-					
-					    Write-Host (& $c "Enter one or multiple numbers or letters separated by commas") -ForegroundColor Cyan
-					    Write-Host (& $c "SELECTION: ") -NoNewline
-					    $appChoice = Read-Host
-					
-					    # Split multiple selections
-					    $appChoices = $appChoice -split ',' | ForEach-Object { $_.Trim().ToUpper() }
-					    $skipPause = $false
-						Clear-Host
-					
-					foreach ($choice in $appChoices) {
-					if ([int]::TryParse($choice,[ref]$null)) {
-					    # Numeric selection
-					    $aSel = [int]$choice
-					    switch ($aSel) {
-							'1' { Invoke-CPlusPlusAIO }
-                            '2' { Invoke-NETFreamework3.5; Invoke-NETDesktopAIO }
-							'3' { Invoke-DirectX }
-							'4' { Invoke-Brave; Invoke-DebloatBrave }
-							'5' { Invoke-LibreWolf }
-							'6' { Invoke-StartXback }
-							'7' { Invoke-EverythingSearch }
-							'8' { Invoke-7Zip }
-							'9' { Invoke-VLC }
-							'10' { Invoke-FixStore }
-							'11' { Invoke-Powershell7 }
-							'12' { Invoke-Simplewall }
-							'13' { Invoke-Winget }
-							'14' { Invoke-SpotX }
-							'15' { Invoke-WebCord }
-							'16' { Invoke-Steam }
-							'17' { Invoke-ProcessExplorer }
-							'18' { Invoke-CoreTemp }
-							'19' {  }
-							'20' {  }
-							'21' {  }
-							
+						# Show submenu
+                        Show-Menu $appsOptions
+                        Write-Host (& $c "Enter a number to select an option") -ForegroundColor Cyan
+                        Write-Host (& $c "SELECTION: ") -NoNewline
+                        $appChoice = Read-Host
+                        $skipPause = $false
+                        Clear-Host
+                        switch ($appChoice.ToUpper()) {
+							'1' {
+								Invoke-Brave
+								Invoke-DebloatBrave
+							}
+                            '2' { Invoke-StartXback }
 
-					                default {
-					                    Write-Host "Invalid number: $aSel" -ForegroundColor White -BackgroundColor Red
-					                    Start-Sleep 2
-					                    $skipPause = $true
-					                }
-					            }
-					        }
-							
-					        else {
-					            # Letter selection
-					            switch ($choice) {
-					                'R' { $exitSubMenu = $true; $skipPause = $true } # Return to Main Menu
-					                default {
-					                    Write-Host "Invalid letter: $choice" -ForegroundColor White -BackgroundColor Red
-					                    Start-Sleep 2
-					                    $skipPause = $true
-					                }
-					            }
-					        }
-					    }
-					
-					    if (-not $skipPause) { Press-AnyKey }
-					}
+                            'R' { $exitSubMenu = $true; $skipPause = $true }
+                            default { Write-Host "INVALID SELECTION!" -ForegroundColor White -BackgroundColor Red; Start-Sleep 3; $skipPause = $true }
+                        }
+                        if (-not $skipPause) { Press-AnyKey }
+                    }
 				}
 				############################################################################
                 default {
