@@ -1658,6 +1658,7 @@ Windows Registry Editor Version 5.00
 	Stop-Process -Name explorer -Force | Out-Null
 }
 
+# Re-Install Microsoft Store
 function Invoke-FixStore {
 	Get-AppXPackage -AllUsers *Microsoft.WindowsStore* | ForEach-Object {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"}
 	Get-AppXPackage -AllUsers *Microsoft.Microsoft.StorePurchaseApp * | ForEach-Object {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"}
