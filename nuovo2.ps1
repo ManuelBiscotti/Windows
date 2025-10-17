@@ -314,7 +314,7 @@ Windows Registry Editor Version 5.00
 ###################################################
 # .NET Freamework 3.5 (includes .NET 2.0 and 3.0) #
 
-function Invoke-NETFreamework3.5 {   
+function Invoke-NETFreamework35 {   
 
 	<#
 		.SYNOPSIS
@@ -700,7 +700,7 @@ function Invoke-DisablePowerSaving {
 
 	# Disable Energy Estimation
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v EnergyEstimationEnabled /t REG_DWORD /d 0 /f >nul 2>&1"
-	Write-Output "Disabling Connected Standby..."
+	# Disable Connected Standby
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v CsEnabled /t REG_DWORD /d 0 /f >nul 2>&1"
 	# Disable Platform Sleep States
 	cmd /c "reg add ""HKLM\SYSTEM\CurrentControlSet\Control\Power"" /v PerfCalculateActualUtilization /t REG_DWORD /d 0 /f >nul 2>&1"
@@ -1931,7 +1931,7 @@ function Invoke-RemoveWindowsAI {
 }
 
 function Invoke-PauseUpdates {
-    Write-Host "Pausing Windows Updates for a long period of time..." -ForegroundColor Green
+    Write-Host "Pausing Windows Updates..." -ForegroundColor Green
     $reg = Join-Path $env:TEMP 'windows-updates-pause.reg'
     Invoke-WebRequest -Uri 'https://github.com/Aetherinox/pause-windows-updates/raw/refs/heads/main/windows-updates-pause.reg' -OutFile $reg -UseBasicParsing
 	Start-Process reg.exe -ArgumentList "import `"$reg`"" -Wait
@@ -1975,7 +1975,7 @@ if (Get-Command Invoke-WPFUpdatessecurity -ErrorAction SilentlyContinue) {
 
 	$batPath = "$env:TEMP\Invoke-WPFUpdatessecurity.bat"
 	Set-Content -Path $batPath -Value $batchCode -Encoding ASCII
-	Start-Process -FilePath $batPath -Wait -NoNewWindow | Out-Null
+	Start-Process -FilePath $batPath -Wait -NoNewWindow *> $null
 }
 
 
@@ -20736,6 +20736,7 @@ if ($PSBoundParameters.Count -gt 0) {
 			pause
 		}
 		if ($Full) {
+			<#
 			Invoke-CreateRestorePoint
 			Invoke-Win11Debloat
 			Clear-Host
@@ -20751,7 +20752,8 @@ if ($PSBoundParameters.Count -gt 0) {
 			Invoke-RemoveGaming
 			Invoke-RemoveWindowsAI
 			Invoke-RemWinBloat # remote desktop not working
-			Invoke-NETFreamework3.5
+			#>
+			Invoke-NETFreamework35
 			Invoke-DirectX
 			Invoke-CPlusPlusAIO
 			Invoke-Winget # ui too invasive
@@ -21258,7 +21260,7 @@ while ($true) {
 					    $aSel = [int]$choice
 					    switch ($aSel) {
 							'1' { Invoke-CPlusPlusAIO }
-                            '2' { Invoke-NETFreamework3.5; Invoke-NETDesktopAIO }
+                            '2' { Invoke-NETFreamework35; Invoke-NETDesktopAIO }
 							'3' { Invoke-DirectX }
 							'4' { Invoke-Brave; Invoke-DebloatBrave }
 							'5' { Invoke-LibreWolf }
