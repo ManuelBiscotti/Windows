@@ -2,9 +2,6 @@
 :: Completely disable Windows Update
 :: PsExec is required to get system privileges - it should be in this directory
 
-if not "%1"=="admin" (powershell start -verb runas '%0' admin & exit /b)
-if not "%2"=="system" (powershell . '%~dp0\PsExec.exe' /accepteula -i -s -d '%0' admin system & exit /b)
-
 :: Disable update related services
 for %%i in (wuauserv, UsoSvc, uhssvc, WaaSMedicSvc) do (
 	net stop %%i

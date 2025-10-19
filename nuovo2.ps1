@@ -14,10 +14,14 @@ param (
 	[switch]$Recommended,
 	[switch]$Full,
     [switch]$RestorePoint,
-    [switch]$WinActivation,
-	[switch]$ActivateUltimatePlan,
+    [switch]$ActivateWindows,
+	[switch]$UltimatePerformance,
 	[switch]$DisablePowerSaving,
-	[switch]$DebloatWin,
+	[switch]$DebloatWindows,
+	[switch]$RemoveGaming,
+	[switch]$RemoveWindowsAI,
+	[switch]$FixStore,
+	[switch]$FixOneDrive,
 	[switch]$Runtimes,
 	[switch]$CPlusPlus,
 	[switch]$CPlusPlusAIO,
@@ -103,7 +107,8 @@ public class WindowCentering {
 <# REM Center the PowerShell console window using the WindowCentering class #>
 [WindowCentering]::CenterWindow($psWindowHandle)
 
-$ProgressPreference = 'SilentlyContinue'
+# Global setting
+$ProgressPreference = 'SilentlyContinue'  
 $ErrorActionPreference = 'SilentlyContinue'
 
 Function Show-WinLogo {
@@ -206,8 +211,11 @@ function RunAsTI($cmd, $arg) {
     Start-Process powershell -args "-win 1 -nop -c `n$V `$env:R=(gi `$key -ea 0).getvalue(`$id)-join''; iex `$env:R" -verb runas -Wait
 }
 
+###########################
+# Visual Studio 2015-2022 #
+
 function Invoke-CPlusPlus {
-	Write-Output "Installing latest Visual C++ Redistributable Runtimes"	
+	Write-Host "Installing Latest supported Visual C++ Redistributable (Visual Studio 2015-2022)"	-ForegroundColor Green
 	Get-FileFromWeb -URL "https://aka.ms/vs/17/release/vc_redist.x86.exe" -File "$env:TEMP\vcredist2015_2017_2019_2022_x86.exe"	    	
 	Get-FileFromWeb -URL "https://aka.ms/vs/17/release/vc_redist.x64.exe" -File "$env:TEMP\vcredist2015_2017_2019_2022_x64.exe"	
 	Start-Process -wait "$env:TEMP\vcredist2015_2017_2019_2022_x86.exe" -ArgumentList "/passive /norestart"	    	
@@ -217,7 +225,7 @@ function Invoke-CPlusPlus {
 #################################################
 # Microsoft Visual C++ Redistributable Runtimes #
 function Invoke-CPlusPlusAIO { 
- 	Write-Host "Installing Visual C++ Redistributable All in One..." -ForegroundColor Green
+ 	Write-Host "Installing Visual C++ Redistributable Runtimes All in One..." -ForegroundColor Green
 	Get-FileFromWeb -URL "https://download.microsoft.com/download/8/B/4/8B42259F-5D70-43F4-AC2E-4B208FD8D66A/vcredist_x86.EXE" -File "$env:TEMP\vcredist2005_x86.exe"			
 	Get-FileFromWeb -URL "https://download.microsoft.com/download/8/B/4/8B42259F-5D70-43F4-AC2E-4B208FD8D66A/vcredist_x64.EXE" -File "$env:TEMP\vcredist2005_x64.exe"	    	
 	Get-FileFromWeb -URL "https://download.microsoft.com/download/5/D/8/5D8C65CB-C849-4025-8E95-C3966CAFD8AE/vcredist_x86.exe" -File "$env:TEMP\vcredist2008_x86.exe"	    	
@@ -328,7 +336,10 @@ function Invoke-NETFreamework35 {
 }
 
 function Invoke-NETDesktopAIO {
-	Write-Host "Installing All latest .NET Desktop Runtimes..." -ForegroundColor Green
+
+	# Winget
+	Invoke-Winget
+
 	# install latest .net desktop runtimes
 	foreach($id in "Microsoft.DotNet.DesktopRuntime.3_1","Microsoft.DotNet.DesktopRuntime.5","Microsoft.DotNet.DesktopRuntime.6","Microsoft.DotNet.DesktopRuntime.7","Microsoft.DotNet.DesktopRuntime.8","Microsoft.DotNet.DesktopRuntime.9"){
 		winget.exe install --id=$id -a x64 --exact --source winget --accept-source-agreements --accept-package-agreements --force
@@ -780,7 +791,7 @@ function Invoke-Winget {
     if (Get-Command choco.exe) {
         choco upgrade chocolatey -y --ignore-checksums --no-progress --quiet | Out-Null
     } else {
-        Write-Host "Installing Chocolatey..." -ForegroundColor Yellow
+        Write-Host "Installing Chocolatey..." -ForegroundColor Green
 
         # Clean old remnants safely
         Remove-Item "C:\ProgramData\Chocolatey*" -Recurse -Force
@@ -930,7 +941,11 @@ function Invoke-WinUtilAutoStandard {
 .EXAMPLE
 	Disable Notifications
     "WPFTweaksDisableNotifications"
+.EXAMPLE
+	Set time to UTC
+	"WPFTweaksUTC"
 #>
+
 $json = @'
 {
     "WPFTweaks":  [
@@ -960,7 +975,6 @@ $json = @'
                       "WPFTweaksBraveDebloat",
                       "WPFTweaksPowershell7Tele",
                       "WPFTweaksDeleteTempFiles",
-                      "WPFTweaksUTC",
                       "WPFTweaksRecallOff",
                       "WPFTweaksDisableBGapps",
                       "WPFTweaksServices"				  				
@@ -1111,14 +1125,16 @@ function Invoke-Win11Debloat {
 }
 
 function Invoke-RemWinBloat {
-<#
-KEPT.
-	NVIDIA, CBS, Winget, Xbox, Snipping Tool
-	Notepad(system), VBSCRIPT, Microsoft Paint, Windows Media Player Legacy (App)
-	Media Features
-#>
-    # REMOVE UNIVERSAL WINDOWS PLATFORM APPS
-    Write-Host "Removing UWP Apps..." -ForegroundColor Green
+	<#
+		.SYNOPSIS
+			REMOVE UNIVERSAL WINDOWS PLATFORM APPS
+		.DESCRIPTION
+			NVIDIA, CBS, Winget, Xbox, Snipping Tool
+			Notepad(system), VBSCRIPT, Microsoft Paint, Windows Media Player Legacy (App)
+			Media Features
+	#>
+    	
+    Write-Host "Removing Universal Windows Platform (UWP) Apps..." -ForegroundColor Green
 	Get-AppxPackage -AllUsers |
 	Where-Object {
 	    $_.Name -notlike '*NVIDIA*' -and
@@ -1126,21 +1142,23 @@ KEPT.
 	    $_.Name -notlike '*AppInstaller*' -and
 	    $_.Name -notlike '*Gaming*' -and
 	    $_.Name -notlike '*Xbox*' -and
+		$_.Name -notlike '*Widgets*'
 	    $_.Name -notlike '*WebExperience*'
 	} |
 	Remove-AppxPackage
-
-<#
-.SYNOPSIS
-	Remove Windows Features on Demand (Capabilities)
-.DESCRIPTION
-	This function removes a predefined list of Windows capabilities that are often considered unnecessary for many users.
-	It targets features such as Steps Recorder, Quick Assist, Internet Explorer, Math Recognizer, PowerShell ISE, and more.
-	Some features are commented out due to potential system instability or breaking certain functionalities.
-.LINK
-	https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/features-on-demand-non-language-fod?view=windows-11
-#>
-    Write-Host "Removing Available Features on Demand (Capabilities)..." -ForegroundColor Green
+    
+	<#
+		.SYNOPSIS
+			Remove Windows Features on Demand (Capabilities)
+		.DESCRIPTION
+			This function removes a predefined list of Windows capabilities that are often considered unnecessary for many users.
+			It targets features such as Steps Recorder, Quick Assist, Internet Explorer, Math Recognizer, PowerShell ISE, and more.
+			Some features are commented out due to potential system instability or breaking certain functionalities.
+		.LINK
+			https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/features-on-demand-non-language-fod?view=windows-11
+	#>
+    
+	Write-Host "Removing Available Features on Demand (Capabilities)..." -ForegroundColor Green
 	# Remove Steps Recorder
 	Write-Output "Removing Steps Recorder..."
 	Remove-WindowsCapability -Online -Name "App.StepsRecorder~~~~0.0.1.0" | Out-Null
@@ -1742,13 +1760,153 @@ function Invoke-FixStore {
 			General notes
 	#>
 
-	#
+	# Reinstall Microsoft Store app for All Users
 	Get-AppXPackage -AllUsers *Microsoft.WindowsStore* | ForEach-Object {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"}
-	
-	#
 	Get-AppXPackage -AllUsers *Microsoft.Microsoft.StorePurchaseApp * | ForEach-Object {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"}
 
+	# Reinstall Microsoft Store app for Current User using "winget"
+	Invoke-Winget
+	winget.exe install --id "9WZDNCRFJBMP" --exact --source msstore --accept-source-agreements --disable-interactivity --silent --accept-package-agreements --force
+
+	# Enable Microsoft Account Sign-in Assistant
+	$batchCode = @'
+@echo off
+:: https://privacy.sexy — v0.13.8 — Sun, 19 Oct 2025 08:43:23 GMT
+:: Initialize environment
+setlocal EnableExtensions DisableDelayedExpansion
+
+
+:: Disable Microsoft Account Sign-in Assistant (breaks Microsoft Store and Microsoft Account sign-in) (revert)
+echo --- Disable Microsoft Account Sign-in Assistant (breaks Microsoft Store and Microsoft Account sign-in) (revert)
+:: Restore service(s) to default state: `wlidsvc`
+PowerShell -ExecutionPolicy Unrestricted -Command "$serviceName = 'wlidsvc'; $defaultStartupMode = 'Manual'; $ignoreMissingOnRevert =  $false; Write-Host "^""Reverting service `"^""$serviceName`"^"" start to `"^""$defaultStartupMode`"^""."^""; <# -- 1. Skip if service does not exist #>; $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue; if (!$service) { if ($ignoreMissingOnRevert) { Write-Output "^""Skipping: The service `"^""$serviceName`"^"" is not found. No action required."^""; Exit 0; }; Write-Warning "^""Failed to revert changes to the service `"^""$serviceName`"^"". The service is not found."^""; Exit 1; }; <# -- 2. Enable or skip if already enabled #>; $startupType = $service.StartType <# Does not work before .NET 4.6.1 #>; if (!$startupType) { $startupType = (Get-WmiObject -Query "^""Select StartMode From Win32_Service Where Name='$serviceName'"^"" -ErrorAction Ignore).StartMode; if (!$startupType) { $startupType = (Get-WmiObject -Class Win32_Service -Property StartMode -Filter "^""Name='$serviceName'"^"" -ErrorAction Ignore).StartMode; }; }; if ($startupType -eq "^""$defaultStartupMode"^"") { Write-Host "^""`"^""$serviceName`"^"" has already expected startup mode: `"^""$defaultStartupMode`"^"". No action required."^""; } else { try { Set-Service -Name "^""$serviceName"^"" -StartupType "^""$defaultStartupMode"^"" -Confirm:$false -ErrorAction Stop; Write-Host "^""Reverted `"^""$serviceName`"^"" with `"^""$defaultStartupMode`"^"" start, this may require restarting your computer."^""; } catch { Write-Error "^""Failed to enable `"^""$serviceName`"^"": $_"^""; Exit 1; }; }; <# -- 4. Start if not running (must be enabled first) #>; if ($defaultStartupMode -eq 'Automatic' -or $defaultStartupMode -eq 'Boot' -or $defaultStartupMode -eq 'System') { if ($service.Status -ne [System.ServiceProcess.ServiceControllerStatus]::Running) { Write-Host "^""`"^""$serviceName`"^"" is not running, starting it."^""; try { Start-Service $serviceName -ErrorAction Stop; Write-Host "^""Started `"^""$serviceName`"^"" successfully."^""; } catch { Write-Warning "^""Failed to start `"^""$serviceName`"^"", requires restart, it will be started after reboot.`r`n$_"^""; }; } else { Write-Host "^""`"^""$serviceName`"^"" is already running, no need to start."^""; }; }"
+:: ----------------------------------------------------------
+
+
+:: Restore previous environment settings
+endlocal
+'@
+
+	$batPath = "$env:TEMP\EnableMSAccountSignInAssistant.bat"
+	Set-Content -Path $batPath -Value $batchCode -Encoding ASCII
+	Start-Process -FilePath $batPath -Wait -NoNewWindow *> $null
 }
+
+Invoke-FixOneDrive {
+	<#
+		.SYNOPSIS
+			Reinstall OneDrive
+		.DESCRIPTION
+	#>
+
+	# Reinstall OneDrive
+	Get-FileFromWeb -URL "https://go.microsoft.com/fwlink/?linkid=2324845" -OutFile "$env:TEMP\OneDriveSetup.exe"
+	Start-Process -Wait -FilePath "$env:TEMP\OneDriveSetup.exe" -ArgumentList "/silent", "/allusers"
+	
+	# Enable Microsoft Account Sign-in Assistant
+	$batchCode = @'
+@echo off
+:: https://privacy.sexy — v0.13.8 — Sun, 19 Oct 2025 08:43:23 GMT
+:: Initialize environment
+setlocal EnableExtensions DisableDelayedExpansion
+
+
+:: ----------------------------------------------------------
+:: ----------Remove OneDrive from startup (revert)-----------
+:: ----------------------------------------------------------
+echo --- Remove OneDrive from startup (revert)
+:: Restore the registry value "OneDrive" in key "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" to its original value 
+PowerShell -ExecutionPolicy Unrestricted -Command "$data =  '"^""%LOCALAPPDATA%\Microsoft\OneDrive\OneDrive.exe"^"" /background'; $rawType = 'REG_SZ'; $rawPath = 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run'; $value = 'OneDrive'; $hive = $rawPath.Split('\')[0]; $path = "^""$($hive):$($rawPath.Substring($hive.Length))"^""; Write-Host "^""Restoring value '$value' at '$path' with type '$rawType' and value '$data'."^""; if (-Not $rawType) { throw "^""Internal privacy$([char]0x002E)sexy error: Data type is not provided for data '$data'."^""; }; if (-Not (Test-Path -LiteralPath $path)) { try { New-Item -Path $path -Force -ErrorAction Stop | Out-Null; Write-Host 'Successfully created registry key.'; } catch { throw "^""Failed to create registry key: $($_.Exception.Message)"^""; }; }; $currentData = Get-ItemProperty -LiteralPath $path -Name $value -ErrorAction SilentlyContinue | Select-Object -ExpandProperty $value; if ($currentData -eq $data) { Write-Host 'Skipping, no changes required, the registry data is already as expected.'; Exit 0; }; try { $type = switch ($rawType) { 'REG_SZ' { 'String' }; 'REG_DWORD' { 'DWord' }; 'REG_QWORD' { 'QWord' }; 'REG_EXPAND_SZ' { 'ExpandString' }; default { throw "^""Internal privacy$([char]0x002E)sexy error: Failed to find data type for: '$rawType'."^""; }; }; Set-ItemProperty -LiteralPath $path -Name $value -Value $data -Type $type -Force -ErrorAction Stop; Write-Host 'Successfully restored the registry value.'; } catch { throw "^""Failed to restore the value: $($_.Exception.Message)"^""; }"
+:: ----------------------------------------------------------
+
+
+:: ----------------------------------------------------------
+:: ---Remove OneDrive through official installer (revert)----
+:: ----------------------------------------------------------
+echo --- Remove OneDrive through official installer (revert)
+if exist "%SYSTEMROOT%\System32\OneDriveSetup.exe" (
+    "%SYSTEMROOT%\System32\OneDriveSetup.exe" /silent
+) else (
+    if exist "%SYSTEMROOT%\SysWOW64\OneDriveSetup.exe" (
+        "%SYSTEMROOT%\SysWOW64\OneDriveSetup.exe" /silent
+    ) else (
+        echo Failed to install, installer could not be found. 1>&2
+    )
+)
+:: ----------------------------------------------------------
+
+
+:: ----------------------------------------------------------
+:: ------------Remove OneDrive shortcuts (revert)------------
+:: ----------------------------------------------------------
+echo --- Remove OneDrive shortcuts (revert)
+PowerShell -ExecutionPolicy Unrestricted -Command "$targetFilePath = "^""%LOCALAPPDATA%\Microsoft\OneDrive\OneDrive.exe"^""; $expandedTargetFilePath = [System.Environment]::ExpandEnvironmentVariables($targetFilePath); $shortcuts = @(; @{ Revert = $True;  Path = "^""$env:APPDATA\Microsoft\Windows\Start Menu\Programs\OneDrive.lnk"^""; }; @{ Revert = $False; Path = "^""$env:USERPROFILE\Links\OneDrive.lnk"^""; }; @{ Revert = $False; Path = "^""$env:SYSTEMROOT\ServiceProfiles\LocalService\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\OneDrive.lnk"^""; }; @{ Revert = $False; Path = "^""$env:SYSTEMROOT\ServiceProfiles\NetworkService\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\OneDrive.lnk"^""; }; ); if (-Not (Test-Path $expandedTargetFilePath)) { Write-Warning "^""Target file `"^""$expandedTargetFilePath`"^"" does not exist."^""; }; $wscriptShell = $null; try { $wscriptShell = New-Object -ComObject WScript.Shell; } catch { throw "^""Failed to create WScript.Shell object: $($_.Exception.Message)"^""; }; foreach ($shortcut in $shortcuts) { if (-Not $shortcut.Revert) { Write-Host "^""Skipping, revert operation is not needed for: `"^""$($shortcut.Path)`"^""."^""; continue; }; if (Test-Path $shortcut.Path) { Write-Host "^""Shortcut already exists, skipping: `"^""$($shortcut.Path)`"^""."^""; continue; }; try { $shellShortcut = $wscriptShell.CreateShortcut($shortcut.Path); $shellShortcut.TargetPath = $expandedTargetFilePath; $shellShortcut.Save(); Write-Output "^""Successfully created shortcut at `"^""$($shortcut.Path)`"^""."^""; } catch { Write-Error "^""An error occurred while creating the shortcut at `"^""$($shortcut.Path)`"^""."^""; }; }"
+:: ----------------------------------------------------------
+
+
+:: ----------------------------------------------------------
+:: -------------Disable OneDrive usage (revert)--------------
+:: ----------------------------------------------------------
+echo --- Disable OneDrive usage (revert)
+:: Delete the registry value "HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive!DisableFileSyncNGSC"
+PowerShell -ExecutionPolicy Unrestricted -Command "reg delete 'HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive' /v 'DisableFileSyncNGSC' /f 2>$null"
+:: Delete the registry value "HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive!DisableFileSync"
+PowerShell -ExecutionPolicy Unrestricted -Command "reg delete 'HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive' /v 'DisableFileSync' /f 2>$null"
+:: ----------------------------------------------------------
+
+
+:: ----------------------------------------------------------
+:: -----Disable automatic OneDrive installation (revert)-----
+:: ----------------------------------------------------------
+echo --- Disable automatic OneDrive installation (revert)
+:: Restore the registry value "OneDriveSetup" in key "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" to its original value 
+:: This operation will not run on Windows versions earlier than Windows10-1909.This operation will not run on Windows versions later than Windows10-1909.
+PowerShell -ExecutionPolicy Unrestricted -Command "$versionName = 'Windows10-1909'; $buildNumber = switch ($versionName) { 'Windows11-FirstRelease' { '10.0.22000' }; 'Windows11-22H2' { '10.0.22621' }; 'Windows11-21H2' { '10.0.22000' }; 'Windows10-22H2' { '10.0.19045' }; 'Windows10-21H2' { '10.0.19044' }; 'Windows10-20H2' { '10.0.19042' }; 'Windows10-1909' { '10.0.18363' }; 'Windows10-1607' { '10.0.14393' }; default { throw "^""Internal privacy$([char]0x002E)sexy error: No build for minimum Windows '$versionName'"^""; }; }; $minVersion = [System.Version]::Parse($buildNumber); $ver = [Environment]::OSVersion.Version; $verNoPatch = [System.Version]::new($ver.Major, $ver.Minor, $ver.Build); if ($verNoPatch -lt $minVersion) { Write-Output "^""Skipping: Windows ($verNoPatch) is below minimum $minVersion ($versionName)"^""; Exit 0; }$versionName = 'Windows10-1909'; $buildNumber = switch ($versionName) { 'Windows11-21H2' { '10.0.22000' }; 'Windows10-MostRecent' { '10.0.19045' }; 'Windows10-22H2' { '10.0.19045' }; 'Windows10-1909' { '10.0.18363' }; 'Windows10-1903' { '10.0.18362' }; default { throw "^""Internal privacy$([char]0x002E)sexy error: No build for maximum Windows '$versionName'"^""; }; }; $maxVersion=[System.Version]::Parse($buildNumber); $ver = [Environment]::OSVersion.Version; $verNoPatch = [System.Version]::new($ver.Major, $ver.Minor, $ver.Build); if ($verNoPatch -gt $maxVersion) { Write-Output "^""Skipping: Windows ($verNoPatch) is above maximum $maxVersion ($versionName)"^""; Exit 0; }; $data = $(if ([Environment]::Is64BitOperatingSystem) { "^""$env:SYSTEMROOT\SysWOW64\OneDriveSetup.exe /silent"^""; } else { "^""$env:SYSTEMROOT\System32\OneDriveSetup.exe /silent"^""; }; ) <# 'if ([Environment]::Is64BitOperatingSystem) { #>; "^""$env:SYSTEMROOT\SysWOW64\OneDriveSetup.exe /silent"^""; } else { "^""$env:SYSTEMROOT\System32\OneDriveSetup.exe /silent"^""; }; '; $rawType = 'REG_SZ'; $rawPath = 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run'; $value = 'OneDriveSetup'; $hive = $rawPath.Split('\')[0]; $path = "^""$($hive):$($rawPath.Substring($hive.Length))"^""; Write-Host "^""Restoring value '$value' at '$path' with type '$rawType' and value '$data'."^""; if (-Not $rawType) { throw "^""Internal privacy$([char]0x002E)sexy error: Data type is not provided for data '$data'."^""; }; if (-Not (Test-Path -LiteralPath $path)) { try { New-Item -Path $path -Force -ErrorAction Stop | Out-Null; Write-Host 'Successfully created registry key.'; } catch { throw "^""Failed to create registry key: $($_.Exception.Message)"^""; }; }; $currentData = Get-ItemProperty -LiteralPath $path -Name $value -ErrorAction SilentlyContinue | Select-Object -ExpandProperty $value; if ($currentData -eq $data) { Write-Host 'Skipping, no changes required, the registry data is already as expected.'; Exit 0; }; try { $type = switch ($rawType) { 'REG_SZ' { 'String' }; 'REG_DWORD' { 'DWord' }; 'REG_QWORD' { 'QWord' }; 'REG_EXPAND_SZ' { 'ExpandString' }; default { throw "^""Internal privacy$([char]0x002E)sexy error: Failed to find data type for: '$rawType'."^""; }; }; Set-ItemProperty -LiteralPath $path -Name $value -Value $data -Type $type -Force -ErrorAction Stop; Write-Host 'Successfully restored the registry value.'; } catch { throw "^""Failed to restore the value: $($_.Exception.Message)"^""; }"
+:: ----------------------------------------------------------
+
+
+:: ----------------------------------------------------------
+:: ----Remove OneDrive folder from File Explorer (revert)----
+:: ----------------------------------------------------------
+echo --- Remove OneDrive folder from File Explorer (revert)
+:: Set the registry value "HKCU\Software\Classes\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}!System.IsPinnedToNameSpaceTree"
+PowerShell -ExecutionPolicy Unrestricted -Command "$revertData =  '1'; reg add 'HKCU\Software\Classes\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}' /v 'System.IsPinnedToNameSpaceTree' /t 'REG_DWORD' /d "^""$revertData"^"" /f"
+:: Set the registry value "HKCU\Software\Classes\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}!System.IsPinnedToNameSpaceTree"
+PowerShell -ExecutionPolicy Unrestricted -Command "$revertData =  '1'; reg add 'HKCU\Software\Classes\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}' /v 'System.IsPinnedToNameSpaceTree' /t 'REG_DWORD' /d "^""$revertData"^"" /f"
+:: ----------------------------------------------------------
+
+
+:: ----------------------------------------------------------
+:: --------Disable OneDrive scheduled tasks (revert)---------
+:: ----------------------------------------------------------
+echo --- Disable OneDrive scheduled tasks (revert)
+:: Restore scheduled task(s) to default state: `\OneDrive Reporting Task-*`
+PowerShell -ExecutionPolicy Unrestricted -Command "$taskPathPattern='\'; $taskNamePattern='OneDrive Reporting Task-*'; $shouldDisable =  $false; Write-Output "^""Enabling tasks matching pattern `"^""$taskNamePattern`"^""."^""; $tasks = @(Get-ScheduledTask -TaskPath $taskPathPattern -TaskName $taskNamePattern -ErrorAction Ignore); if (-Not $tasks) { Write-Warning ( "^""Missing task: Cannot enable, no tasks matching pattern `"^""$taskNamePattern`"^"" found."^"" + "^"" This task appears to be not included in this version of Windows."^"" ); exit 0; }; $operationFailed = $false; foreach ($task in $tasks) { $taskName = $task.TaskName; if ($shouldDisable) { if ($task.State -eq [Microsoft.PowerShell.Cmdletization.GeneratedTypes.ScheduledTask.StateEnum]::Disabled) { Write-Output "^""Skipping, task `"^""$taskName`"^"" is already disabled, no action needed."^""; continue; }; } else { if (($task.State -ne [Microsoft.PowerShell.Cmdletization.GeneratedTypes.ScheduledTask.StateEnum]::Disabled) -and ($task.State -ne [Microsoft.PowerShell.Cmdletization.GeneratedTypes.ScheduledTask.StateEnum]::Unknown)) { Write-Output "^""Skipping, task `"^""$taskName`"^"" is already enabled, no action needed."^""; continue; }; }; try { if ($shouldDisable) { $task | Disable-ScheduledTask -ErrorAction Stop | Out-Null; Write-Output "^""Successfully disabled task `"^""$taskName`"^""."^""; } else { $task | Enable-ScheduledTask -ErrorAction Stop | Out-Null; Write-Output "^""Successfully enabled task `"^""$taskName`"^""."^""; }; } catch { Write-Error "^""Failed to restore task `"^""$taskName`"^"": $($_.Exception.Message)"^""; $operationFailed = $true; }; }; if ($operationFailed) { Write-Output 'Failed to restore some tasks. Check error messages above.'; exit 1; }"
+:: Restore scheduled task(s) to default state: `\OneDrive Standalone Update Task-*`
+PowerShell -ExecutionPolicy Unrestricted -Command "$taskPathPattern='\'; $taskNamePattern='OneDrive Standalone Update Task-*'; $shouldDisable =  $false; Write-Output "^""Enabling tasks matching pattern `"^""$taskNamePattern`"^""."^""; $tasks = @(Get-ScheduledTask -TaskPath $taskPathPattern -TaskName $taskNamePattern -ErrorAction Ignore); if (-Not $tasks) { Write-Warning ( "^""Missing task: Cannot enable, no tasks matching pattern `"^""$taskNamePattern`"^"" found."^"" + "^"" This task appears to be not included in this version of Windows."^"" ); exit 0; }; $operationFailed = $false; foreach ($task in $tasks) { $taskName = $task.TaskName; if ($shouldDisable) { if ($task.State -eq [Microsoft.PowerShell.Cmdletization.GeneratedTypes.ScheduledTask.StateEnum]::Disabled) { Write-Output "^""Skipping, task `"^""$taskName`"^"" is already disabled, no action needed."^""; continue; }; } else { if (($task.State -ne [Microsoft.PowerShell.Cmdletization.GeneratedTypes.ScheduledTask.StateEnum]::Disabled) -and ($task.State -ne [Microsoft.PowerShell.Cmdletization.GeneratedTypes.ScheduledTask.StateEnum]::Unknown)) { Write-Output "^""Skipping, task `"^""$taskName`"^"" is already enabled, no action needed."^""; continue; }; }; try { if ($shouldDisable) { $task | Disable-ScheduledTask -ErrorAction Stop | Out-Null; Write-Output "^""Successfully disabled task `"^""$taskName`"^""."^""; } else { $task | Enable-ScheduledTask -ErrorAction Stop | Out-Null; Write-Output "^""Successfully enabled task `"^""$taskName`"^""."^""; }; } catch { Write-Error "^""Failed to restore task `"^""$taskName`"^"": $($_.Exception.Message)"^""; $operationFailed = $true; }; }; if ($operationFailed) { Write-Output 'Failed to restore some tasks. Check error messages above.'; exit 1; }"
+:: Restore scheduled task(s) to default state: `\OneDrive Per-Machine Standalone Update`
+PowerShell -ExecutionPolicy Unrestricted -Command "$taskPathPattern='\'; $taskNamePattern='OneDrive Per-Machine Standalone Update'; $shouldDisable =  $false; Write-Output "^""Enabling tasks matching pattern `"^""$taskNamePattern`"^""."^""; $tasks = @(Get-ScheduledTask -TaskPath $taskPathPattern -TaskName $taskNamePattern -ErrorAction Ignore); if (-Not $tasks) { Write-Warning ( "^""Missing task: Cannot enable, no tasks matching pattern `"^""$taskNamePattern`"^"" found."^"" + "^"" This task appears to be not included in this version of Windows."^"" ); exit 0; }; $operationFailed = $false; foreach ($task in $tasks) { $taskName = $task.TaskName; if ($shouldDisable) { if ($task.State -eq [Microsoft.PowerShell.Cmdletization.GeneratedTypes.ScheduledTask.StateEnum]::Disabled) { Write-Output "^""Skipping, task `"^""$taskName`"^"" is already disabled, no action needed."^""; continue; }; } else { if (($task.State -ne [Microsoft.PowerShell.Cmdletization.GeneratedTypes.ScheduledTask.StateEnum]::Disabled) -and ($task.State -ne [Microsoft.PowerShell.Cmdletization.GeneratedTypes.ScheduledTask.StateEnum]::Unknown)) { Write-Output "^""Skipping, task `"^""$taskName`"^"" is already enabled, no action needed."^""; continue; }; }; try { if ($shouldDisable) { $task | Disable-ScheduledTask -ErrorAction Stop | Out-Null; Write-Output "^""Successfully disabled task `"^""$taskName`"^""."^""; } else { $task | Enable-ScheduledTask -ErrorAction Stop | Out-Null; Write-Output "^""Successfully enabled task `"^""$taskName`"^""."^""; }; } catch { Write-Error "^""Failed to restore task `"^""$taskName`"^"": $($_.Exception.Message)"^""; $operationFailed = $true; }; }; if ($operationFailed) { Write-Output 'Failed to restore some tasks. Check error messages above.'; exit 1; }"
+:: ----------------------------------------------------------
+
+
+:: ----------------------------------------------------------
+:: -------Clear OneDrive environment variable (revert)-------
+:: ----------------------------------------------------------
+echo --- Clear OneDrive environment variable (revert)
+:: Restore the registry value "OneDrive" in key "HKCU\Environment" to its original value 
+PowerShell -ExecutionPolicy Unrestricted -Command "$data =  '%USERPROFILE%\OneDrive'; $rawType = 'REG_EXPAND_SZ'; $rawPath = 'HKCU\Environment'; $value = 'OneDrive'; $hive = $rawPath.Split('\')[0]; $path = "^""$($hive):$($rawPath.Substring($hive.Length))"^""; Write-Host "^""Restoring value '$value' at '$path' with type '$rawType' and value '$data'."^""; if (-Not $rawType) { throw "^""Internal privacy$([char]0x002E)sexy error: Data type is not provided for data '$data'."^""; }; if (-Not (Test-Path -LiteralPath $path)) { try { New-Item -Path $path -Force -ErrorAction Stop | Out-Null; Write-Host 'Successfully created registry key.'; } catch { throw "^""Failed to create registry key: $($_.Exception.Message)"^""; }; }; $currentData = Get-ItemProperty -LiteralPath $path -Name $value -ErrorAction SilentlyContinue | Select-Object -ExpandProperty $value; if ($currentData -eq $data) { Write-Host 'Skipping, no changes required, the registry data is already as expected.'; Exit 0; }; try { $type = switch ($rawType) { 'REG_SZ' { 'String' }; 'REG_DWORD' { 'DWord' }; 'REG_QWORD' { 'QWord' }; 'REG_EXPAND_SZ' { 'ExpandString' }; default { throw "^""Internal privacy$([char]0x002E)sexy error: Failed to find data type for: '$rawType'."^""; }; }; Set-ItemProperty -LiteralPath $path -Name $value -Value $data -Type $type -Force -ErrorAction Stop; Write-Host 'Successfully restored the registry value.'; } catch { throw "^""Failed to restore the value: $($_.Exception.Message)"^""; }"
+:: ----------------------------------------------------------
+
+
+:: Restore previous environment settings
+endlocal
+'@
+
+	$batPath = "$env:TEMP\EnableMSAccountSign-inAssistant.bat"
+	Set-Content -Path $batPath -Value $batchCode -Encoding ASCII
+	Start-Process -FilePath $batPath -Wait -NoNewWindow *> $null
+}
+
 
 ################
 # Debloat Edge #
@@ -1819,6 +1977,12 @@ function Invoke-RemoveEdge {
 #########################
 # Remove Windows Gaming #
 function Invoke-RemoveGaming {
+	<#
+		.SYNOPSIS
+			Remove Windows Gaming
+		.DESCRIPTION
+	#>
+
 	Write-Host "Removing Windows Gaming..." -ForegroundColor Green
 	Write-Output "Disabling Xbox & Game Bar features..."
 	# disable gamebar regedit
@@ -1883,27 +2047,74 @@ Windows Registry Editor Version 5.00
 	Get-AppxPackage -allusers *Microsoft.XboxIdentityProvider* | Remove-AppxPackage
 	Get-AppxPackage -allusers *Microsoft.XboxSpeechToTextOverlay* | Remove-AppxPackage
 
-	# Remove Gaming Services
-	Write-Output "Removing Gaming Services..."
-	Get-AppxPackage -allusers *Microsoft.GamingServices* | Remove-AppxPackage
-
 	# Uninstall Microsoft GameInput
 	Write-Output "Uninstalling Microsoft GameInput..."
 	Start-Process "msiexec.exe" -ArgumentList '/x {F563DC73-9550-F772-B4BF-2F72C83F9F30} /qn /norestart'
+	Start-Process "msiexec.exe" -ArgumentList '/x {0812546C-471E-E343-DE9C-AECF3D0137E6} /qn /norestart'
+
+	# Disable Gaming Services
+	Write-Host "Disabling Gaming Services..."
+
+	$MultilineComment = @'
+Windows Registry Editor Version 5.00
+
+; Disable Gaming Services
+[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\GamingServicesNet]
+"Start"=dword:00000004
+
+[HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\GamingServices]
+"Start"=dword:00000004
+'@
+	Set-Content -Path "$env:TEMP\GamingServicesOff.reg" -Value $MultilineComment -Force
+	# disable services RunAsTI
+	$GamingServicesOff = @'
+Regedit.exe /S "$env:TEMP\GamingServicesOff.reg"
+'@
+	RunAsTI powershell "-nologo -windowstyle hidden -command $GamingServicesOff"
+	Timeout /T 5 | Out-Null
+
+	# Remove Gaming Services
+	Write-Output "Removing Gaming Services..."
+	Get-AppxPackage -allusers *Microsoft.GamingServices* | Remove-AppxPackage
 }
 
-function Invoke-DisableWidgets {
-	# Disable Widgets W11
+###########
+# Widgets #
+
+function Invoke-RemoveWidgets {
+	Write-Host "Removing Widgets (News and interests)..."
 	# Stop Widgets running
 	Stop-Process -Force -Name Widgets | Out-Null
 	Stop-Process -Force -Name WidgetService | Out-Null
+
+	# Disable Widgets (Win 11)
 	reg add "HKLM\SOFTWARE\Microsoft\PolicyManager\default\NewsAndInterests\AllowNewsAndInterests" /v "value" /t REG_DWORD /d "0" /f | Out-Null
 	# remove windows widgets from taskbar regedit
 	reg add "HKLM\SOFTWARE\Policies\Microsoft\Dsh" /v "AllowNewsAndInterests" /t REG_DWORD /d "0" /f | Out-Null
 
-	# Disable News and interests W10
+	# Disable News and interests (Win 10)
 	New-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds' -Force | Out-Null
 	Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds' -Name 'EnableFeeds' -Value 0 -Type DWord | Out-Null
+
+	# Remove Widgets related apps
+	Get-AppxPackage -AllUsers | Where-Object {$_.Name -like "*WebExperience*" -or $_.Name -like "*Widgets*"} | Remove-AppxPackage
+}
+
+function Invoke-RestoreWidgets {
+	Write-Host "Restoring Widgets (News and interests)..."
+    # Re-enable Widgets W11
+    # Remove the disable registry entries
+    reg delete "HKLM\SOFTWARE\Microsoft\PolicyManager\default\NewsAndInterests\AllowNewsAndInterests" /f 2>$null
+    reg delete "HKLM\SOFTWARE\Policies\Microsoft\Dsh" /v "AllowNewsAndInterests" /f 2>$null
+    
+    # Re-enable News and interests W10
+    Remove-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds' -Name 'EnableFeeds' -ErrorAction SilentlyContinue
+    Remove-Item -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Feeds' -ErrorAction SilentlyContinue
+
+    # Reinstall Widgets related apps
+    Get-AppxPackage -AllUsers | Where-Object {$_.Name -like "*WebExperience*" -or $_.Name -like "*Widgets*"} | ForEach-Object {
+        Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml" -ErrorAction SilentlyContinue
+    }
 }
 
 # Remove Windows AI
@@ -1978,8 +2189,90 @@ if (Get-Command Invoke-WPFUpdatessecurity -ErrorAction SilentlyContinue) {
 	Start-Process -FilePath $batPath -Wait -NoNewWindow *> $null
 }
 
+###########################
+# Windows Update Settings #
 
+function Invoke-HideWindowsUpdate {
+	<#
+		.SYNOPSIS
 
+		.DESCRIPTION
+			Long description
+
+		.EXAMPLE
+			An example
+
+		.NOTES
+			General notes
+	#>
+
+    $regPath = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer'
+    $name = 'SettingsPageVisibility'
+    $backupName = 'SettingsPageVisibility.backup'
+
+    # ensure key exists
+    if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
+
+    # backup existing value (if any)
+    $existing = (Get-ItemProperty -Path $regPath -Name $name -ErrorAction SilentlyContinue).$name
+    if ($null -ne $existing) {
+        New-ItemProperty -Path $regPath -Name $backupName -Value $existing -PropertyType String -Force | Out-Null
+    } else {
+        # create backup marker so revert knows we created it
+        New-ItemProperty -Path $regPath -Name $backupName -Value '' -PropertyType String -Force | Out-Null
+    }
+
+    # set hide value (overwrites; preserves you can edit to merge if desired)
+    $hideValue = 'hide:windowsupdate'
+    Set-ItemProperty -Path $regPath -Name $name -Value $hideValue -Type String
+
+    # try to refresh Settings (close Settings app if open)
+    Get-Process -Name "SystemSettings","Settings" -ErrorAction SilentlyContinue | ForEach-Object { $_.CloseMainWindow() | Out-Null; Start-Sleep -Milliseconds 200; $_ | Stop-Process -Force -ErrorAction SilentlyContinue }
+
+    "Applied: $regPath\$name = $hideValue (backup -> $backupName). A sign-out or reboot may be required for all users."
+}
+
+function Invoke-UnhideWindowsUpdate {
+	<#
+		.SYNOPSIS
+
+		.DESCRIPTION
+			Long description
+
+		.EXAMPLE
+			An example
+
+		.NOTES
+			General notes
+	#>
+
+    $regPath = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\Explorer'
+    $name = 'SettingsPageVisibility'
+    $backupName = 'SettingsPageVisibility.backup'
+
+    $backup = (Get-ItemProperty -Path $regPath -Name $backupName -ErrorAction SilentlyContinue).$backupName
+
+    if ($null -ne $backup -and $backup -ne '') {
+        # restore previous value
+        Set-ItemProperty -Path $regPath -Name $name -Value $backup -Type String
+        Remove-ItemProperty -Path $regPath -Name $backupName -ErrorAction SilentlyContinue
+        "Restored previous SettingsPageVisibility value."
+    } elseif ($backup -eq '') {
+        # we created a blank backup meaning there was no previous value -> remove the setting
+        Remove-ItemProperty -Path $regPath -Name $name -ErrorAction SilentlyContinue
+        Remove-ItemProperty -Path $regPath -Name $backupName -ErrorAction SilentlyContinue
+        "Removed SettingsPageVisibility (no previous value existed)."
+    } else {
+        # no backup present -> just remove the setting
+        Remove-ItemProperty -Path $regPath -Name $name -ErrorAction SilentlyContinue
+        "No backup found. Removed SettingsPageVisibility if present."
+    }
+
+    # refresh Settings app
+    Get-Process -Name "SystemSettings","Settings" -ErrorAction SilentlyContinue | ForEach-Object { $_.CloseMainWindow() | Out-Null; Start-Sleep -Milliseconds 200; $_ | Stop-Process -Force -ErrorAction SilentlyContinue }
+
+    "Revert done. A sign-out or reboot may be required for all users."
+}
 
 # Disable Updates
 function Invoke-DisableUpdates {
@@ -2005,6 +2298,9 @@ function Invoke-DisableUpdates {
     	$running = Get-WmiObject Win32_Process -Filter "Name='cmd.exe'" 2>$null |
         	Where-Object { $_.CommandLine -like "*disable updates.bat*" }
 	} while ($running)
+
+	# Hide Windows Update settings
+	Invoke-HideWindowsUpdate
 }
 
 # Enable Updates
@@ -2031,6 +2327,9 @@ function Invoke-EnableUpdates {
     	$running = Get-WmiObject Win32_Process -Filter "Name='cmd.exe'" 2>$null |
         	Where-Object { $_.CommandLine -like "*enable updates.bat*" }
 	} while ($running)
+
+	# Unhide Windows Update settings
+	Invoke-UnhideWindowsUpdate
 }
 
 # Fix Windows Update
@@ -2053,6 +2352,9 @@ function Invoke-FixUpdates {
 
 	# call the function
 	Invoke-WPFUpdatesdefault
+
+	# Unhide Windows Update settings
+	Invoke-UnhideWindowsUpdate
 }
 
 function Invoke-OptimizeRegistry {
@@ -2680,8 +2982,8 @@ Windows Registry Editor Version 5.00
 "UILockdown"=dword:00000001
 
 ; hide device security settings (optional)
-; [HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Device security]
-; "UILockdown"=dword:00000001
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows Defender Security Center\Device security]
+"UILockdown"=dword:00000001
 
 
 
@@ -3912,6 +4214,10 @@ E0,F6,C5,D5,0E,CA,50,00,00
 
 ; [HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\lfsvc\Service\Configuration]
 ; "Status"=dword:00000000
+
+; Disable NCSI Active Probing
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\NetworkConnectivityStatusIndicator]
+"NoActiveProbe"=dword:00000001
 
 
 
@@ -5825,6 +6131,9 @@ Windows Registry Editor Version 5.00
 [HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\System]
 "PublishUserActivities"=-
 
+; Re-enable NCSI Active Probing
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows\NetworkConnectivityStatusIndicator]
+"NoActiveProbe"=dword:00000000
 
 
 
@@ -8922,6 +9231,7 @@ Windows Registry Editor Version 5.00
 
 
 ; NEW 25H2
+
 [HKEY_LOCAL_MACHINE\SYSTEM\ControlSet001\Services\GamingServicesNet]
 "Start"=dword:00000004
 
@@ -11832,8 +12142,14 @@ set "temp=%temp%\AchillesScript.cmd"
 powershell -Command "Invoke-WebRequest -Uri 'https://github.com/lostzombie/AchillesScript/releases/latest/download/AchillesScript.cmd' -OutFile '%temp%' -UseBasicParsing"
 	
 :: Set environment variables
+
+:: to disable backup of your settings
 REM set NoBackup=1
+
+:: to disable warning before reboot
 set NoWarn=1
+
+:: if you don't want to disable the Security app
 REM set NoSecHealth=1
 
 :: Run AchillesScript silently (Policies + Settings + Services + Blocking)
@@ -12797,10 +13113,6 @@ function Invoke-WPDTweaks {
     Invoke-WebRequest -Uri "https://wpd.app/get/latest.zip" -OutFile "$env:TEMP\latest.zip"
     Expand-Archive "$env:TEMP\latest.zip" -DestinationPath "$env:TEMP" -Force
     Start-Process "$env:TEMP\WPD.exe" -ArgumentList "-wfpOnly","-wfp on","-recommended","-close" -Wait
-	
-	# Enable Firewall
-	netsh advfirewall set allprofiles state on | Out-Null
-	reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Notifications\Settings\Windows.SystemToast.SecurityAndMaintenance" /v "Enabled" /t REG_DWORD /d 1 /f > $null 2>&1
 
 }
 
@@ -12830,7 +13142,7 @@ function Invoke-DisableTelemetry {
 	Write-Host "Disabling Telemetry..." -ForegroundColor Green
 	Invoke-WPDTweaks
 	Invoke-ShutUp10Tweaks
-	# Invoke-PrivacyScript [Flagged by AV]
+	Invoke-PrivacyScript # [Flagged by AV]
 	# Disable Event Trace Sessions (ETS)
 	Write-Output "Disabling Event Trace Sessions (ETS)..."
 	$sessions = @(
@@ -12874,7 +13186,7 @@ function Invoke-ShutUp10Tweaks {
     Write-Output "ShutUp10 automation tweaks..."
     $configCode = @'
 ############################################################################
-# This file was created with O&O ShutUp10++ V1.9.1444
+# This file was created with O&O ShutUp10++ V2.0.1009
 # and can be imported onto another computer. 
 #
 # Download the application at https://www.oo-software.com/shutup10
@@ -12897,7 +13209,7 @@ P002	+	# Disable sharing of handwriting error reports (Category: Privacy)
 P003	+	# Disable Inventory Collector (Category: Privacy)
 P004	+	# Disable camera in logon screen (Category: Privacy)
 P005	+	# Disable and reset Advertising ID and info for the machine (Category: Privacy)
-P006	+	# Disable and reset Advertising ID and info (Category: Privacy)
+P006	+	# Disable and reset Advertising ID and info for current user (Category: Privacy)
 P008	+	# Disable transmission of typing information (Category: Privacy)
 P026	+	# Disable advertisements via Bluetooth (Category: Privacy)
 P027	+	# Disable the Windows Customer Experience Improvement Program (Category: Privacy)
@@ -12914,69 +13226,69 @@ P015	+	# Disable access to local language for browsers (Category: Privacy)
 P068	+	# Disable text suggestions when typing on the software keyboard (Category: Privacy)
 P016	+	# Disable sending URLs from apps to Windows Store (Category: Privacy)
 A001	+	# Disable recordings of user activity (Category: Activity History and Clipboard)
-A002	+	# Disable storing users' activity history (Category: Activity History and Clipboard)
+A002	+	# Disable storing users' activity history on this device (Category: Activity History and Clipboard)
 A003	+	# Disable the submission of user activities to Microsoft (Category: Activity History and Clipboard)
 A004	+	# Disable storage of clipboard history for whole machine (Category: Activity History and Clipboard)
-A006	+	# Disable storage of clipboard history (Category: Activity History and Clipboard)
+A006	+	# Disable storage of clipboard history for current user (Category: Activity History and Clipboard)
 A005	+	# Disable the transfer of the clipboard to other devices via the cloud (Category: Activity History and Clipboard)
-P007	+	# Disable app access to user account information (Category: App Privacy)
-P036	+	# Disable app access to user account information (Category: App Privacy)
+P007	+	# Disable app access to user account information on this device (Category: App Privacy)
+P036	+	# Disable app access to user account information for current user (Category: App Privacy)
 P025	+	# Disable Windows tracking of app starts (Category: App Privacy)
-P033	+	# Disable app access to diagnostics information (Category: App Privacy)
-P023	+	# Disable app access to diagnostics information (Category: App Privacy)
-P056	-	# Disable app access to device location (Category: App Privacy)
-P057	-	# Disable app access to device location (Category: App Privacy)
-P012	+	# Disable app access to camera (Category: App Privacy)
-P034	-	# Disable app access to camera (Category: App Privacy)
-P013	+	# Disable app access to microphone (Category: App Privacy)
-P035	-	# Disable app access to microphone (Category: App Privacy)
-P062	+	# Disable app access to use voice activation (Category: App Privacy)
-P063	+	# Disable app access to use voice activation when device is locked (Category: App Privacy)
+P033	+	# Disable app access to diagnostics information on this device (Category: App Privacy)
+P023	+	# Disable app access to diagnostics information for current user (Category: App Privacy)
+P056	-	# Disable app access to device location on this device (Category: App Privacy)
+P057	-	# Disable app access to device location for current user (Category: App Privacy)
+P012	-	# Disable app access to camera on this device (Category: App Privacy)
+P034	-	# Disable app access to camera for current user (Category: App Privacy)
+P013	-	# Disable app access to microphone on this device (Category: App Privacy)
+P035	-	# Disable app access to microphone for current user (Category: App Privacy)
+P062	+	# Disable app access to use voice activation for current user (Category: App Privacy)
+P063	+	# Disable app access to use voice activation when device is locked for current user (Category: App Privacy)
 P081	+	# Disable the standard app for the headset button (Category: App Privacy)
-P047	-	# Disable app access to notifications (Category: App Privacy)
-P019	-	# Disable app access to notifications (Category: App Privacy)
-P048	+	# Disable app access to motion (Category: App Privacy)
-P049	+	# Disable app access to movements (Category: App Privacy)
-P020	+	# Disable app access to contacts (Category: App Privacy)
-P037	+	# Disable app access to contacts (Category: App Privacy)
-P011	+	# Disable app access to calendar (Category: App Privacy)
-P038	+	# Disable app access to calendar (Category: App Privacy)
-P050	+	# Disable app access to phone calls (Category: App Privacy)
-P051	+	# Disable app access to phone calls (Category: App Privacy)
-P018	+	# Disable app access to call history (Category: App Privacy)
-P039	+	# Disable app access to call history (Category: App Privacy)
-P021	+	# Disable app access to email (Category: App Privacy)
-P040	+	# Disable app access to email (Category: App Privacy)
-P022	+	# Disable app access to tasks (Category: App Privacy)
-P041	+	# Disable app access to tasks (Category: App Privacy)
-P014	+	# Disable app access to messages (Category: App Privacy)
-P042	+	# Disable app access to messages (Category: App Privacy)
-P052	+	# Disable app access to radios (Category: App Privacy)
-P053	+	# Disable app access to radios (Category: App Privacy)
-P054	+	# Disable app access to unpaired devices (Category: App Privacy)
-P055	+	# Disable app access to unpaired devices (Category: App Privacy)
-P029	+	# Disable app access to documents (Category: App Privacy)
-P043	+	# Disable app access to documents (Category: App Privacy)
-P030	+	# Disable app access to images (Category: App Privacy)
-P044	+	# Disable app access to images (Category: App Privacy)
-P031	+	# Disable app access to videos (Category: App Privacy)
-P045	+	# Disable app access to videos (Category: App Privacy)
-P032	+	# Disable app access to the file system (Category: App Privacy)
-P046	+	# Disable app access to the file system (Category: App Privacy)
-P058	+	# Disable app access to wireless equipment (Category: App Privacy)
-P059	+	# Disable app access to wireless technology (Category: App Privacy)
-P060	+	# Disable app access to eye tracking (Category: App Privacy)
-P061	+	# Disable app access to eye tracking (Category: App Privacy)
-P071	+	# Disable the ability for apps to take screenshots (Category: App Privacy)
-P072	+	# Disable the ability for apps to take screenshots (Category: App Privacy)
-P073	+	# Disable the ability for desktop apps to take screenshots (Category: App Privacy)
-P074	+	# Disable the ability for apps to take screenshots without borders (Category: App Privacy)
-P075	+	# Disable the ability for apps to take screenshots without borders (Category: App Privacy)
-P076	+	# Disable the ability for desktop apps to take screenshots without margins (Category: App Privacy)
-P077	+	# Disable app access to music libraries (Category: App Privacy)
-P078	+	# Disable app access to music libraries (Category: App Privacy)
-P079	+	# Disable app access to downloads folder (Category: App Privacy)
-P080	+	# Disable app access to downloads folder (Category: App Privacy)
+P047	-	# Disable app access to notifications on this device (Category: App Privacy)
+P019	-	# Disable app access to notifications for current user (Category: App Privacy)
+P048	+	# Disable app access to motion on this device (Category: App Privacy)
+P049	+	# Disable app access to movements for current user (Category: App Privacy)
+P020	+	# Disable app access to contacts on this device (Category: App Privacy)
+P037	+	# Disable app access to contacts for current user (Category: App Privacy)
+P011	+	# Disable app access to calendar on this device (Category: App Privacy)
+P038	+	# Disable app access to calendar for current user (Category: App Privacy)
+P050	+	# Disable app access to phone calls on this device (Category: App Privacy)
+P051	+	# Disable app access to phone calls for current user (Category: App Privacy)
+P018	+	# Disable app access to call history on this device (Category: App Privacy)
+P039	+	# Disable app access to call history for current user (Category: App Privacy)
+P021	+	# Disable app access to email on this device (Category: App Privacy)
+P040	+	# Disable app access to email for current user (Category: App Privacy)
+P022	+	# Disable app access to tasks on this device (Category: App Privacy)
+P041	+	# Disable app access to tasks for current user (Category: App Privacy)
+P014	+	# Disable app access to messages on this device (Category: App Privacy)
+P042	+	# Disable app access to messages for current user (Category: App Privacy)
+P052	+	# Disable app access to radios on this device (Category: App Privacy)
+P053	+	# Disable app access to radios for current user (Category: App Privacy)
+P054	+	# Disable app access to unpaired devices on this device (Category: App Privacy)
+P055	+	# Disable app access to unpaired devices for current user (Category: App Privacy)
+P029	+	# Disable app access to documents on this device (Category: App Privacy)
+P043	+	# Disable app access to documents for current user (Category: App Privacy)
+P030	+	# Disable app access to images on this device (Category: App Privacy)
+P044	+	# Disable app access to images for current user (Category: App Privacy)
+P031	+	# Disable app access to videos on this device (Category: App Privacy)
+P045	+	# Disable app access to videos for current user (Category: App Privacy)
+P032	+	# Disable app access to the file system on this device (Category: App Privacy)
+P046	+	# Disable app access to the file system for current user (Category: App Privacy)
+P058	+	# Disable app access to wireless equipment on this device (Category: App Privacy)
+P059	+	# Disable app access to wireless technology for current user (Category: App Privacy)
+P060	+	# Disable app access to eye tracking on this device (Category: App Privacy)
+P061	+	# Disable app access to eye tracking for current user (Category: App Privacy)
+P071	+	# Disable the ability for apps to take screenshots on this device (Category: App Privacy)
+P072	+	# Disable the ability for apps to take screenshots for current user (Category: App Privacy)
+P073	+	# Disable the ability for desktop apps to take screenshots for current user (Category: App Privacy)
+P074	+	# Disable the ability for apps to take screenshots without borders on this device (Category: App Privacy)
+P075	+	# Disable the ability for apps to take screenshots without borders for current user (Category: App Privacy)
+P076	+	# Disable the ability for desktop apps to take screenshots without margins for current user (Category: App Privacy)
+P077	+	# Disable app access to music libraries on this device (Category: App Privacy)
+P078	+	# Disable app access to music libraries for current user (Category: App Privacy)
+P079	+	# Disable app access to downloads folder on this device (Category: App Privacy)
+P080	+	# Disable app access to downloads folder for current user (Category: App Privacy)
 P024	+	# Prohibit apps from running in the background (Category: App Privacy)
 S001	+	# Disable password reveal button (Category: Security)
 S002	+	# Disable user steps recorder (Category: Security)
@@ -12986,10 +13298,6 @@ E101	+	# Disable tracking in the web (Category: Microsoft Edge (new version base
 E201	+	# Disable tracking in the web (Category: Microsoft Edge (new version based on Chromium))
 E115	+	# Disable check for saved payment methods by sites (Category: Microsoft Edge (new version based on Chromium))
 E215	+	# Disable check for saved payment methods by sites (Category: Microsoft Edge (new version based on Chromium))
-E116	+	# Disable sending info about websites visited (Category: Microsoft Edge (new version based on Chromium))
-E216	+	# Disable sending info about websites visited (Category: Microsoft Edge (new version based on Chromium))
-E117	+	# Disable sending data about browser usage (Category: Microsoft Edge (new version based on Chromium))
-E217	+	# Disable sending data about browser usage (Category: Microsoft Edge (new version based on Chromium))
 E118	+	# Disable personalizing advertising, search, news and other services (Category: Microsoft Edge (new version based on Chromium))
 E218	+	# Disable personalizing advertising, search, news and other services (Category: Microsoft Edge (new version based on Chromium))
 E107	+	# Disable automatic completion of web addresses in address bar (Category: Microsoft Edge (new version based on Chromium))
@@ -13004,6 +13312,12 @@ E121	+	# Disable suggestions from local providers (Category: Microsoft Edge (new
 E221	+	# Disable suggestions from local providers (Category: Microsoft Edge (new version based on Chromium))
 E103	+	# Disable search and website suggestions (Category: Microsoft Edge (new version based on Chromium))
 E203	+	# Disable search and website suggestions (Category: Microsoft Edge (new version based on Chromium))
+E123	+	# Disable shopping assistant in Microsoft Edge (Category: Microsoft Edge (new version based on Chromium))
+E223	+	# Disable shopping assistant in Microsoft Edge (Category: Microsoft Edge (new version based on Chromium))
+E124	+	# Disable Edge bar (Category: Microsoft Edge (new version based on Chromium))
+E224	+	# Disable Edge bar (Category: Microsoft Edge (new version based on Chromium))
+E128	+	# Disable Sidebar in Microsoft Edge (Category: Microsoft Edge (new version based on Chromium))
+E228	+	# Disable Sidebar in Microsoft Edge (Category: Microsoft Edge (new version based on Chromium))
 E129	+	# Disable the Microsoft Account Sign-In Button (Category: Microsoft Edge (new version based on Chromium))
 E229	+	# Disable the Microsoft Account Sign-In Button (Category: Microsoft Edge (new version based on Chromium))
 E130	+	# Disable Enhanced Spell Checking (Category: Microsoft Edge (new version based on Chromium))
@@ -13037,23 +13351,6 @@ E005	+	# Do not optimize web search results on the task bar for screen reader (C
 E013	+	# Disable Microsoft Edge launch in the background (Category: Microsoft Edge (legacy version))
 E014	+	# Disable loading the start and new tab pages in the background (Category: Microsoft Edge (legacy version))
 E006	-	# Disable SmartScreen Filter (Category: Microsoft Edge (legacy version))
-F002	+	# Disable telemetry for Microsoft Office (Category: Microsoft Office)
-F014	+	# Disable diagnostic data submission (Category: Microsoft Office)
-F015	+	# Disable participation in the Customer Experience Improvement Program (Category: Microsoft Office)
-F016	+	# Disable the display of LinkedIn information (Category: Microsoft Office)
-F001	+	# Disable inline text prediction in mails (Category: Microsoft Office)
-F003	+	# Disable logging for Microsoft Office Telemetry Agent (Category: Microsoft Office)
-F004	+	# Disable upload of data for Microsoft Office Telemetry Agent (Category: Microsoft Office)
-F005	+	# Obfuscate file names when uploading telemetry data (Category: Microsoft Office)
-F007	+	# Disable Microsoft Office surveys (Category: Microsoft Office)
-F008	+	# Disable feedback to Microsoft (Category: Microsoft Office)
-F009	+	# Disable Microsoft's feedback tracking (Category: Microsoft Office)
-F017	+	# Disable Microsoft's feedback tracking (Category: Microsoft Office)
-F006	+	# Disable automatic receipt of updates (Category: Microsoft Office)
-F010	+	# Disable connected experiences in Office (Category: Microsoft Office)
-F011	+	# Disable connected experiences with content analytics (Category: Microsoft Office)
-F012	+	# Disable online content downloading for connected experiences (Category: Microsoft Office)
-F013	+	# Disable optional connected experiences in Office (Category: Microsoft Office)
 Y001	+	# Disable synchronization of all settings (Category: Synchronization of Windows Settings)
 Y002	+	# Disable synchronization of design settings (Category: Synchronization of Windows Settings)
 Y003	+	# Disable synchronization of browser settings (Category: Synchronization of Windows Settings)
@@ -13086,7 +13383,7 @@ L004	+	# Disable sensors for locating the system and its orientation (Category: 
 L005	-	# Disable Windows Geolocation Service (Category: Location Services)
 U001	+	# Disable application telemetry (Category: User Behavior)
 U004	+	# Disable diagnostic data from customizing user experiences for whole machine (Category: User Behavior)
-U005	+	# Disable the use of diagnostic data for a tailor-made user experience (Category: User Behavior)
+U005	+	# Disable the use of diagnostic data for a tailor-made user experience for current user (Category: User Behavior)
 U006	+	# Disable diagnostic log collection (Category: User Behavior)
 U007	+	# Disable downloading of OneSettings configuration settings (Category: User Behavior)
 W001	+	# Disable Windows Update via peer-to-peer (Category: Windows Update)
@@ -13101,7 +13398,7 @@ W008	+	# Disable Windows Updates for other products (e.g. Microsoft Office) (Cat
 M006	+	# Disable occassionally showing app suggestions in Start menu (Category: Windows Explorer)
 M011	+	# Do not show recently opened items in Jump Lists on "Start" or the taskbar (Category: Windows Explorer)
 M010	+	# Disable ads in Windows Explorer/OneDrive (Category: Windows Explorer)
-O003	+	# Disable OneDrive access to network before login (Category: Windows Explorer)
+O003	-	# Disable OneDrive access to network before login (Category: Windows Explorer)
 O001	-	# Disable Microsoft OneDrive (Category: Windows Explorer)
 S012	+	# Disable Microsoft SpyNet membership (Category: Microsoft Defender and Microsoft SpyNet)
 S013	+	# Disable submitting data samples to Microsoft (Category: Microsoft Defender and Microsoft SpyNet)
@@ -13117,25 +13414,25 @@ M025	+	# Disable search with AI in search box (Category: Search)
 M003	+	# Disable extension of Windows search with Bing (Category: Search)
 M015	+	# Disable People icon in the taskbar (Category: Taskbar)
 M016	+	# Disable search box in task bar (Category: Taskbar)
-M017	+	# Disable "Meet now" in the task bar (Category: Taskbar)
-M018	+	# Disable "Meet now" in the task bar (Category: Taskbar)
-M019	+	# Disable news and interests in the task bar (Category: Taskbar)
-M021	+	# Disable widgets in Windows Explorer (Category: Taskbar)
-M022	+	# Disable feedback reminders (Category: Miscellaneous)
-M001	+	# Disable feedback reminders (Category: Miscellaneous)
+M017	+	# Disable "Meet now" in the task bar on this device (Category: Taskbar)
+M018	+	# Disable "Meet now" in the task bar for current user (Category: Taskbar)
+M019	+	# Disable news and interests in the task bar on this device (Category: Taskbar)
+M021	-	# Disable widgets in Windows Explorer (Category: Taskbar)
+M022	+	# Disable feedback reminders on this device (Category: Miscellaneous)
+M001	+	# Disable feedback reminders for current user (Category: Miscellaneous)
 M004	+	# Disable automatic installation of recommended Windows Store Apps (Category: Miscellaneous)
 M005	+	# Disable tips, tricks, and suggestions while using Windows (Category: Miscellaneous)
 M024	+	# Disable Windows Media Player Diagnostics (Category: Miscellaneous)
-M026	+	# Disable remote assistance connections to this computer (Category: Miscellaneous)
-M027	+	# Disable remote connections to this computer (Category: Miscellaneous)
-M028	+	# Disable the desktop icon for information on "Windows Spotlight" (Category: Miscellaneous)
 M012	+	# Disable Key Management Service Online Activation (Category: Miscellaneous)
 M013	+	# Disable automatic download and update of map data (Category: Miscellaneous)
 M014	+	# Disable unsolicited network traffic on the offline maps settings page (Category: Miscellaneous)
+M026	+	# Disable remote assistance connections to this computer (Category: Miscellaneous)
+M027	+	# Disable remote connections to this computer (Category: Miscellaneous)
+M028	+	# Disable the desktop icon for information on "Windows Spotlight" (Category: Miscellaneous)
 N001	+	# Disable Network Connectivity Status Indicator (Category: Miscellaneous)
 '@
     Set-Content -Path "$env:TEMP\ooshutup10.cfg" -Value $configCode -Force
-    Invoke-WebRequest "https://dl5.oo-software.com/files/ooshutup10/OOSU10.exe" -OutFile "$env:TEMP\OOSU10.exe"
+    Get-FileFromWeb -URL "https://dl5.oo-software.com/files/ooshutup10/OOSU10.exe" -File "$env:TEMP\OOSU10.exe"
     Start-Process -FilePath "$env:TEMP\OOSU10.exe" -ArgumentList "$env:TEMP\ooshutup10.cfg","/quiet" -WorkingDirectory $env:TEMP -Verb RunAs -Wait
 }
 
@@ -13693,238 +13990,6 @@ PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWAR
 
 
 :: ----------------------------------------------------------
-:: -------------Block Windows crash report hosts-------------
-:: ----------------------------------------------------------
-echo --- Block Windows crash report hosts
-:: Add hosts entries for oca.telemetry.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='oca.telemetry.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for oca.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='oca.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for kmwatsonc.events.data.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='kmwatsonc.events.data.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
-:: -----------Block Windows error reporting hosts------------
-:: ----------------------------------------------------------
-echo --- Block Windows error reporting hosts
-:: Add hosts entries for watson.telemetry.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='watson.telemetry.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for umwatsonc.events.data.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='umwatsonc.events.data.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for ceuswatcab01.blob.core.windows.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='ceuswatcab01.blob.core.windows.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for ceuswatcab02.blob.core.windows.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='ceuswatcab02.blob.core.windows.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for eaus2watcab01.blob.core.windows.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='eaus2watcab01.blob.core.windows.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for eaus2watcab02.blob.core.windows.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='eaus2watcab02.blob.core.windows.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for weus2watcab01.blob.core.windows.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='weus2watcab01.blob.core.windows.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for weus2watcab02.blob.core.windows.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='weus2watcab02.blob.core.windows.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for co4.telecommand.telemetry.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='co4.telecommand.telemetry.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for cs11.wpc.v0cdn.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='cs11.wpc.v0cdn.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for cs1137.wpc.gammacdn.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='cs1137.wpc.gammacdn.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for modern.watson.data.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='modern.watson.data.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
-:: --------Block telemetry and user experience hosts---------
-:: ----------------------------------------------------------
-echo --- Block telemetry and user experience hosts
-:: Add hosts entries for functional.events.data.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='functional.events.data.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for browser.events.data.msn.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='browser.events.data.msn.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for self.events.data.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='self.events.data.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for v10.events.data.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='v10.events.data.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for v10c.events.data.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='v10c.events.data.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for us-v10c.events.data.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='us-v10c.events.data.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for eu-v10c.events.data.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='eu-v10c.events.data.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for v10.vortex-win.data.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='v10.vortex-win.data.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for vortex-win.data.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='vortex-win.data.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for telecommand.telemetry.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='telecommand.telemetry.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for www.telecommandsvc.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='www.telecommandsvc.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for umwatson.events.data.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='umwatson.events.data.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for watsonc.events.data.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='watsonc.events.data.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for eu-watsonc.events.data.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='eu-watsonc.events.data.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
-:: ----------Block remote configuration sync hosts-----------
-:: ----------------------------------------------------------
-echo --- Block remote configuration sync hosts
-:: Add hosts entries for settings-win.data.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='settings-win.data.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for settings.data.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='settings.data.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
-:: ------------Block location data sharing hosts-------------
-:: ----------------------------------------------------------
-echo --- Block location data sharing hosts
-:: Add hosts entries for inference.location.live.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='inference.location.live.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for location-inference-westus.cloudapp.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='location-inference-westus.cloudapp.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
-:: ------------Block maps data and updates hosts-------------
-:: ----------------------------------------------------------
-echo --- Block maps data and updates hosts
-:: Add hosts entries for maps.windows.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='maps.windows.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for ecn.dev.virtualearth.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='ecn.dev.virtualearth.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for ecn-us.dev.virtualearth.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='ecn-us.dev.virtualearth.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for weathermapdata.blob.core.windows.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='weathermapdata.blob.core.windows.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
-:: --------Block Spotlight ads and suggestions hosts---------
-:: ----------------------------------------------------------
-echo --- Block Spotlight ads and suggestions hosts
-:: Add hosts entries for arc.msn.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='arc.msn.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for ris.api.iris.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='ris.api.iris.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for api.msn.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='api.msn.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for assets.msn.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='assets.msn.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for c.msn.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='c.msn.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for g.msn.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='g.msn.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for ntp.msn.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='ntp.msn.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for srtb.msn.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='srtb.msn.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for www.msn.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='www.msn.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for fd.api.iris.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='fd.api.iris.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for staticview.msn.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='staticview.msn.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for mucp.api.account.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='mucp.api.account.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for query.prod.cms.rt.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='query.prod.cms.rt.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
-:: ------------Block Cortana and Live Tiles hosts------------
-:: ----------------------------------------------------------
-echo --- Block Cortana and Live Tiles hosts
-:: Add hosts entries for business.bing.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='business.bing.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for c.bing.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='c.bing.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for th.bing.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='th.bing.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for edgeassetservice.azureedge.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='edgeassetservice.azureedge.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for c-ring.msedge.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='c-ring.msedge.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for fp.msedge.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='fp.msedge.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for I-ring.msedge.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='I-ring.msedge.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for s-ring.msedge.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='s-ring.msedge.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for dual-s-ring.msedge.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='dual-s-ring.msedge.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for creativecdn.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='creativecdn.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for a-ring-fallback.msedge.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='a-ring-fallback.msedge.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for fp-afd-nocache-ccp.azureedge.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='fp-afd-nocache-ccp.azureedge.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for prod-azurecdn-akamai-iris.azureedge.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='prod-azurecdn-akamai-iris.azureedge.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for widgetcdn.azureedge.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='widgetcdn.azureedge.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for widgetservice.azurefd.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='widgetservice.azurefd.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for fp-vs.azureedge.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='fp-vs.azureedge.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for ln-ring.msedge.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='ln-ring.msedge.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for t-ring.msedge.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='t-ring.msedge.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for t-ring-fdv2.msedge.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='t-ring-fdv2.msedge.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for tse1.mm.bing.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='tse1.mm.bing.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
-:: -------------Block Edge experimentation hosts-------------
-:: ----------------------------------------------------------
-echo --- Block Edge experimentation hosts
-:: Add hosts entries for config.edge.skype.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='config.edge.skype.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
-:: ---------------Block Photos app sync hosts----------------
-:: ----------------------------------------------------------
-echo --- Block Photos app sync hosts
-:: Add hosts entries for evoke-windowsservices-tas.msedge.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='evoke-windowsservices-tas.msedge.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
-:: --------------Block OneNote Live Tile hosts---------------
-:: ----------------------------------------------------------
-echo --- Block OneNote Live Tile hosts
-:: Add hosts entries for cdn.onenote.net
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='cdn.onenote.net'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
-:: --------------Block Weather Live Tile hosts---------------
-:: ----------------------------------------------------------
-echo --- Block Weather Live Tile hosts
-:: Add hosts entries for tile-service.weather.microsoft.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='tile-service.weather.microsoft.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
 :: ----------Disable lock screen app notifications-----------
 :: ----------------------------------------------------------
 echo --- Disable lock screen app notifications
@@ -13952,13 +14017,13 @@ PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWAR
 
 
 :: Disable the display of recently used files in Quick Access
-@REM echo --- Disable the display of recently used files in Quick Access
+REM echo --- Disable the display of recently used files in Quick Access
 :: Set the registry value: "HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer!ShowRecent"
-@REM PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer'; $data =  '0'; reg add 'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer' /v 'ShowRecent' /t 'REG_DWORD' /d "^""$data"^"" /f"
+REM PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer'; $data =  '0'; reg add 'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer' /v 'ShowRecent' /t 'REG_DWORD' /d "^""$data"^"" /f"
 :: Delete the registry value "(Default)" from the key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\HomeFolderDesktop\NameSpace\DelegateFolders\{3134ef9c-6b18-4996-ad04-ed5912e00eb5}" 
-@REM PowerShell -ExecutionPolicy Unrestricted -Command "$keyName = 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\HomeFolderDesktop\NameSpace\DelegateFolders\{3134ef9c-6b18-4996-ad04-ed5912e00eb5}'; $valueName = '(Default)'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
+REM PowerShell -ExecutionPolicy Unrestricted -Command "$keyName = 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\HomeFolderDesktop\NameSpace\DelegateFolders\{3134ef9c-6b18-4996-ad04-ed5912e00eb5}'; $valueName = '(Default)'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
 :: Delete the registry value "(Default)" from the key "HKLM\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Explorer\HomeFolderDesktop\NameSpace\DelegateFolders\{3134ef9c-6b18-4996-ad04-ed5912e00eb5}" 
-@REM PowerShell -ExecutionPolicy Unrestricted -Command "$keyName = 'HKLM\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Explorer\HomeFolderDesktop\NameSpace\DelegateFolders\{3134ef9c-6b18-4996-ad04-ed5912e00eb5}'; $valueName = '(Default)'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
+REM PowerShell -ExecutionPolicy Unrestricted -Command "$keyName = 'HKLM\SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Explorer\HomeFolderDesktop\NameSpace\DelegateFolders\{3134ef9c-6b18-4996-ad04-ed5912e00eb5}'; $valueName = '(Default)'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
 :: ----------------------------------------------------------
 
 
@@ -15057,17 +15122,17 @@ PowerShell -ExecutionPolicy Unrestricted -Command "$serviceName = 'wercplsupport
 
 
 :: Remove "Network Connectivity Status Indicator (NCSI)" app (breaks internet connection status icon)
-echo --- Remove "Network Connectivity Status Indicator (NCSI)" app (breaks internet connection status icon)
+REM echo --- Remove "Network Connectivity Status Indicator (NCSI)" app (breaks internet connection status icon)
 :: Enable removal of system app 'NcsiUwpApp' by marking it as "EndOfLife"
 :: Create "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\EndOfLife\$CURRENT_USER_SID\NcsiUwpApp_8wekyb3d8bbwe" registry key
-PowerShell -ExecutionPolicy Unrestricted -Command "$keyPath='HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\EndOfLife\$CURRENT_USER_SID\NcsiUwpApp_8wekyb3d8bbwe'; $registryHive = $keyPath.Split('\')[0]; $registryPath = "^""$($registryHive):$($keyPath.Substring($registryHive.Length))"^""; $userSid = (New-Object System.Security.Principal.NTAccount($env:USERNAME)).Translate([Security.Principal.SecurityIdentifier]).Value; $registryPath = $registryPath.Replace('$CURRENT_USER_SID', $userSid); if (Test-Path $registryPath) { Write-Host "^""Skipping, no action needed, registry path `"^""$registryPath`"^"" already exists."^""; exit 0; }; try { New-Item -Path $registryPath -Force -ErrorAction Stop | Out-Null; Write-Host "^""Successfully created the registry key at path `"^""$registryPath`"^""."^""; } catch { Write-Error "^""Failed to create the registry key at path `"^""$registryPath`"^"": $($_.Exception.Message)"^""; }"
+REM PowerShell -ExecutionPolicy Unrestricted -Command "$keyPath='HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\EndOfLife\$CURRENT_USER_SID\NcsiUwpApp_8wekyb3d8bbwe'; $registryHive = $keyPath.Split('\')[0]; $registryPath = "^""$($registryHive):$($keyPath.Substring($registryHive.Length))"^""; $userSid = (New-Object System.Security.Principal.NTAccount($env:USERNAME)).Translate([Security.Principal.SecurityIdentifier]).Value; $registryPath = $registryPath.Replace('$CURRENT_USER_SID', $userSid); if (Test-Path $registryPath) { Write-Host "^""Skipping, no action needed, registry path `"^""$registryPath`"^"" already exists."^""; exit 0; }; try { New-Item -Path $registryPath -Force -ErrorAction Stop | Out-Null; Write-Host "^""Successfully created the registry key at path `"^""$registryPath`"^""."^""; } catch { Write-Error "^""Failed to create the registry key at path `"^""$registryPath`"^"": $($_.Exception.Message)"^""; }"
 :: Uninstall 'NcsiUwpApp' Store app
-PowerShell -ExecutionPolicy Unrestricted -Command "Get-AppxPackage 'NcsiUwpApp' | Remove-AppxPackage"
+REM PowerShell -ExecutionPolicy Unrestricted -Command "Get-AppxPackage 'NcsiUwpApp' | Remove-AppxPackage"
 :: Mark 'NcsiUwpApp' as deprovisioned to block reinstall during Windows updates.
 :: Create "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Deprovisioned\NcsiUwpApp_8wekyb3d8bbwe" registry key
-PowerShell -ExecutionPolicy Unrestricted -Command "$keyPath='HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Deprovisioned\NcsiUwpApp_8wekyb3d8bbwe'; $registryHive = $keyPath.Split('\')[0]; $registryPath = "^""$($registryHive):$($keyPath.Substring($registryHive.Length))"^""; if (Test-Path $registryPath) { Write-Host "^""Skipping, no action needed, registry path `"^""$registryPath`"^"" already exists."^""; exit 0; }; try { New-Item -Path $registryPath -Force -ErrorAction Stop | Out-Null; Write-Host "^""Successfully created the registry key at path `"^""$registryPath`"^""."^""; } catch { Write-Error "^""Failed to create the registry key at path `"^""$registryPath`"^"": $($_.Exception.Message)"^""; }"
+REM PowerShell -ExecutionPolicy Unrestricted -Command "$keyPath='HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Deprovisioned\NcsiUwpApp_8wekyb3d8bbwe'; $registryHive = $keyPath.Split('\')[0]; $registryPath = "^""$($registryHive):$($keyPath.Substring($registryHive.Length))"^""; if (Test-Path $registryPath) { Write-Host "^""Skipping, no action needed, registry path `"^""$registryPath`"^"" already exists."^""; exit 0; }; try { New-Item -Path $registryPath -Force -ErrorAction Stop | Out-Null; Write-Host "^""Successfully created the registry key at path `"^""$registryPath`"^""."^""; } catch { Write-Error "^""Failed to create the registry key at path `"^""$registryPath`"^"": $($_.Exception.Message)"^""; }"
 :: Remove the registry key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\EndOfLife\$CURRENT_USER_SID\NcsiUwpApp_8wekyb3d8bbwe" (Revert 'NcsiUwpApp' to its default, non-removable state.)
-PowerShell -ExecutionPolicy Unrestricted -Command "$keyPath='HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\EndOfLife\$CURRENT_USER_SID\NcsiUwpApp_8wekyb3d8bbwe'; $registryHive = $keyPath.Split('\')[0]; $registryPath = "^""$($registryHive):$($keyPath.Substring($registryHive.Length))"^""; $userSid = (New-Object System.Security.Principal.NTAccount($env:USERNAME)).Translate([Security.Principal.SecurityIdentifier]).Value; $registryPath = $registryPath.Replace('$CURRENT_USER_SID', $userSid); Write-Host "^""Removing registry key at `"^""$registryPath`"^""."^""; if (-not (Test-Path -LiteralPath $registryPath)) { Write-Host "^""Skipping, no action needed, registry key `"^""$registryPath`"^"" does not exist."^""; exit 0; }; try { Remove-Item -LiteralPath $registryPath -Force -ErrorAction Stop | Out-Null; Write-Host "^""Successfully removed the registry key at path `"^""$registryPath`"^""."^""; } catch { Write-Error "^""Failed to remove the registry key at path `"^""$registryPath`"^"": $($_.Exception.Message)"^""; }"
+REM PowerShell -ExecutionPolicy Unrestricted -Command "$keyPath='HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\EndOfLife\$CURRENT_USER_SID\NcsiUwpApp_8wekyb3d8bbwe'; $registryHive = $keyPath.Split('\')[0]; $registryPath = "^""$($registryHive):$($keyPath.Substring($registryHive.Length))"^""; $userSid = (New-Object System.Security.Principal.NTAccount($env:USERNAME)).Translate([Security.Principal.SecurityIdentifier]).Value; $registryPath = $registryPath.Replace('$CURRENT_USER_SID', $userSid); Write-Host "^""Removing registry key at `"^""$registryPath`"^""."^""; if (-not (Test-Path -LiteralPath $registryPath)) { Write-Host "^""Skipping, no action needed, registry key `"^""$registryPath`"^"" does not exist."^""; exit 0; }; try { Remove-Item -LiteralPath $registryPath -Force -ErrorAction Stop | Out-Null; Write-Host "^""Successfully removed the registry key at path `"^""$registryPath`"^""."^""; } catch { Write-Error "^""Failed to remove the registry key at path `"^""$registryPath`"^"": $($_.Exception.Message)"^""; }"
 :: ----------------------------------------------------------
 
 
@@ -17959,17 +18024,6 @@ PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SYSTEM\
 
 
 :: ----------------------------------------------------------
-:: --------------Block Dropbox telemetry hosts---------------
-:: ----------------------------------------------------------
-echo --- Block Dropbox telemetry hosts
-:: Add hosts entries for telemetry.dropbox.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='telemetry.dropbox.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: Add hosts entries for telemetry.v.dropbox.com
-PowerShell -ExecutionPolicy Unrestricted -Command "$domain ='telemetry.v.dropbox.com'; $hostsFilePath = "^""$env:SYSTEMROOT\System32\drivers\etc\hosts"^""; $comment = "^""managed by privacy.sexy"^""; $hostsFileEncoding = [Microsoft.PowerShell.Commands.FileSystemCmdletProviderEncoding]::Utf8; $blockingHostsEntries = @(; @{ AddressType = "^""IPv4"^"";  IPAddress = '0.0.0.0'; }; @{ AddressType = "^""IPv6"^"";  IPAddress = '::1'; }; ); try { $isHostsFilePresent = Test-Path -Path $hostsFilePath -PathType Leaf -ErrorAction Stop; } catch { Write-Error "^""Failed to check hosts file existence. Error: $_"^""; exit 1; }; if (-Not $isHostsFilePresent) { Write-Output "^""Creating a new hosts file at $hostsFilePath."^""; try { New-Item -Path $hostsFilePath -ItemType File -Force -ErrorAction Stop | Out-Null; Write-Output "^""Successfully created the hosts file."^""; } catch { Write-Error "^""Failed to create the hosts file. Error: $_"^""; exit 1; }; }; foreach ($blockingEntry in $blockingHostsEntries) { Write-Output "^""Processing addition for $($blockingEntry.AddressType) entry."^""; try { $hostsFileContents = Get-Content -Path "^""$hostsFilePath"^"" -Raw -Encoding $hostsFileEncoding -ErrorAction Stop; } catch { Write-Error "^""Failed to read the hosts file. Error: $_"^""; continue; }; $hostsEntryLine = "^""$($blockingEntry.IPAddress)`t$domain $([char]35) $comment"^""; if ((-Not [String]::IsNullOrWhiteSpace($hostsFileContents)) -And ($hostsFileContents.Contains($hostsEntryLine))) { Write-Output 'Skipping, entry already exists.'; continue; }; try { Add-Content -Path $hostsFilePath -Value $hostsEntryLine -Encoding $hostsFileEncoding -ErrorAction Stop; Write-Output 'Successfully added the entry.'; } catch { Write-Error "^""Failed to add the entry. Error: $_"^""; continue; }; }"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
 :: --Disable Windows Update hardware information collection--
 :: ----------------------------------------------------------
 echo --- Disable Windows Update hardware information collection
@@ -18218,60 +18272,11 @@ PowerShell -ExecutionPolicy Unrestricted -Command "$keyName = 'HKCU\Software\Mic
 
 
 :: ----------------------------------------------------------
-:: --------Remove OneDrive through official installer--------
-:: ----------------------------------------------------------
-echo --- Remove OneDrive through official installer
-if exist "%SYSTEMROOT%\System32\OneDriveSetup.exe" (
-    "%SYSTEMROOT%\System32\OneDriveSetup.exe" /uninstall
-) else (
-    if exist "%SYSTEMROOT%\SysWOW64\OneDriveSetup.exe" (
-        "%SYSTEMROOT%\SysWOW64\OneDriveSetup.exe" /uninstall
-    ) else (
-        echo Failed to uninstall, uninstaller could not be found. 1>&2
-    )
-)
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
-:: -------Remove OneDrive user data and synced folders-------
-:: ----------------------------------------------------------
-echo --- Remove OneDrive user data and synced folders
-:: Delete directory  : "%USERPROFILE%\OneDrive*"
-PowerShell -ExecutionPolicy Unrestricted -Command "$pathGlobPattern = "^""$($directoryGlob = '%USERPROFILE%\OneDrive*'; if (-Not $directoryGlob.EndsWith('\')) { $directoryGlob += '\' }; $directoryGlob )"^""; $expandedPath = [System.Environment]::ExpandEnvironmentVariables($pathGlobPattern); Write-Host "^""Searching for items matching pattern: `"^""$($expandedPath)`"^""."^""; $deletedCount = 0; $failedCount = 0; $oneDriveUserFolderPattern = [System.Environment]::ExpandEnvironmentVariables('%USERPROFILE%\OneDrive') + '*'; while ($true) { <# Loop to control the execution of the subsequent code #>; try { $userShellFoldersRegistryPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders'; if (-not (Test-Path $userShellFoldersRegistryPath)) { Write-Output "^""Skipping verification: The registry path for user shell folders is missing: `"^""$userShellFoldersRegistryPath`"^"""^""; break; }; $userShellFoldersRegistryKeys = Get-ItemProperty -Path $userShellFoldersRegistryPath; $userShellFoldersEntries = @($userShellFoldersRegistryKeys.PSObject.Properties); if ($userShellFoldersEntries.Count -eq 0) { Write-Warning "^""Skipping verification: No entries found for user shell folders in the registry: `"^""$userShellFoldersRegistryPath`"^"""^""; break; }; Write-Output "^""Initiating verification: Checking if any of the ${userShellFoldersEntries.Count} user shell folders point to the OneDrive user folder pattern ($oneDriveUserFolderPattern)."^""; $userShellFoldersInOneDrive = @(); foreach ($registryEntry in $userShellFoldersEntries) { $userShellFolderName = $registryEntry.Name; $userShellFolderPath = $registryEntry.Value; if (!$userShellFolderPath) { Write-Output "^""Skipping: The user shell folder `"^""$userShellFolderName`"^"" does not have a defined path."^""; continue; }; $expandedUserShellFolderPath = [System.Environment]::ExpandEnvironmentVariables($userShellFolderPath); if(-not ($expandedUserShellFolderPath -like $oneDriveUserFolderPattern)) { continue; }; $userShellFoldersInOneDrive += [PSCustomObject]@{ Name = $userShellFolderName;  Path = $expandedUserShellFolderPath }; }; if ($userShellFoldersInOneDrive.Count -gt 0) { $warningMessage = 'To keep your computer running smoothly, OneDrive user folder will not be deleted.'; $warningMessage += "^""`nIt's being used by the OS as a user shell directory for the following folders:"^""; $userShellFoldersInOneDrive.ForEach( { $warningMessage += "^""`n- $($_.Name): $($_.Path)"^""; }); Write-Warning $warningMessage; exit 0; }; Write-Output "^""Successfully verified that none of the $($userShellFoldersEntries.Count) user shell folders point to the OneDrive user folder pattern."^""; break; } catch { Write-Warning "^""An error occurred during verification of user shell folders. Skipping prevent potential issues. Error: $($_.Exception.Message)"^""; exit 0; }; }; $foundAbsolutePaths = @(); Write-Host 'Iterating files and directories recursively.'; try { $foundAbsolutePaths += @(; Get-ChildItem -Path $expandedPath -Force -Recurse -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; try { $foundAbsolutePaths += @(; Get-Item -Path $expandedPath -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; $foundAbsolutePaths = $foundAbsolutePaths | Select-Object -Unique | Sort-Object -Property { $_.Length } -Descending; if (!$foundAbsolutePaths) { Write-Host 'Skipping, no items available.'; exit 0; }; Write-Host "^""Initiating processing of $($foundAbsolutePaths.Count) items from `"^""$expandedPath`"^""."^""; foreach ($path in $foundAbsolutePaths) { try { if (Test-Path -Path $path -PathType Leaf) { Write-Warning "^""Retaining file `"^""$path`"^"" to safeguard your data."^""; continue; } elseif (Test-Path -Path $path -PathType Container) { if ((Get-ChildItem "^""$path"^"" -Recurse | Measure-Object).Count -gt 0) { Write-Warning "^""Preserving non-empty folder `"^""$path`"^"" to protect your files."^""; continue; }; }; } catch { Write-Warning "^""An error occurred while processing `"^""$path`"^"". Skipping to protect your data. Error: $($_.Exception.Message)"^""; continue; }; if (-not (Test-Path $path)) { <# Re-check existence as prior deletions might remove subsequent items (e.g., subdirectories). #>; Write-Host "^""Successfully deleted: $($path) (already deleted)."^""; $deletedCount++; continue; }; try { Remove-Item -Path $path -Force -Recurse -ErrorAction Stop; $deletedCount++; Write-Host "^""Successfully deleted: $($path)"^""; } catch { $failedCount++; Write-Warning "^""Unable to delete $($path): $_"^""; }; }; Write-Host "^""Successfully deleted $($deletedCount) items."^""; if ($failedCount -gt 0) { Write-Warning "^""Failed to delete $($failedCount) items."^""; }"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
-:: -------Remove OneDrive installation files and cache-------
-:: ----------------------------------------------------------
-echo --- Remove OneDrive installation files and cache
-:: Delete directory (with additional permissions) : "%LOCALAPPDATA%\Microsoft\OneDrive"
-PowerShell -ExecutionPolicy Unrestricted -Command "$pathGlobPattern = "^""$($directoryGlob = '%LOCALAPPDATA%\Microsoft\OneDrive'; if (-Not $directoryGlob.EndsWith('\')) { $directoryGlob += '\' }; $directoryGlob )"^""; $expandedPath = [System.Environment]::ExpandEnvironmentVariables($pathGlobPattern); Write-Host "^""Searching for items matching pattern: `"^""$($expandedPath)`"^""."^""; <# Not using `Get-Acl`/`Set-Acl` to avoid adjusting token privileges #>; $parentDirectory = [System.IO.Path]::GetDirectoryName($expandedPath); $fileName = [System.IO.Path]::GetFileName($expandedPath); if ($parentDirectory -like '*[*?]*') { throw "^""Unable to grant permissions to glob path parent directory: `"^""$parentDirectory`"^"", wildcards in parent directory are not supported by ``takeown`` and ``icacls``."^""; }; if (($fileName -ne '*') -and ($fileName -like '*[*?]*')) { throw "^""Unable to grant permissions to glob path file name: `"^""$fileName`"^"", wildcards in file name is not supported by ``takeown`` and ``icacls``."^""; }; Write-Host "^""Taking ownership of `"^""$expandedPath`"^""."^""; $cmdPath = $expandedPath; if ($cmdPath.EndsWith('\')) { $cmdPath += '\' <# Escape trailing backslash for correct handling in batch commands #>; }; $takeOwnershipCommand = "^""takeown /f `"^""$cmdPath`"^"" /a"^"" <# `icacls /setowner` does not succeed, so use `takeown` instead. #>; if (-not (Test-Path -Path "^""$expandedPath"^"" -PathType Leaf)) { $localizedYes = 'Y' <# Default 'Yes' flag (fallback) #>; try { $choiceOutput = cmd /c "^""choice <nul 2>nul"^""; if ($choiceOutput -and $choiceOutput.Length -ge 2) { $localizedYes = $choiceOutput[1]; } else { Write-Warning "^""Failed to determine localized 'Yes' character. Output: `"^""$choiceOutput`"^"""^""; }; } catch { Write-Warning "^""Failed to determine localized 'Yes' character. Error: $_"^""; }; $takeOwnershipCommand += "^"" /r /d $localizedYes"^""; }; $takeOwnershipOutput = cmd /c "^""$takeOwnershipCommand 2>&1"^"" <# `stderr` message is misleading, e.g. "^""ERROR: The system cannot find the file specified."^"" is not an error. #>; if ($LASTEXITCODE -eq 0) { Write-Host "^""Successfully took ownership of `"^""$expandedPath`"^"" (using ``$takeOwnershipCommand``)."^""; } else { Write-Host "^""Did not take ownership of `"^""$expandedPath`"^"" using ``$takeOwnershipCommand``, status code: $LASTEXITCODE, message: $takeOwnershipOutput."^""; <# Do not write as error or warning, because this can be due to missing path, it's handled in next command. #>; <# `takeown` exits with status code `1`, making it hard to handle missing path here. #>; }; Write-Host "^""Granting permissions for `"^""$expandedPath`"^""."^""; $adminSid = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544'; $adminAccount = $adminSid.Translate([System.Security.Principal.NTAccount]); $adminAccountName = $adminAccount.Value; $grantPermissionsCommand = "^""icacls `"^""$cmdPath`"^"" /grant `"^""$($adminAccountName):F`"^"" /t"^""; $icaclsOutput = cmd /c "^""$grantPermissionsCommand"^""; if ($LASTEXITCODE -eq 3) { Write-Host "^""Skipping, no items available for deletion according to: ``$grantPermissionsCommand``."^""; exit 0; } elseif ($LASTEXITCODE -ne 0) { Write-Host "^""Take ownership message:`n$takeOwnershipOutput"^""; Write-Host "^""Grant permissions:`n$icaclsOutput"^""; Write-Warning "^""Failed to assign permissions for `"^""$expandedPath`"^"" using ``$grantPermissionsCommand``, status code: $LASTEXITCODE."^""; } else { $fileStats = $icaclsOutput | ForEach-Object { $_ -match '\d+' | Out-Null; $matches[0] } | Where-Object { $_ -ne $null } | ForEach-Object { [int]$_ }; if ($fileStats.Count -gt 0 -and ($fileStats | ForEach-Object { $_ -eq 0 } | Where-Object { $_ -eq $false }).Count -eq 0) { Write-Host "^""Skipping, no items available for deletion according to: ``$grantPermissionsCommand``."^""; exit 0; } else { Write-Host "^""Successfully granted permissions for `"^""$expandedPath`"^"" (using ``$grantPermissionsCommand``)."^""; }; }; $deletedCount = 0; $failedCount = 0; $foundAbsolutePaths = @(); Write-Host 'Iterating files and directories recursively.'; try { $foundAbsolutePaths += @(; Get-ChildItem -Path $expandedPath -Force -Recurse -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; try { $foundAbsolutePaths += @(; Get-Item -Path $expandedPath -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; $foundAbsolutePaths = $foundAbsolutePaths | Select-Object -Unique | Sort-Object -Property { $_.Length } -Descending; if (!$foundAbsolutePaths) { Write-Host 'Skipping, no items available.'; exit 0; }; Write-Host "^""Initiating processing of $($foundAbsolutePaths.Count) items from `"^""$expandedPath`"^""."^""; foreach ($path in $foundAbsolutePaths) { if (-not (Test-Path $path)) { <# Re-check existence as prior deletions might remove subsequent items (e.g., subdirectories). #>; Write-Host "^""Successfully deleted: $($path) (already deleted)."^""; $deletedCount++; continue; }; try { Remove-Item -Path $path -Force -Recurse -ErrorAction Stop; $deletedCount++; Write-Host "^""Successfully deleted: $($path)"^""; } catch { $failedCount++; Write-Warning "^""Unable to delete $($path): $_"^""; }; }; Write-Host "^""Successfully deleted $($deletedCount) items."^""; if ($failedCount -gt 0) { Write-Warning "^""Failed to delete $($failedCount) items."^""; }"
-:: Delete directory  : "%PROGRAMDATA%\Microsoft OneDrive"
-PowerShell -ExecutionPolicy Unrestricted -Command "$pathGlobPattern = "^""$($directoryGlob = '%PROGRAMDATA%\Microsoft OneDrive'; if (-Not $directoryGlob.EndsWith('\')) { $directoryGlob += '\' }; $directoryGlob )"^""; $expandedPath = [System.Environment]::ExpandEnvironmentVariables($pathGlobPattern); Write-Host "^""Searching for items matching pattern: `"^""$($expandedPath)`"^""."^""; $deletedCount = 0; $failedCount = 0; $foundAbsolutePaths = @(); Write-Host 'Iterating files and directories recursively.'; try { $foundAbsolutePaths += @(; Get-ChildItem -Path $expandedPath -Force -Recurse -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; try { $foundAbsolutePaths += @(; Get-Item -Path $expandedPath -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; $foundAbsolutePaths = $foundAbsolutePaths | Select-Object -Unique | Sort-Object -Property { $_.Length } -Descending; if (!$foundAbsolutePaths) { Write-Host 'Skipping, no items available.'; exit 0; }; Write-Host "^""Initiating processing of $($foundAbsolutePaths.Count) items from `"^""$expandedPath`"^""."^""; foreach ($path in $foundAbsolutePaths) { if (-not (Test-Path $path)) { <# Re-check existence as prior deletions might remove subsequent items (e.g., subdirectories). #>; Write-Host "^""Successfully deleted: $($path) (already deleted)."^""; $deletedCount++; continue; }; try { Remove-Item -Path $path -Force -Recurse -ErrorAction Stop; $deletedCount++; Write-Host "^""Successfully deleted: $($path)"^""; } catch { $failedCount++; Write-Warning "^""Unable to delete $($path): $_"^""; }; }; Write-Host "^""Successfully deleted $($deletedCount) items."^""; if ($failedCount -gt 0) { Write-Warning "^""Failed to delete $($failedCount) items."^""; }"
-:: Delete directory  : "%SYSTEMDRIVE%\OneDriveTemp"
-PowerShell -ExecutionPolicy Unrestricted -Command "$pathGlobPattern = "^""$($directoryGlob = '%SYSTEMDRIVE%\OneDriveTemp'; if (-Not $directoryGlob.EndsWith('\')) { $directoryGlob += '\' }; $directoryGlob )"^""; $expandedPath = [System.Environment]::ExpandEnvironmentVariables($pathGlobPattern); Write-Host "^""Searching for items matching pattern: `"^""$($expandedPath)`"^""."^""; $deletedCount = 0; $failedCount = 0; $foundAbsolutePaths = @(); Write-Host 'Iterating files and directories recursively.'; try { $foundAbsolutePaths += @(; Get-ChildItem -Path $expandedPath -Force -Recurse -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; try { $foundAbsolutePaths += @(; Get-Item -Path $expandedPath -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; $foundAbsolutePaths = $foundAbsolutePaths | Select-Object -Unique | Sort-Object -Property { $_.Length } -Descending; if (!$foundAbsolutePaths) { Write-Host 'Skipping, no items available.'; exit 0; }; Write-Host "^""Initiating processing of $($foundAbsolutePaths.Count) items from `"^""$expandedPath`"^""."^""; foreach ($path in $foundAbsolutePaths) { if (-not (Test-Path $path)) { <# Re-check existence as prior deletions might remove subsequent items (e.g., subdirectories). #>; Write-Host "^""Successfully deleted: $($path) (already deleted)."^""; $deletedCount++; continue; }; try { Remove-Item -Path $path -Force -Recurse -ErrorAction Stop; $deletedCount++; Write-Host "^""Successfully deleted: $($path)"^""; } catch { $failedCount++; Write-Warning "^""Unable to delete $($path): $_"^""; }; }; Write-Host "^""Successfully deleted $($deletedCount) items."^""; if ($failedCount -gt 0) { Write-Warning "^""Failed to delete $($failedCount) items."^""; }"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
 :: ----------------Remove OneDrive shortcuts-----------------
 :: ----------------------------------------------------------
 echo --- Remove OneDrive shortcuts
 PowerShell -ExecutionPolicy Unrestricted -Command "$shortcuts = @(; @{ Revert = $True;  Path = "^""$env:APPDATA\Microsoft\Windows\Start Menu\Programs\OneDrive.lnk"^""; }; @{ Revert = $False; Path = "^""$env:USERPROFILE\Links\OneDrive.lnk"^""; }; @{ Revert = $False; Path = "^""$env:SYSTEMROOT\ServiceProfiles\LocalService\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\OneDrive.lnk"^""; }; @{ Revert = $False; Path = "^""$env:SYSTEMROOT\ServiceProfiles\NetworkService\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\OneDrive.lnk"^""; }; ); foreach ($shortcut in $shortcuts) { if (-Not (Test-Path $shortcut.Path)) { Write-Host "^""Skipping, shortcut does not exist: `"^""$($shortcut.Path)`"^""."^""; continue; }; try { Remove-Item -Path $shortcut.Path -Force -ErrorAction Stop; Write-Output "^""Successfully removed shortcut: `"^""$($shortcut.Path)`"^""."^""; } catch { Write-Error "^""Encountered an issue while attempting to remove shortcut at: `"^""$($shortcut.Path)`"^""."^""; }; }"
 PowerShell -ExecutionPolicy Unrestricted -Command "Set-Location "^""HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Desktop\NameSpace"^""; Get-ChildItem | ForEach-Object {Get-ItemProperty $_.pspath} | ForEach-Object { $leftnavNodeName = $_."^""(default)"^""; if (($leftnavNodeName -eq "^""OneDrive"^"") -Or ($leftnavNodeName -eq "^""OneDrive - Personal"^"")) { if (Test-Path $_.pspath) { Write-Host "^""Deleting $($_.pspath)."^""; Remove-Item $_.pspath; }; }; }"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
-:: ------------------Disable OneDrive usage------------------
-:: ----------------------------------------------------------
-echo --- Disable OneDrive usage
-:: Set the registry value: "HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive!DisableFileSyncNGSC"
-PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive'; $data =  '1'; reg add 'HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive' /v 'DisableFileSyncNGSC' /t 'REG_DWORD' /d "^""$data"^"" /f"
-:: Set the registry value: "HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive!DisableFileSync"
-PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive'; $data =  '1'; reg add 'HKLM\SOFTWARE\Policies\Microsoft\Windows\OneDrive' /v 'DisableFileSync' /t 'REG_DWORD' /d "^""$data"^"" /f"
 :: ----------------------------------------------------------
 
 
@@ -18282,17 +18287,6 @@ echo --- Disable automatic OneDrive installation
 :: Delete the registry value "OneDriveSetup" from the key "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" 
 :: This operation will not run on Windows versions earlier than Windows10-1909.This operation will not run on Windows versions later than Windows10-1909.
 PowerShell -ExecutionPolicy Unrestricted -Command "$versionName = 'Windows10-1909'; $buildNumber = switch ($versionName) { 'Windows11-FirstRelease' { '10.0.22000' }; 'Windows11-22H2' { '10.0.22621' }; 'Windows11-21H2' { '10.0.22000' }; 'Windows10-22H2' { '10.0.19045' }; 'Windows10-21H2' { '10.0.19044' }; 'Windows10-20H2' { '10.0.19042' }; 'Windows10-1909' { '10.0.18363' }; 'Windows10-1607' { '10.0.14393' }; default { throw "^""Internal privacy$([char]0x002E)sexy error: No build for minimum Windows '$versionName'"^""; }; }; $minVersion = [System.Version]::Parse($buildNumber); $ver = [Environment]::OSVersion.Version; $verNoPatch = [System.Version]::new($ver.Major, $ver.Minor, $ver.Build); if ($verNoPatch -lt $minVersion) { Write-Output "^""Skipping: Windows ($verNoPatch) is below minimum $minVersion ($versionName)"^""; Exit 0; }$versionName = 'Windows10-1909'; $buildNumber = switch ($versionName) { 'Windows11-21H2' { '10.0.22000' }; 'Windows10-MostRecent' { '10.0.19045' }; 'Windows10-22H2' { '10.0.19045' }; 'Windows10-1909' { '10.0.18363' }; 'Windows10-1903' { '10.0.18362' }; default { throw "^""Internal privacy$([char]0x002E)sexy error: No build for maximum Windows '$versionName'"^""; }; }; $maxVersion=[System.Version]::Parse($buildNumber); $ver = [Environment]::OSVersion.Version; $verNoPatch = [System.Version]::new($ver.Major, $ver.Minor, $ver.Build); if ($verNoPatch -gt $maxVersion) { Write-Output "^""Skipping: Windows ($verNoPatch) is above maximum $maxVersion ($versionName)"^""; Exit 0; }; $keyName = 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run'; $valueName = 'OneDriveSetup'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
-:: --------Remove OneDrive folder from File Explorer---------
-:: ----------------------------------------------------------
-echo --- Remove OneDrive folder from File Explorer
-:: Set the registry value: "HKCU\Software\Classes\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}!System.IsPinnedToNameSpaceTree"
-PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKCU\Software\Classes\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}'; $data =  '0'; reg add 'HKCU\Software\Classes\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}' /v 'System.IsPinnedToNameSpaceTree' /t 'REG_DWORD' /d "^""$data"^"" /f"
-:: Set the registry value: "HKCU\Software\Classes\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}!System.IsPinnedToNameSpaceTree"
-PowerShell -ExecutionPolicy Unrestricted -Command "$registryPath = 'HKCU\Software\Classes\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}'; $data =  '0'; reg add 'HKCU\Software\Classes\Wow6432Node\CLSID\{018D5C66-4533-4307-9B53-224DE2ED1FE6}' /v 'System.IsPinnedToNameSpaceTree' /t 'REG_DWORD' /d "^""$data"^"" /f"
 :: ----------------------------------------------------------
 
 
@@ -18430,12 +18424,12 @@ PowerShell -ExecutionPolicy Unrestricted -Command "$message = 'This script will 
 :: ----------------------------------------------------------
 :: --Remove "Windows Web Experience Pack" (breaks Widgets)---
 :: ----------------------------------------------------------
-echo --- Remove "Windows Web Experience Pack" (breaks Widgets)
+REM echo --- Remove "Windows Web Experience Pack" (breaks Widgets)
 :: Uninstall 'MicrosoftWindows.Client.WebExperience' Store app
-PowerShell -ExecutionPolicy Unrestricted -Command "Get-AppxPackage 'MicrosoftWindows.Client.WebExperience' | Remove-AppxPackage"
+REM PowerShell -ExecutionPolicy Unrestricted -Command "Get-AppxPackage 'MicrosoftWindows.Client.WebExperience' | Remove-AppxPackage"
 :: Mark 'MicrosoftWindows.Client.WebExperience' as deprovisioned to block reinstall during Windows updates.
 :: Create "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Deprovisioned\MicrosoftWindows.Client.WebExperience_cw5n1h2txyewy" registry key
-PowerShell -ExecutionPolicy Unrestricted -Command "$keyPath='HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Deprovisioned\MicrosoftWindows.Client.WebExperience_cw5n1h2txyewy'; $registryHive = $keyPath.Split('\')[0]; $registryPath = "^""$($registryHive):$($keyPath.Substring($registryHive.Length))"^""; if (Test-Path $registryPath) { Write-Host "^""Skipping, no action needed, registry path `"^""$registryPath`"^"" already exists."^""; exit 0; }; try { New-Item -Path $registryPath -Force -ErrorAction Stop | Out-Null; Write-Host "^""Successfully created the registry key at path `"^""$registryPath`"^""."^""; } catch { Write-Error "^""Failed to create the registry key at path `"^""$registryPath`"^"": $($_.Exception.Message)"^""; }"
+REM PowerShell -ExecutionPolicy Unrestricted -Command "$keyPath='HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Deprovisioned\MicrosoftWindows.Client.WebExperience_cw5n1h2txyewy'; $registryHive = $keyPath.Split('\')[0]; $registryPath = "^""$($registryHive):$($keyPath.Substring($registryHive.Length))"^""; if (Test-Path $registryPath) { Write-Host "^""Skipping, no action needed, registry path `"^""$registryPath`"^"" already exists."^""; exit 0; }; try { New-Item -Path $registryPath -Force -ErrorAction Stop | Out-Null; Write-Host "^""Successfully created the registry key at path `"^""$registryPath`"^""."^""; } catch { Write-Error "^""Failed to create the registry key at path `"^""$registryPath`"^"": $($_.Exception.Message)"^""; }"
 :: ----------------------------------------------------------
 
 
@@ -18482,9 +18476,9 @@ PowerShell -ExecutionPolicy Unrestricted -Command "$message = 'This script will 
 
 
 :: Disable Microsoft Account Sign-in Assistant (breaks Microsoft Store and Microsoft Account sign-in)
-echo --- Disable Microsoft Account Sign-in Assistant (breaks Microsoft Store and Microsoft Account sign-in)
+REM echo --- Disable Microsoft Account Sign-in Assistant (breaks Microsoft Store and Microsoft Account sign-in)
 :: Disable service(s): `wlidsvc`
-PowerShell -ExecutionPolicy Unrestricted -Command "$serviceName = 'wlidsvc'; Write-Host "^""Disabling service: `"^""$serviceName`"^""."^""; <# -- 1. Skip if service does not exist #>; $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue; if(!$service) { Write-Host "^""Service `"^""$serviceName`"^"" could not be not found, no need to disable it."^""; Exit 0; }; <# -- 2. Stop if running #>; if ($service.Status -eq [System.ServiceProcess.ServiceControllerStatus]::Running) { Write-Host "^""`"^""$serviceName`"^"" is running, stopping it."^""; try { Stop-Service -Name "^""$serviceName"^"" -Force -ErrorAction Stop; Write-Host "^""Stopped `"^""$serviceName`"^"" successfully."^""; } catch { Write-Warning "^""Could not stop `"^""$serviceName`"^"", it will be stopped after reboot: $_"^""; }; } else { Write-Host "^""`"^""$serviceName`"^"" is not running, no need to stop."^""; }; <# -- 3. Skip if already disabled #>; $startupType = $service.StartType <# Does not work before .NET 4.6.1 #>; if (!$startupType) { $startupType = (Get-WmiObject -Query "^""Select StartMode From Win32_Service Where Name='$serviceName'"^"" -ErrorAction Ignore).StartMode; if(!$startupType) { $startupType = (Get-WmiObject -Class Win32_Service -Property StartMode -Filter "^""Name='$serviceName'"^"" -ErrorAction Ignore).StartMode; }; }; if ($startupType -eq 'Disabled') { Write-Host "^""$serviceName is already disabled, no further action is needed"^""; Exit 0; }; <# -- 4. Disable service #>; try { Set-Service -Name "^""$serviceName"^"" -StartupType Disabled -Confirm:$false -ErrorAction Stop; Write-Host "^""Disabled `"^""$serviceName`"^"" successfully."^""; } catch { Write-Error "^""Could not disable `"^""$serviceName`"^"": $_"^""; }"
+REM PowerShell -ExecutionPolicy Unrestricted -Command "$serviceName = 'wlidsvc'; Write-Host "^""Disabling service: `"^""$serviceName`"^""."^""; <# -- 1. Skip if service does not exist #>; $service = Get-Service -Name $serviceName -ErrorAction SilentlyContinue; if(!$service) { Write-Host "^""Service `"^""$serviceName`"^"" could not be not found, no need to disable it."^""; Exit 0; }; <# -- 2. Stop if running #>; if ($service.Status -eq [System.ServiceProcess.ServiceControllerStatus]::Running) { Write-Host "^""`"^""$serviceName`"^"" is running, stopping it."^""; try { Stop-Service -Name "^""$serviceName"^"" -Force -ErrorAction Stop; Write-Host "^""Stopped `"^""$serviceName`"^"" successfully."^""; } catch { Write-Warning "^""Could not stop `"^""$serviceName`"^"", it will be stopped after reboot: $_"^""; }; } else { Write-Host "^""`"^""$serviceName`"^"" is not running, no need to stop."^""; }; <# -- 3. Skip if already disabled #>; $startupType = $service.StartType <# Does not work before .NET 4.6.1 #>; if (!$startupType) { $startupType = (Get-WmiObject -Query "^""Select StartMode From Win32_Service Where Name='$serviceName'"^"" -ErrorAction Ignore).StartMode; if(!$startupType) { $startupType = (Get-WmiObject -Class Win32_Service -Property StartMode -Filter "^""Name='$serviceName'"^"" -ErrorAction Ignore).StartMode; }; }; if ($startupType -eq 'Disabled') { Write-Host "^""$serviceName is already disabled, no further action is needed"^""; Exit 0; }; <# -- 4. Disable service #>; try { Set-Service -Name "^""$serviceName"^"" -StartupType Disabled -Confirm:$false -ErrorAction Stop; Write-Host "^""Disabled `"^""$serviceName`"^"" successfully."^""; } catch { Write-Error "^""Could not disable `"^""$serviceName`"^"": $_"^""; }"
 :: ----------------------------------------------------------
 
 
@@ -19045,132 +19039,6 @@ PowerShell -ExecutionPolicy Unrestricted -Command "$keyPath='HKLM\SOFTWARE\Micro
 
 
 :: ----------------------------------------------------------
-:: ---------------Remove "Microsoft Edge" app----------------
-:: ----------------------------------------------------------
-echo --- Remove "Microsoft Edge" app
-:: Soft delete files matching pattern: "%SYSTEMROOT%\SystemApps\Microsoft.MicrosoftEdge_8wekyb3d8bbwe\*" with additional permissions 
-PowerShell -ExecutionPolicy Unrestricted -Command "$pathGlobPattern = "^""%SYSTEMROOT%\SystemApps\Microsoft.MicrosoftEdge_8wekyb3d8bbwe\*"^""; $expandedPath = [System.Environment]::ExpandEnvironmentVariables($pathGlobPattern); Write-Host "^""Searching for items matching pattern: `"^""$($expandedPath)`"^""."^""; $renamedCount   = 0; $skippedCount   = 0; $failedCount    = 0; Add-Type -TypeDefinition "^""using System;`r`nusing System.Runtime.InteropServices;`r`npublic class Privileges {`r`n    [DllImport(`"^""advapi32.dll`"^"", ExactSpelling = true, SetLastError = true)]`r`n    internal static extern bool AdjustTokenPrivileges(IntPtr htok, bool disall,`r`n        ref TokPriv1Luid newst, int len, IntPtr prev, IntPtr relen);`r`n    [DllImport(`"^""advapi32.dll`"^"", ExactSpelling = true, SetLastError = true)]`r`n    internal static extern bool OpenProcessToken(IntPtr h, int acc, ref IntPtr phtok);`r`n    [DllImport(`"^""advapi32.dll`"^"", SetLastError = true)]`r`n    internal static extern bool LookupPrivilegeValue(string host, string name, ref long pluid);`r`n    [StructLayout(LayoutKind.Sequential, Pack = 1)]`r`n    internal struct TokPriv1Luid {`r`n        public int Count;`r`n        public long Luid;`r`n        public int Attr;`r`n    }`r`n    internal const int SE_PRIVILEGE_ENABLED = 0x00000002;`r`n    internal const int TOKEN_QUERY = 0x00000008;`r`n    internal const int TOKEN_ADJUST_PRIVILEGES = 0x00000020;`r`n    public static bool AddPrivilege(string privilege) {`r`n        try {`r`n            bool retVal;`r`n            TokPriv1Luid tp;`r`n            IntPtr hproc = GetCurrentProcess();`r`n            IntPtr htok = IntPtr.Zero;`r`n            retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);`r`n            tp.Count = 1;`r`n            tp.Luid = 0;`r`n            tp.Attr = SE_PRIVILEGE_ENABLED;`r`n            retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);`r`n            retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);`r`n            return retVal;`r`n        } catch (Exception ex) {`r`n            throw new Exception(`"^""Failed to adjust token privileges`"^"", ex);`r`n        }`r`n    }`r`n    public static bool RemovePrivilege(string privilege) {`r`n        try {`r`n            bool retVal;`r`n            TokPriv1Luid tp;`r`n            IntPtr hproc = GetCurrentProcess();`r`n            IntPtr htok = IntPtr.Zero;`r`n            retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);`r`n            tp.Count = 1;`r`n            tp.Luid = 0;`r`n            tp.Attr = 0;  // This line is changed to revoke the privilege`r`n            retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);`r`n            retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);`r`n            return retVal;`r`n        } catch (Exception ex) {`r`n            throw new Exception(`"^""Failed to adjust token privileges`"^"", ex);`r`n        }`r`n    }`r`n    [DllImport(`"^""kernel32.dll`"^"", CharSet = CharSet.Auto)]`r`n    public static extern IntPtr GetCurrentProcess();`r`n}"^""; [Privileges]::AddPrivilege('SeRestorePrivilege') | Out-Null; [Privileges]::AddPrivilege('SeTakeOwnershipPrivilege') | Out-Null; $adminSid = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544'; $adminAccount = $adminSid.Translate([System.Security.Principal.NTAccount]); $adminFullControlAccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule( $adminAccount, [System.Security.AccessControl.FileSystemRights]::FullControl, [System.Security.AccessControl.AccessControlType]::Allow ); $foundAbsolutePaths = @(); Write-Host 'Iterating files and directories recursively.'; try { $foundAbsolutePaths += @(; Get-ChildItem -Path $expandedPath -Force -Recurse -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; try { $foundAbsolutePaths += @(; Get-Item -Path $expandedPath -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; $foundAbsolutePaths = $foundAbsolutePaths | Select-Object -Unique | Sort-Object -Property { $_.Length } -Descending; if (!$foundAbsolutePaths) { Write-Host 'Skipping, no items available.'; exit 0; }; Write-Host "^""Initiating processing of $($foundAbsolutePaths.Count) items from `"^""$expandedPath`"^""."^""; foreach ($path in $foundAbsolutePaths) { if (Test-Path -Path $path -PathType Container) { Write-Host "^""Skipping folder (not its contents): `"^""$path`"^""."^""; $skippedCount++; continue; }; if($revert -eq $true) { if (-not $path.EndsWith('.OLD')) { Write-Host "^""Skipping non-backup file: `"^""$path`"^""."^""; $skippedCount++; continue; }; } else { if ($path.EndsWith('.OLD')) { Write-Host "^""Skipping backup file: `"^""$path`"^""."^""; $skippedCount++; continue; }; }; $originalFilePath = $path; Write-Host "^""Processing file: `"^""$originalFilePath`"^""."^""; if (-Not (Test-Path $originalFilePath)) { Write-Host "^""Skipping, file `"^""$originalFilePath`"^"" not found."^""; $skippedCount++; exit 0; }; $originalAcl = Get-Acl -Path "^""$originalFilePath"^""; $accessGranted = $false; try { $acl = Get-Acl -Path "^""$originalFilePath"^""; $acl.SetOwner($adminAccount) <# Take Ownership (because file is owned by TrustedInstaller) #>; $acl.AddAccessRule($adminFullControlAccessRule) <# Grant rights to be able to move the file #>; Set-Acl -Path $originalFilePath -AclObject $acl -ErrorAction Stop; $accessGranted = $true; } catch { Write-Warning "^""Failed to grant access to `"^""$originalFilePath`"^"": $($_.Exception.Message)"^""; }; if ($revert -eq $true) { $newFilePath = $originalFilePath.Substring(0, $originalFilePath.Length - 4); } else { $newFilePath = "^""$($originalFilePath).OLD"^""; }; try { Move-Item -LiteralPath "^""$($originalFilePath)"^"" -Destination "^""$newFilePath"^"" -Force -ErrorAction Stop; Write-Host "^""Successfully processed `"^""$originalFilePath`"^""."^""; $renamedCount++; if ($accessGranted) { try { Set-Acl -Path $newFilePath -AclObject $originalAcl -ErrorAction Stop; } catch { Write-Warning "^""Failed to restore access on `"^""$newFilePath`"^"": $($_.Exception.Message)"^""; }; }; } catch { Write-Error "^""Failed to rename `"^""$originalFilePath`"^"" to `"^""$newFilePath`"^"": $($_.Exception.Message)"^""; $failedCount++; if ($accessGranted) { try { Set-Acl -Path $originalFilePath -AclObject $originalAcl -ErrorAction Stop; } catch { Write-Warning "^""Failed to restore access on `"^""$originalFilePath`"^"": $($_.Exception.Message)"^""; }; }; }; }; if (($renamedCount -gt 0) -or ($skippedCount -gt 0)) { Write-Host "^""Successfully processed $renamedCount items and skipped $skippedCount items."^""; }; if ($failedCount -gt 0) { Write-Warning "^""Failed to process $($failedCount) items."^""; }; [Privileges]::RemovePrivilege('SeRestorePrivilege') | Out-Null; [Privileges]::RemovePrivilege('SeTakeOwnershipPrivilege') | Out-Null"
-:: Soft delete files matching pattern: "%SYSTEMROOT%\$(("Microsoft.MicrosoftEdge" -Split '\.')[-1])\*" with additional permissions 
-PowerShell -ExecutionPolicy Unrestricted -Command "$pathGlobPattern = "^""%SYSTEMROOT%\$(("^""Microsoft.MicrosoftEdge"^"" -Split '\.')[-1])\*"^""; $expandedPath = [System.Environment]::ExpandEnvironmentVariables($pathGlobPattern); Write-Host "^""Searching for items matching pattern: `"^""$($expandedPath)`"^""."^""; $renamedCount   = 0; $skippedCount   = 0; $failedCount    = 0; Add-Type -TypeDefinition "^""using System;`r`nusing System.Runtime.InteropServices;`r`npublic class Privileges {`r`n    [DllImport(`"^""advapi32.dll`"^"", ExactSpelling = true, SetLastError = true)]`r`n    internal static extern bool AdjustTokenPrivileges(IntPtr htok, bool disall,`r`n        ref TokPriv1Luid newst, int len, IntPtr prev, IntPtr relen);`r`n    [DllImport(`"^""advapi32.dll`"^"", ExactSpelling = true, SetLastError = true)]`r`n    internal static extern bool OpenProcessToken(IntPtr h, int acc, ref IntPtr phtok);`r`n    [DllImport(`"^""advapi32.dll`"^"", SetLastError = true)]`r`n    internal static extern bool LookupPrivilegeValue(string host, string name, ref long pluid);`r`n    [StructLayout(LayoutKind.Sequential, Pack = 1)]`r`n    internal struct TokPriv1Luid {`r`n        public int Count;`r`n        public long Luid;`r`n        public int Attr;`r`n    }`r`n    internal const int SE_PRIVILEGE_ENABLED = 0x00000002;`r`n    internal const int TOKEN_QUERY = 0x00000008;`r`n    internal const int TOKEN_ADJUST_PRIVILEGES = 0x00000020;`r`n    public static bool AddPrivilege(string privilege) {`r`n        try {`r`n            bool retVal;`r`n            TokPriv1Luid tp;`r`n            IntPtr hproc = GetCurrentProcess();`r`n            IntPtr htok = IntPtr.Zero;`r`n            retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);`r`n            tp.Count = 1;`r`n            tp.Luid = 0;`r`n            tp.Attr = SE_PRIVILEGE_ENABLED;`r`n            retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);`r`n            retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);`r`n            return retVal;`r`n        } catch (Exception ex) {`r`n            throw new Exception(`"^""Failed to adjust token privileges`"^"", ex);`r`n        }`r`n    }`r`n    public static bool RemovePrivilege(string privilege) {`r`n        try {`r`n            bool retVal;`r`n            TokPriv1Luid tp;`r`n            IntPtr hproc = GetCurrentProcess();`r`n            IntPtr htok = IntPtr.Zero;`r`n            retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);`r`n            tp.Count = 1;`r`n            tp.Luid = 0;`r`n            tp.Attr = 0;  // This line is changed to revoke the privilege`r`n            retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);`r`n            retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);`r`n            return retVal;`r`n        } catch (Exception ex) {`r`n            throw new Exception(`"^""Failed to adjust token privileges`"^"", ex);`r`n        }`r`n    }`r`n    [DllImport(`"^""kernel32.dll`"^"", CharSet = CharSet.Auto)]`r`n    public static extern IntPtr GetCurrentProcess();`r`n}"^""; [Privileges]::AddPrivilege('SeRestorePrivilege') | Out-Null; [Privileges]::AddPrivilege('SeTakeOwnershipPrivilege') | Out-Null; $adminSid = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544'; $adminAccount = $adminSid.Translate([System.Security.Principal.NTAccount]); $adminFullControlAccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule( $adminAccount, [System.Security.AccessControl.FileSystemRights]::FullControl, [System.Security.AccessControl.AccessControlType]::Allow ); $foundAbsolutePaths = @(); Write-Host 'Iterating files and directories recursively.'; try { $foundAbsolutePaths += @(; Get-ChildItem -Path $expandedPath -Force -Recurse -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; try { $foundAbsolutePaths += @(; Get-Item -Path $expandedPath -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; $foundAbsolutePaths = $foundAbsolutePaths | Select-Object -Unique | Sort-Object -Property { $_.Length } -Descending; if (!$foundAbsolutePaths) { Write-Host 'Skipping, no items available.'; exit 0; }; Write-Host "^""Initiating processing of $($foundAbsolutePaths.Count) items from `"^""$expandedPath`"^""."^""; foreach ($path in $foundAbsolutePaths) { if (Test-Path -Path $path -PathType Container) { Write-Host "^""Skipping folder (not its contents): `"^""$path`"^""."^""; $skippedCount++; continue; }; if($revert -eq $true) { if (-not $path.EndsWith('.OLD')) { Write-Host "^""Skipping non-backup file: `"^""$path`"^""."^""; $skippedCount++; continue; }; } else { if ($path.EndsWith('.OLD')) { Write-Host "^""Skipping backup file: `"^""$path`"^""."^""; $skippedCount++; continue; }; }; $originalFilePath = $path; Write-Host "^""Processing file: `"^""$originalFilePath`"^""."^""; if (-Not (Test-Path $originalFilePath)) { Write-Host "^""Skipping, file `"^""$originalFilePath`"^"" not found."^""; $skippedCount++; exit 0; }; $originalAcl = Get-Acl -Path "^""$originalFilePath"^""; $accessGranted = $false; try { $acl = Get-Acl -Path "^""$originalFilePath"^""; $acl.SetOwner($adminAccount) <# Take Ownership (because file is owned by TrustedInstaller) #>; $acl.AddAccessRule($adminFullControlAccessRule) <# Grant rights to be able to move the file #>; Set-Acl -Path $originalFilePath -AclObject $acl -ErrorAction Stop; $accessGranted = $true; } catch { Write-Warning "^""Failed to grant access to `"^""$originalFilePath`"^"": $($_.Exception.Message)"^""; }; if ($revert -eq $true) { $newFilePath = $originalFilePath.Substring(0, $originalFilePath.Length - 4); } else { $newFilePath = "^""$($originalFilePath).OLD"^""; }; try { Move-Item -LiteralPath "^""$($originalFilePath)"^"" -Destination "^""$newFilePath"^"" -Force -ErrorAction Stop; Write-Host "^""Successfully processed `"^""$originalFilePath`"^""."^""; $renamedCount++; if ($accessGranted) { try { Set-Acl -Path $newFilePath -AclObject $originalAcl -ErrorAction Stop; } catch { Write-Warning "^""Failed to restore access on `"^""$newFilePath`"^"": $($_.Exception.Message)"^""; }; }; } catch { Write-Error "^""Failed to rename `"^""$originalFilePath`"^"" to `"^""$newFilePath`"^"": $($_.Exception.Message)"^""; $failedCount++; if ($accessGranted) { try { Set-Acl -Path $originalFilePath -AclObject $originalAcl -ErrorAction Stop; } catch { Write-Warning "^""Failed to restore access on `"^""$originalFilePath`"^"": $($_.Exception.Message)"^""; }; }; }; }; if (($renamedCount -gt 0) -or ($skippedCount -gt 0)) { Write-Host "^""Successfully processed $renamedCount items and skipped $skippedCount items."^""; }; if ($failedCount -gt 0) { Write-Warning "^""Failed to process $($failedCount) items."^""; }; [Privileges]::RemovePrivilege('SeRestorePrivilege') | Out-Null; [Privileges]::RemovePrivilege('SeTakeOwnershipPrivilege') | Out-Null"
-:: Soft delete files matching pattern: "%SYSTEMDRIVE%\Program Files\WindowsApps\Microsoft.MicrosoftEdge_*_8wekyb3d8bbwe\*" with additional permissions 
-PowerShell -ExecutionPolicy Unrestricted -Command "$pathGlobPattern = "^""%SYSTEMDRIVE%\Program Files\WindowsApps\Microsoft.MicrosoftEdge_*_8wekyb3d8bbwe\*"^""; $expandedPath = [System.Environment]::ExpandEnvironmentVariables($pathGlobPattern); Write-Host "^""Searching for items matching pattern: `"^""$($expandedPath)`"^""."^""; $renamedCount   = 0; $skippedCount   = 0; $failedCount    = 0; Add-Type -TypeDefinition "^""using System;`r`nusing System.Runtime.InteropServices;`r`npublic class Privileges {`r`n    [DllImport(`"^""advapi32.dll`"^"", ExactSpelling = true, SetLastError = true)]`r`n    internal static extern bool AdjustTokenPrivileges(IntPtr htok, bool disall,`r`n        ref TokPriv1Luid newst, int len, IntPtr prev, IntPtr relen);`r`n    [DllImport(`"^""advapi32.dll`"^"", ExactSpelling = true, SetLastError = true)]`r`n    internal static extern bool OpenProcessToken(IntPtr h, int acc, ref IntPtr phtok);`r`n    [DllImport(`"^""advapi32.dll`"^"", SetLastError = true)]`r`n    internal static extern bool LookupPrivilegeValue(string host, string name, ref long pluid);`r`n    [StructLayout(LayoutKind.Sequential, Pack = 1)]`r`n    internal struct TokPriv1Luid {`r`n        public int Count;`r`n        public long Luid;`r`n        public int Attr;`r`n    }`r`n    internal const int SE_PRIVILEGE_ENABLED = 0x00000002;`r`n    internal const int TOKEN_QUERY = 0x00000008;`r`n    internal const int TOKEN_ADJUST_PRIVILEGES = 0x00000020;`r`n    public static bool AddPrivilege(string privilege) {`r`n        try {`r`n            bool retVal;`r`n            TokPriv1Luid tp;`r`n            IntPtr hproc = GetCurrentProcess();`r`n            IntPtr htok = IntPtr.Zero;`r`n            retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);`r`n            tp.Count = 1;`r`n            tp.Luid = 0;`r`n            tp.Attr = SE_PRIVILEGE_ENABLED;`r`n            retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);`r`n            retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);`r`n            return retVal;`r`n        } catch (Exception ex) {`r`n            throw new Exception(`"^""Failed to adjust token privileges`"^"", ex);`r`n        }`r`n    }`r`n    public static bool RemovePrivilege(string privilege) {`r`n        try {`r`n            bool retVal;`r`n            TokPriv1Luid tp;`r`n            IntPtr hproc = GetCurrentProcess();`r`n            IntPtr htok = IntPtr.Zero;`r`n            retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);`r`n            tp.Count = 1;`r`n            tp.Luid = 0;`r`n            tp.Attr = 0;  // This line is changed to revoke the privilege`r`n            retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);`r`n            retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);`r`n            return retVal;`r`n        } catch (Exception ex) {`r`n            throw new Exception(`"^""Failed to adjust token privileges`"^"", ex);`r`n        }`r`n    }`r`n    [DllImport(`"^""kernel32.dll`"^"", CharSet = CharSet.Auto)]`r`n    public static extern IntPtr GetCurrentProcess();`r`n}"^""; [Privileges]::AddPrivilege('SeRestorePrivilege') | Out-Null; [Privileges]::AddPrivilege('SeTakeOwnershipPrivilege') | Out-Null; $adminSid = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544'; $adminAccount = $adminSid.Translate([System.Security.Principal.NTAccount]); $adminFullControlAccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule( $adminAccount, [System.Security.AccessControl.FileSystemRights]::FullControl, [System.Security.AccessControl.AccessControlType]::Allow ); $foundAbsolutePaths = @(); Write-Host 'Iterating files and directories recursively.'; try { $foundAbsolutePaths += @(; Get-ChildItem -Path $expandedPath -Force -Recurse -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; try { $foundAbsolutePaths += @(; Get-Item -Path $expandedPath -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; $foundAbsolutePaths = $foundAbsolutePaths | Select-Object -Unique | Sort-Object -Property { $_.Length } -Descending; if (!$foundAbsolutePaths) { Write-Host 'Skipping, no items available.'; exit 0; }; Write-Host "^""Initiating processing of $($foundAbsolutePaths.Count) items from `"^""$expandedPath`"^""."^""; foreach ($path in $foundAbsolutePaths) { if (Test-Path -Path $path -PathType Container) { Write-Host "^""Skipping folder (not its contents): `"^""$path`"^""."^""; $skippedCount++; continue; }; if($revert -eq $true) { if (-not $path.EndsWith('.OLD')) { Write-Host "^""Skipping non-backup file: `"^""$path`"^""."^""; $skippedCount++; continue; }; } else { if ($path.EndsWith('.OLD')) { Write-Host "^""Skipping backup file: `"^""$path`"^""."^""; $skippedCount++; continue; }; }; $originalFilePath = $path; Write-Host "^""Processing file: `"^""$originalFilePath`"^""."^""; if (-Not (Test-Path $originalFilePath)) { Write-Host "^""Skipping, file `"^""$originalFilePath`"^"" not found."^""; $skippedCount++; exit 0; }; $originalAcl = Get-Acl -Path "^""$originalFilePath"^""; $accessGranted = $false; try { $acl = Get-Acl -Path "^""$originalFilePath"^""; $acl.SetOwner($adminAccount) <# Take Ownership (because file is owned by TrustedInstaller) #>; $acl.AddAccessRule($adminFullControlAccessRule) <# Grant rights to be able to move the file #>; Set-Acl -Path $originalFilePath -AclObject $acl -ErrorAction Stop; $accessGranted = $true; } catch { Write-Warning "^""Failed to grant access to `"^""$originalFilePath`"^"": $($_.Exception.Message)"^""; }; if ($revert -eq $true) { $newFilePath = $originalFilePath.Substring(0, $originalFilePath.Length - 4); } else { $newFilePath = "^""$($originalFilePath).OLD"^""; }; try { Move-Item -LiteralPath "^""$($originalFilePath)"^"" -Destination "^""$newFilePath"^"" -Force -ErrorAction Stop; Write-Host "^""Successfully processed `"^""$originalFilePath`"^""."^""; $renamedCount++; if ($accessGranted) { try { Set-Acl -Path $newFilePath -AclObject $originalAcl -ErrorAction Stop; } catch { Write-Warning "^""Failed to restore access on `"^""$newFilePath`"^"": $($_.Exception.Message)"^""; }; }; } catch { Write-Error "^""Failed to rename `"^""$originalFilePath`"^"" to `"^""$newFilePath`"^"": $($_.Exception.Message)"^""; $failedCount++; if ($accessGranted) { try { Set-Acl -Path $originalFilePath -AclObject $originalAcl -ErrorAction Stop; } catch { Write-Warning "^""Failed to restore access on `"^""$originalFilePath`"^"": $($_.Exception.Message)"^""; }; }; }; }; if (($renamedCount -gt 0) -or ($skippedCount -gt 0)) { Write-Host "^""Successfully processed $renamedCount items and skipped $skippedCount items."^""; }; if ($failedCount -gt 0) { Write-Warning "^""Failed to process $($failedCount) items."^""; }; [Privileges]::RemovePrivilege('SeRestorePrivilege') | Out-Null; [Privileges]::RemovePrivilege('SeTakeOwnershipPrivilege') | Out-Null"
-:: Enable removal of system app 'Microsoft.MicrosoftEdge' by marking it as "EndOfLife"
-:: Create "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\EndOfLife\$CURRENT_USER_SID\Microsoft.MicrosoftEdge_8wekyb3d8bbwe" registry key
-PowerShell -ExecutionPolicy Unrestricted -Command "$keyPath='HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\EndOfLife\$CURRENT_USER_SID\Microsoft.MicrosoftEdge_8wekyb3d8bbwe'; $registryHive = $keyPath.Split('\')[0]; $registryPath = "^""$($registryHive):$($keyPath.Substring($registryHive.Length))"^""; $userSid = (New-Object System.Security.Principal.NTAccount($env:USERNAME)).Translate([Security.Principal.SecurityIdentifier]).Value; $registryPath = $registryPath.Replace('$CURRENT_USER_SID', $userSid); if (Test-Path $registryPath) { Write-Host "^""Skipping, no action needed, registry path `"^""$registryPath`"^"" already exists."^""; exit 0; }; try { New-Item -Path $registryPath -Force -ErrorAction Stop | Out-Null; Write-Host "^""Successfully created the registry key at path `"^""$registryPath`"^""."^""; } catch { Write-Error "^""Failed to create the registry key at path `"^""$registryPath`"^"": $($_.Exception.Message)"^""; }"
-:: Uninstall 'Microsoft.MicrosoftEdge' Store app
-PowerShell -ExecutionPolicy Unrestricted -Command "Get-AppxPackage 'Microsoft.MicrosoftEdge' | Remove-AppxPackage"
-:: Mark 'Microsoft.MicrosoftEdge' as deprovisioned to block reinstall during Windows updates.
-:: Create "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Deprovisioned\Microsoft.MicrosoftEdge_8wekyb3d8bbwe" registry key
-PowerShell -ExecutionPolicy Unrestricted -Command "$keyPath='HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Deprovisioned\Microsoft.MicrosoftEdge_8wekyb3d8bbwe'; $registryHive = $keyPath.Split('\')[0]; $registryPath = "^""$($registryHive):$($keyPath.Substring($registryHive.Length))"^""; if (Test-Path $registryPath) { Write-Host "^""Skipping, no action needed, registry path `"^""$registryPath`"^"" already exists."^""; exit 0; }; try { New-Item -Path $registryPath -Force -ErrorAction Stop | Out-Null; Write-Host "^""Successfully created the registry key at path `"^""$registryPath`"^""."^""; } catch { Write-Error "^""Failed to create the registry key at path `"^""$registryPath`"^"": $($_.Exception.Message)"^""; }"
-:: Remove the registry key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\EndOfLife\$CURRENT_USER_SID\Microsoft.MicrosoftEdge_8wekyb3d8bbwe" (Revert 'Microsoft.MicrosoftEdge' to its default, non-removable state.)
-PowerShell -ExecutionPolicy Unrestricted -Command "$keyPath='HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\EndOfLife\$CURRENT_USER_SID\Microsoft.MicrosoftEdge_8wekyb3d8bbwe'; $registryHive = $keyPath.Split('\')[0]; $registryPath = "^""$($registryHive):$($keyPath.Substring($registryHive.Length))"^""; $userSid = (New-Object System.Security.Principal.NTAccount($env:USERNAME)).Translate([Security.Principal.SecurityIdentifier]).Value; $registryPath = $registryPath.Replace('$CURRENT_USER_SID', $userSid); Write-Host "^""Removing registry key at `"^""$registryPath`"^""."^""; if (-not (Test-Path -LiteralPath $registryPath)) { Write-Host "^""Skipping, no action needed, registry key `"^""$registryPath`"^"" does not exist."^""; exit 0; }; try { Remove-Item -LiteralPath $registryPath -Force -ErrorAction Stop | Out-Null; Write-Host "^""Successfully removed the registry key at path `"^""$registryPath`"^""."^""; } catch { Write-Error "^""Failed to remove the registry key at path `"^""$registryPath`"^"": $($_.Exception.Message)"^""; }"
-:: Soft delete files matching pattern: "%LOCALAPPDATA%\Packages\Microsoft.MicrosoftEdge_8wekyb3d8bbwe\*"  
-PowerShell -ExecutionPolicy Unrestricted -Command "$pathGlobPattern = "^""%LOCALAPPDATA%\Packages\Microsoft.MicrosoftEdge_8wekyb3d8bbwe\*"^""; $expandedPath = [System.Environment]::ExpandEnvironmentVariables($pathGlobPattern); Write-Host "^""Searching for items matching pattern: `"^""$($expandedPath)`"^""."^""; $renamedCount   = 0; $skippedCount   = 0; $failedCount    = 0; $foundAbsolutePaths = @(); Write-Host 'Iterating files and directories recursively.'; try { $foundAbsolutePaths += @(; Get-ChildItem -Path $expandedPath -Force -Recurse -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; try { $foundAbsolutePaths += @(; Get-Item -Path $expandedPath -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; $foundAbsolutePaths = $foundAbsolutePaths | Select-Object -Unique | Sort-Object -Property { $_.Length } -Descending; if (!$foundAbsolutePaths) { Write-Host 'Skipping, no items available.'; exit 0; }; Write-Host "^""Initiating processing of $($foundAbsolutePaths.Count) items from `"^""$expandedPath`"^""."^""; foreach ($path in $foundAbsolutePaths) { if (Test-Path -Path $path -PathType Container) { Write-Host "^""Skipping folder (not its contents): `"^""$path`"^""."^""; $skippedCount++; continue; }; if($revert -eq $true) { if (-not $path.EndsWith('.OLD')) { Write-Host "^""Skipping non-backup file: `"^""$path`"^""."^""; $skippedCount++; continue; }; } else { if ($path.EndsWith('.OLD')) { Write-Host "^""Skipping backup file: `"^""$path`"^""."^""; $skippedCount++; continue; }; }; $originalFilePath = $path; Write-Host "^""Processing file: `"^""$originalFilePath`"^""."^""; if (-Not (Test-Path $originalFilePath)) { Write-Host "^""Skipping, file `"^""$originalFilePath`"^"" not found."^""; $skippedCount++; exit 0; }; if ($revert -eq $true) { $newFilePath = $originalFilePath.Substring(0, $originalFilePath.Length - 4); } else { $newFilePath = "^""$($originalFilePath).OLD"^""; }; try { Move-Item -LiteralPath "^""$($originalFilePath)"^"" -Destination "^""$newFilePath"^"" -Force -ErrorAction Stop; Write-Host "^""Successfully processed `"^""$originalFilePath`"^""."^""; $renamedCount++; } catch { Write-Error "^""Failed to rename `"^""$originalFilePath`"^"" to `"^""$newFilePath`"^"": $($_.Exception.Message)"^""; $failedCount++; }; }; if (($renamedCount -gt 0) -or ($skippedCount -gt 0)) { Write-Host "^""Successfully processed $renamedCount items and skipped $skippedCount items."^""; }; if ($failedCount -gt 0) { Write-Warning "^""Failed to process $($failedCount) items."^""; }"
-:: Soft delete files matching pattern: "%PROGRAMDATA%\Microsoft\Windows\AppRepository\Packages\Microsoft.MicrosoftEdge_*_8wekyb3d8bbwe\*" with additional permissions 
-PowerShell -ExecutionPolicy Unrestricted -Command "$pathGlobPattern = "^""%PROGRAMDATA%\Microsoft\Windows\AppRepository\Packages\Microsoft.MicrosoftEdge_*_8wekyb3d8bbwe\*"^""; $expandedPath = [System.Environment]::ExpandEnvironmentVariables($pathGlobPattern); Write-Host "^""Searching for items matching pattern: `"^""$($expandedPath)`"^""."^""; $renamedCount   = 0; $skippedCount   = 0; $failedCount    = 0; Add-Type -TypeDefinition "^""using System;`r`nusing System.Runtime.InteropServices;`r`npublic class Privileges {`r`n    [DllImport(`"^""advapi32.dll`"^"", ExactSpelling = true, SetLastError = true)]`r`n    internal static extern bool AdjustTokenPrivileges(IntPtr htok, bool disall,`r`n        ref TokPriv1Luid newst, int len, IntPtr prev, IntPtr relen);`r`n    [DllImport(`"^""advapi32.dll`"^"", ExactSpelling = true, SetLastError = true)]`r`n    internal static extern bool OpenProcessToken(IntPtr h, int acc, ref IntPtr phtok);`r`n    [DllImport(`"^""advapi32.dll`"^"", SetLastError = true)]`r`n    internal static extern bool LookupPrivilegeValue(string host, string name, ref long pluid);`r`n    [StructLayout(LayoutKind.Sequential, Pack = 1)]`r`n    internal struct TokPriv1Luid {`r`n        public int Count;`r`n        public long Luid;`r`n        public int Attr;`r`n    }`r`n    internal const int SE_PRIVILEGE_ENABLED = 0x00000002;`r`n    internal const int TOKEN_QUERY = 0x00000008;`r`n    internal const int TOKEN_ADJUST_PRIVILEGES = 0x00000020;`r`n    public static bool AddPrivilege(string privilege) {`r`n        try {`r`n            bool retVal;`r`n            TokPriv1Luid tp;`r`n            IntPtr hproc = GetCurrentProcess();`r`n            IntPtr htok = IntPtr.Zero;`r`n            retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);`r`n            tp.Count = 1;`r`n            tp.Luid = 0;`r`n            tp.Attr = SE_PRIVILEGE_ENABLED;`r`n            retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);`r`n            retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);`r`n            return retVal;`r`n        } catch (Exception ex) {`r`n            throw new Exception(`"^""Failed to adjust token privileges`"^"", ex);`r`n        }`r`n    }`r`n    public static bool RemovePrivilege(string privilege) {`r`n        try {`r`n            bool retVal;`r`n            TokPriv1Luid tp;`r`n            IntPtr hproc = GetCurrentProcess();`r`n            IntPtr htok = IntPtr.Zero;`r`n            retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);`r`n            tp.Count = 1;`r`n            tp.Luid = 0;`r`n            tp.Attr = 0;  // This line is changed to revoke the privilege`r`n            retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);`r`n            retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);`r`n            return retVal;`r`n        } catch (Exception ex) {`r`n            throw new Exception(`"^""Failed to adjust token privileges`"^"", ex);`r`n        }`r`n    }`r`n    [DllImport(`"^""kernel32.dll`"^"", CharSet = CharSet.Auto)]`r`n    public static extern IntPtr GetCurrentProcess();`r`n}"^""; [Privileges]::AddPrivilege('SeRestorePrivilege') | Out-Null; [Privileges]::AddPrivilege('SeTakeOwnershipPrivilege') | Out-Null; $adminSid = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544'; $adminAccount = $adminSid.Translate([System.Security.Principal.NTAccount]); $adminFullControlAccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule( $adminAccount, [System.Security.AccessControl.FileSystemRights]::FullControl, [System.Security.AccessControl.AccessControlType]::Allow ); $foundAbsolutePaths = @(); Write-Host 'Iterating files and directories recursively.'; try { $foundAbsolutePaths += @(; Get-ChildItem -Path $expandedPath -Force -Recurse -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; try { $foundAbsolutePaths += @(; Get-Item -Path $expandedPath -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; $foundAbsolutePaths = $foundAbsolutePaths | Select-Object -Unique | Sort-Object -Property { $_.Length } -Descending; if (!$foundAbsolutePaths) { Write-Host 'Skipping, no items available.'; exit 0; }; Write-Host "^""Initiating processing of $($foundAbsolutePaths.Count) items from `"^""$expandedPath`"^""."^""; foreach ($path in $foundAbsolutePaths) { if (Test-Path -Path $path -PathType Container) { Write-Host "^""Skipping folder (not its contents): `"^""$path`"^""."^""; $skippedCount++; continue; }; if($revert -eq $true) { if (-not $path.EndsWith('.OLD')) { Write-Host "^""Skipping non-backup file: `"^""$path`"^""."^""; $skippedCount++; continue; }; } else { if ($path.EndsWith('.OLD')) { Write-Host "^""Skipping backup file: `"^""$path`"^""."^""; $skippedCount++; continue; }; }; $originalFilePath = $path; Write-Host "^""Processing file: `"^""$originalFilePath`"^""."^""; if (-Not (Test-Path $originalFilePath)) { Write-Host "^""Skipping, file `"^""$originalFilePath`"^"" not found."^""; $skippedCount++; exit 0; }; $originalAcl = Get-Acl -Path "^""$originalFilePath"^""; $accessGranted = $false; try { $acl = Get-Acl -Path "^""$originalFilePath"^""; $acl.SetOwner($adminAccount) <# Take Ownership (because file is owned by TrustedInstaller) #>; $acl.AddAccessRule($adminFullControlAccessRule) <# Grant rights to be able to move the file #>; Set-Acl -Path $originalFilePath -AclObject $acl -ErrorAction Stop; $accessGranted = $true; } catch { Write-Warning "^""Failed to grant access to `"^""$originalFilePath`"^"": $($_.Exception.Message)"^""; }; if ($revert -eq $true) { $newFilePath = $originalFilePath.Substring(0, $originalFilePath.Length - 4); } else { $newFilePath = "^""$($originalFilePath).OLD"^""; }; try { Move-Item -LiteralPath "^""$($originalFilePath)"^"" -Destination "^""$newFilePath"^"" -Force -ErrorAction Stop; Write-Host "^""Successfully processed `"^""$originalFilePath`"^""."^""; $renamedCount++; if ($accessGranted) { try { Set-Acl -Path $newFilePath -AclObject $originalAcl -ErrorAction Stop; } catch { Write-Warning "^""Failed to restore access on `"^""$newFilePath`"^"": $($_.Exception.Message)"^""; }; }; } catch { Write-Error "^""Failed to rename `"^""$originalFilePath`"^"" to `"^""$newFilePath`"^"": $($_.Exception.Message)"^""; $failedCount++; if ($accessGranted) { try { Set-Acl -Path $originalFilePath -AclObject $originalAcl -ErrorAction Stop; } catch { Write-Warning "^""Failed to restore access on `"^""$originalFilePath`"^"": $($_.Exception.Message)"^""; }; }; }; }; if (($renamedCount -gt 0) -or ($skippedCount -gt 0)) { Write-Host "^""Successfully processed $renamedCount items and skipped $skippedCount items."^""; }; if ($failedCount -gt 0) { Write-Warning "^""Failed to process $($failedCount) items."^""; }; [Privileges]::RemovePrivilege('SeRestorePrivilege') | Out-Null; [Privileges]::RemovePrivilege('SeTakeOwnershipPrivilege') | Out-Null"
-:: Uninstall 'Microsoft.MicrosoftEdge.Stable' Store app
-PowerShell -ExecutionPolicy Unrestricted -Command "Get-AppxPackage 'Microsoft.MicrosoftEdge.Stable' | Remove-AppxPackage"
-:: Mark 'Microsoft.MicrosoftEdge.Stable' as deprovisioned to block reinstall during Windows updates.
-:: Create "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Deprovisioned\Microsoft.MicrosoftEdge.Stable_8wekyb3d8bbwe" registry key
-PowerShell -ExecutionPolicy Unrestricted -Command "$keyPath='HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Deprovisioned\Microsoft.MicrosoftEdge.Stable_8wekyb3d8bbwe'; $registryHive = $keyPath.Split('\')[0]; $registryPath = "^""$($registryHive):$($keyPath.Substring($registryHive.Length))"^""; if (Test-Path $registryPath) { Write-Host "^""Skipping, no action needed, registry path `"^""$registryPath`"^"" already exists."^""; exit 0; }; try { New-Item -Path $registryPath -Force -ErrorAction Stop | Out-Null; Write-Host "^""Successfully created the registry key at path `"^""$registryPath`"^""."^""; } catch { Write-Error "^""Failed to create the registry key at path `"^""$registryPath`"^"": $($_.Exception.Message)"^""; }"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
-:: -------Remove "Microsoft Edge Dev Tools Client" app-------
-:: ----------------------------------------------------------
-echo --- Remove "Microsoft Edge Dev Tools Client" app
-:: Soft delete files matching pattern: "%SYSTEMROOT%\SystemApps\Microsoft.MicrosoftEdgeDevToolsClient_8wekyb3d8bbwe\*" with additional permissions 
-PowerShell -ExecutionPolicy Unrestricted -Command "$pathGlobPattern = "^""%SYSTEMROOT%\SystemApps\Microsoft.MicrosoftEdgeDevToolsClient_8wekyb3d8bbwe\*"^""; $expandedPath = [System.Environment]::ExpandEnvironmentVariables($pathGlobPattern); Write-Host "^""Searching for items matching pattern: `"^""$($expandedPath)`"^""."^""; $renamedCount   = 0; $skippedCount   = 0; $failedCount    = 0; Add-Type -TypeDefinition "^""using System;`r`nusing System.Runtime.InteropServices;`r`npublic class Privileges {`r`n    [DllImport(`"^""advapi32.dll`"^"", ExactSpelling = true, SetLastError = true)]`r`n    internal static extern bool AdjustTokenPrivileges(IntPtr htok, bool disall,`r`n        ref TokPriv1Luid newst, int len, IntPtr prev, IntPtr relen);`r`n    [DllImport(`"^""advapi32.dll`"^"", ExactSpelling = true, SetLastError = true)]`r`n    internal static extern bool OpenProcessToken(IntPtr h, int acc, ref IntPtr phtok);`r`n    [DllImport(`"^""advapi32.dll`"^"", SetLastError = true)]`r`n    internal static extern bool LookupPrivilegeValue(string host, string name, ref long pluid);`r`n    [StructLayout(LayoutKind.Sequential, Pack = 1)]`r`n    internal struct TokPriv1Luid {`r`n        public int Count;`r`n        public long Luid;`r`n        public int Attr;`r`n    }`r`n    internal const int SE_PRIVILEGE_ENABLED = 0x00000002;`r`n    internal const int TOKEN_QUERY = 0x00000008;`r`n    internal const int TOKEN_ADJUST_PRIVILEGES = 0x00000020;`r`n    public static bool AddPrivilege(string privilege) {`r`n        try {`r`n            bool retVal;`r`n            TokPriv1Luid tp;`r`n            IntPtr hproc = GetCurrentProcess();`r`n            IntPtr htok = IntPtr.Zero;`r`n            retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);`r`n            tp.Count = 1;`r`n            tp.Luid = 0;`r`n            tp.Attr = SE_PRIVILEGE_ENABLED;`r`n            retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);`r`n            retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);`r`n            return retVal;`r`n        } catch (Exception ex) {`r`n            throw new Exception(`"^""Failed to adjust token privileges`"^"", ex);`r`n        }`r`n    }`r`n    public static bool RemovePrivilege(string privilege) {`r`n        try {`r`n            bool retVal;`r`n            TokPriv1Luid tp;`r`n            IntPtr hproc = GetCurrentProcess();`r`n            IntPtr htok = IntPtr.Zero;`r`n            retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);`r`n            tp.Count = 1;`r`n            tp.Luid = 0;`r`n            tp.Attr = 0;  // This line is changed to revoke the privilege`r`n            retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);`r`n            retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);`r`n            return retVal;`r`n        } catch (Exception ex) {`r`n            throw new Exception(`"^""Failed to adjust token privileges`"^"", ex);`r`n        }`r`n    }`r`n    [DllImport(`"^""kernel32.dll`"^"", CharSet = CharSet.Auto)]`r`n    public static extern IntPtr GetCurrentProcess();`r`n}"^""; [Privileges]::AddPrivilege('SeRestorePrivilege') | Out-Null; [Privileges]::AddPrivilege('SeTakeOwnershipPrivilege') | Out-Null; $adminSid = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544'; $adminAccount = $adminSid.Translate([System.Security.Principal.NTAccount]); $adminFullControlAccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule( $adminAccount, [System.Security.AccessControl.FileSystemRights]::FullControl, [System.Security.AccessControl.AccessControlType]::Allow ); $foundAbsolutePaths = @(); Write-Host 'Iterating files and directories recursively.'; try { $foundAbsolutePaths += @(; Get-ChildItem -Path $expandedPath -Force -Recurse -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; try { $foundAbsolutePaths += @(; Get-Item -Path $expandedPath -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; $foundAbsolutePaths = $foundAbsolutePaths | Select-Object -Unique | Sort-Object -Property { $_.Length } -Descending; if (!$foundAbsolutePaths) { Write-Host 'Skipping, no items available.'; exit 0; }; Write-Host "^""Initiating processing of $($foundAbsolutePaths.Count) items from `"^""$expandedPath`"^""."^""; foreach ($path in $foundAbsolutePaths) { if (Test-Path -Path $path -PathType Container) { Write-Host "^""Skipping folder (not its contents): `"^""$path`"^""."^""; $skippedCount++; continue; }; if($revert -eq $true) { if (-not $path.EndsWith('.OLD')) { Write-Host "^""Skipping non-backup file: `"^""$path`"^""."^""; $skippedCount++; continue; }; } else { if ($path.EndsWith('.OLD')) { Write-Host "^""Skipping backup file: `"^""$path`"^""."^""; $skippedCount++; continue; }; }; $originalFilePath = $path; Write-Host "^""Processing file: `"^""$originalFilePath`"^""."^""; if (-Not (Test-Path $originalFilePath)) { Write-Host "^""Skipping, file `"^""$originalFilePath`"^"" not found."^""; $skippedCount++; exit 0; }; $originalAcl = Get-Acl -Path "^""$originalFilePath"^""; $accessGranted = $false; try { $acl = Get-Acl -Path "^""$originalFilePath"^""; $acl.SetOwner($adminAccount) <# Take Ownership (because file is owned by TrustedInstaller) #>; $acl.AddAccessRule($adminFullControlAccessRule) <# Grant rights to be able to move the file #>; Set-Acl -Path $originalFilePath -AclObject $acl -ErrorAction Stop; $accessGranted = $true; } catch { Write-Warning "^""Failed to grant access to `"^""$originalFilePath`"^"": $($_.Exception.Message)"^""; }; if ($revert -eq $true) { $newFilePath = $originalFilePath.Substring(0, $originalFilePath.Length - 4); } else { $newFilePath = "^""$($originalFilePath).OLD"^""; }; try { Move-Item -LiteralPath "^""$($originalFilePath)"^"" -Destination "^""$newFilePath"^"" -Force -ErrorAction Stop; Write-Host "^""Successfully processed `"^""$originalFilePath`"^""."^""; $renamedCount++; if ($accessGranted) { try { Set-Acl -Path $newFilePath -AclObject $originalAcl -ErrorAction Stop; } catch { Write-Warning "^""Failed to restore access on `"^""$newFilePath`"^"": $($_.Exception.Message)"^""; }; }; } catch { Write-Error "^""Failed to rename `"^""$originalFilePath`"^"" to `"^""$newFilePath`"^"": $($_.Exception.Message)"^""; $failedCount++; if ($accessGranted) { try { Set-Acl -Path $originalFilePath -AclObject $originalAcl -ErrorAction Stop; } catch { Write-Warning "^""Failed to restore access on `"^""$originalFilePath`"^"": $($_.Exception.Message)"^""; }; }; }; }; if (($renamedCount -gt 0) -or ($skippedCount -gt 0)) { Write-Host "^""Successfully processed $renamedCount items and skipped $skippedCount items."^""; }; if ($failedCount -gt 0) { Write-Warning "^""Failed to process $($failedCount) items."^""; }; [Privileges]::RemovePrivilege('SeRestorePrivilege') | Out-Null; [Privileges]::RemovePrivilege('SeTakeOwnershipPrivilege') | Out-Null"
-:: Soft delete files matching pattern: "%SYSTEMROOT%\$(("Microsoft.MicrosoftEdgeDevToolsClient" -Split '\.')[-1])\*" with additional permissions 
-PowerShell -ExecutionPolicy Unrestricted -Command "$pathGlobPattern = "^""%SYSTEMROOT%\$(("^""Microsoft.MicrosoftEdgeDevToolsClient"^"" -Split '\.')[-1])\*"^""; $expandedPath = [System.Environment]::ExpandEnvironmentVariables($pathGlobPattern); Write-Host "^""Searching for items matching pattern: `"^""$($expandedPath)`"^""."^""; $renamedCount   = 0; $skippedCount   = 0; $failedCount    = 0; Add-Type -TypeDefinition "^""using System;`r`nusing System.Runtime.InteropServices;`r`npublic class Privileges {`r`n    [DllImport(`"^""advapi32.dll`"^"", ExactSpelling = true, SetLastError = true)]`r`n    internal static extern bool AdjustTokenPrivileges(IntPtr htok, bool disall,`r`n        ref TokPriv1Luid newst, int len, IntPtr prev, IntPtr relen);`r`n    [DllImport(`"^""advapi32.dll`"^"", ExactSpelling = true, SetLastError = true)]`r`n    internal static extern bool OpenProcessToken(IntPtr h, int acc, ref IntPtr phtok);`r`n    [DllImport(`"^""advapi32.dll`"^"", SetLastError = true)]`r`n    internal static extern bool LookupPrivilegeValue(string host, string name, ref long pluid);`r`n    [StructLayout(LayoutKind.Sequential, Pack = 1)]`r`n    internal struct TokPriv1Luid {`r`n        public int Count;`r`n        public long Luid;`r`n        public int Attr;`r`n    }`r`n    internal const int SE_PRIVILEGE_ENABLED = 0x00000002;`r`n    internal const int TOKEN_QUERY = 0x00000008;`r`n    internal const int TOKEN_ADJUST_PRIVILEGES = 0x00000020;`r`n    public static bool AddPrivilege(string privilege) {`r`n        try {`r`n            bool retVal;`r`n            TokPriv1Luid tp;`r`n            IntPtr hproc = GetCurrentProcess();`r`n            IntPtr htok = IntPtr.Zero;`r`n            retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);`r`n            tp.Count = 1;`r`n            tp.Luid = 0;`r`n            tp.Attr = SE_PRIVILEGE_ENABLED;`r`n            retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);`r`n            retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);`r`n            return retVal;`r`n        } catch (Exception ex) {`r`n            throw new Exception(`"^""Failed to adjust token privileges`"^"", ex);`r`n        }`r`n    }`r`n    public static bool RemovePrivilege(string privilege) {`r`n        try {`r`n            bool retVal;`r`n            TokPriv1Luid tp;`r`n            IntPtr hproc = GetCurrentProcess();`r`n            IntPtr htok = IntPtr.Zero;`r`n            retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);`r`n            tp.Count = 1;`r`n            tp.Luid = 0;`r`n            tp.Attr = 0;  // This line is changed to revoke the privilege`r`n            retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);`r`n            retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);`r`n            return retVal;`r`n        } catch (Exception ex) {`r`n            throw new Exception(`"^""Failed to adjust token privileges`"^"", ex);`r`n        }`r`n    }`r`n    [DllImport(`"^""kernel32.dll`"^"", CharSet = CharSet.Auto)]`r`n    public static extern IntPtr GetCurrentProcess();`r`n}"^""; [Privileges]::AddPrivilege('SeRestorePrivilege') | Out-Null; [Privileges]::AddPrivilege('SeTakeOwnershipPrivilege') | Out-Null; $adminSid = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544'; $adminAccount = $adminSid.Translate([System.Security.Principal.NTAccount]); $adminFullControlAccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule( $adminAccount, [System.Security.AccessControl.FileSystemRights]::FullControl, [System.Security.AccessControl.AccessControlType]::Allow ); $foundAbsolutePaths = @(); Write-Host 'Iterating files and directories recursively.'; try { $foundAbsolutePaths += @(; Get-ChildItem -Path $expandedPath -Force -Recurse -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; try { $foundAbsolutePaths += @(; Get-Item -Path $expandedPath -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; $foundAbsolutePaths = $foundAbsolutePaths | Select-Object -Unique | Sort-Object -Property { $_.Length } -Descending; if (!$foundAbsolutePaths) { Write-Host 'Skipping, no items available.'; exit 0; }; Write-Host "^""Initiating processing of $($foundAbsolutePaths.Count) items from `"^""$expandedPath`"^""."^""; foreach ($path in $foundAbsolutePaths) { if (Test-Path -Path $path -PathType Container) { Write-Host "^""Skipping folder (not its contents): `"^""$path`"^""."^""; $skippedCount++; continue; }; if($revert -eq $true) { if (-not $path.EndsWith('.OLD')) { Write-Host "^""Skipping non-backup file: `"^""$path`"^""."^""; $skippedCount++; continue; }; } else { if ($path.EndsWith('.OLD')) { Write-Host "^""Skipping backup file: `"^""$path`"^""."^""; $skippedCount++; continue; }; }; $originalFilePath = $path; Write-Host "^""Processing file: `"^""$originalFilePath`"^""."^""; if (-Not (Test-Path $originalFilePath)) { Write-Host "^""Skipping, file `"^""$originalFilePath`"^"" not found."^""; $skippedCount++; exit 0; }; $originalAcl = Get-Acl -Path "^""$originalFilePath"^""; $accessGranted = $false; try { $acl = Get-Acl -Path "^""$originalFilePath"^""; $acl.SetOwner($adminAccount) <# Take Ownership (because file is owned by TrustedInstaller) #>; $acl.AddAccessRule($adminFullControlAccessRule) <# Grant rights to be able to move the file #>; Set-Acl -Path $originalFilePath -AclObject $acl -ErrorAction Stop; $accessGranted = $true; } catch { Write-Warning "^""Failed to grant access to `"^""$originalFilePath`"^"": $($_.Exception.Message)"^""; }; if ($revert -eq $true) { $newFilePath = $originalFilePath.Substring(0, $originalFilePath.Length - 4); } else { $newFilePath = "^""$($originalFilePath).OLD"^""; }; try { Move-Item -LiteralPath "^""$($originalFilePath)"^"" -Destination "^""$newFilePath"^"" -Force -ErrorAction Stop; Write-Host "^""Successfully processed `"^""$originalFilePath`"^""."^""; $renamedCount++; if ($accessGranted) { try { Set-Acl -Path $newFilePath -AclObject $originalAcl -ErrorAction Stop; } catch { Write-Warning "^""Failed to restore access on `"^""$newFilePath`"^"": $($_.Exception.Message)"^""; }; }; } catch { Write-Error "^""Failed to rename `"^""$originalFilePath`"^"" to `"^""$newFilePath`"^"": $($_.Exception.Message)"^""; $failedCount++; if ($accessGranted) { try { Set-Acl -Path $originalFilePath -AclObject $originalAcl -ErrorAction Stop; } catch { Write-Warning "^""Failed to restore access on `"^""$originalFilePath`"^"": $($_.Exception.Message)"^""; }; }; }; }; if (($renamedCount -gt 0) -or ($skippedCount -gt 0)) { Write-Host "^""Successfully processed $renamedCount items and skipped $skippedCount items."^""; }; if ($failedCount -gt 0) { Write-Warning "^""Failed to process $($failedCount) items."^""; }; [Privileges]::RemovePrivilege('SeRestorePrivilege') | Out-Null; [Privileges]::RemovePrivilege('SeTakeOwnershipPrivilege') | Out-Null"
-:: Soft delete files matching pattern: "%SYSTEMDRIVE%\Program Files\WindowsApps\Microsoft.MicrosoftEdgeDevToolsClient_*_8wekyb3d8bbwe\*" with additional permissions 
-PowerShell -ExecutionPolicy Unrestricted -Command "$pathGlobPattern = "^""%SYSTEMDRIVE%\Program Files\WindowsApps\Microsoft.MicrosoftEdgeDevToolsClient_*_8wekyb3d8bbwe\*"^""; $expandedPath = [System.Environment]::ExpandEnvironmentVariables($pathGlobPattern); Write-Host "^""Searching for items matching pattern: `"^""$($expandedPath)`"^""."^""; $renamedCount   = 0; $skippedCount   = 0; $failedCount    = 0; Add-Type -TypeDefinition "^""using System;`r`nusing System.Runtime.InteropServices;`r`npublic class Privileges {`r`n    [DllImport(`"^""advapi32.dll`"^"", ExactSpelling = true, SetLastError = true)]`r`n    internal static extern bool AdjustTokenPrivileges(IntPtr htok, bool disall,`r`n        ref TokPriv1Luid newst, int len, IntPtr prev, IntPtr relen);`r`n    [DllImport(`"^""advapi32.dll`"^"", ExactSpelling = true, SetLastError = true)]`r`n    internal static extern bool OpenProcessToken(IntPtr h, int acc, ref IntPtr phtok);`r`n    [DllImport(`"^""advapi32.dll`"^"", SetLastError = true)]`r`n    internal static extern bool LookupPrivilegeValue(string host, string name, ref long pluid);`r`n    [StructLayout(LayoutKind.Sequential, Pack = 1)]`r`n    internal struct TokPriv1Luid {`r`n        public int Count;`r`n        public long Luid;`r`n        public int Attr;`r`n    }`r`n    internal const int SE_PRIVILEGE_ENABLED = 0x00000002;`r`n    internal const int TOKEN_QUERY = 0x00000008;`r`n    internal const int TOKEN_ADJUST_PRIVILEGES = 0x00000020;`r`n    public static bool AddPrivilege(string privilege) {`r`n        try {`r`n            bool retVal;`r`n            TokPriv1Luid tp;`r`n            IntPtr hproc = GetCurrentProcess();`r`n            IntPtr htok = IntPtr.Zero;`r`n            retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);`r`n            tp.Count = 1;`r`n            tp.Luid = 0;`r`n            tp.Attr = SE_PRIVILEGE_ENABLED;`r`n            retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);`r`n            retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);`r`n            return retVal;`r`n        } catch (Exception ex) {`r`n            throw new Exception(`"^""Failed to adjust token privileges`"^"", ex);`r`n        }`r`n    }`r`n    public static bool RemovePrivilege(string privilege) {`r`n        try {`r`n            bool retVal;`r`n            TokPriv1Luid tp;`r`n            IntPtr hproc = GetCurrentProcess();`r`n            IntPtr htok = IntPtr.Zero;`r`n            retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);`r`n            tp.Count = 1;`r`n            tp.Luid = 0;`r`n            tp.Attr = 0;  // This line is changed to revoke the privilege`r`n            retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);`r`n            retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);`r`n            return retVal;`r`n        } catch (Exception ex) {`r`n            throw new Exception(`"^""Failed to adjust token privileges`"^"", ex);`r`n        }`r`n    }`r`n    [DllImport(`"^""kernel32.dll`"^"", CharSet = CharSet.Auto)]`r`n    public static extern IntPtr GetCurrentProcess();`r`n}"^""; [Privileges]::AddPrivilege('SeRestorePrivilege') | Out-Null; [Privileges]::AddPrivilege('SeTakeOwnershipPrivilege') | Out-Null; $adminSid = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544'; $adminAccount = $adminSid.Translate([System.Security.Principal.NTAccount]); $adminFullControlAccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule( $adminAccount, [System.Security.AccessControl.FileSystemRights]::FullControl, [System.Security.AccessControl.AccessControlType]::Allow ); $foundAbsolutePaths = @(); Write-Host 'Iterating files and directories recursively.'; try { $foundAbsolutePaths += @(; Get-ChildItem -Path $expandedPath -Force -Recurse -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; try { $foundAbsolutePaths += @(; Get-Item -Path $expandedPath -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; $foundAbsolutePaths = $foundAbsolutePaths | Select-Object -Unique | Sort-Object -Property { $_.Length } -Descending; if (!$foundAbsolutePaths) { Write-Host 'Skipping, no items available.'; exit 0; }; Write-Host "^""Initiating processing of $($foundAbsolutePaths.Count) items from `"^""$expandedPath`"^""."^""; foreach ($path in $foundAbsolutePaths) { if (Test-Path -Path $path -PathType Container) { Write-Host "^""Skipping folder (not its contents): `"^""$path`"^""."^""; $skippedCount++; continue; }; if($revert -eq $true) { if (-not $path.EndsWith('.OLD')) { Write-Host "^""Skipping non-backup file: `"^""$path`"^""."^""; $skippedCount++; continue; }; } else { if ($path.EndsWith('.OLD')) { Write-Host "^""Skipping backup file: `"^""$path`"^""."^""; $skippedCount++; continue; }; }; $originalFilePath = $path; Write-Host "^""Processing file: `"^""$originalFilePath`"^""."^""; if (-Not (Test-Path $originalFilePath)) { Write-Host "^""Skipping, file `"^""$originalFilePath`"^"" not found."^""; $skippedCount++; exit 0; }; $originalAcl = Get-Acl -Path "^""$originalFilePath"^""; $accessGranted = $false; try { $acl = Get-Acl -Path "^""$originalFilePath"^""; $acl.SetOwner($adminAccount) <# Take Ownership (because file is owned by TrustedInstaller) #>; $acl.AddAccessRule($adminFullControlAccessRule) <# Grant rights to be able to move the file #>; Set-Acl -Path $originalFilePath -AclObject $acl -ErrorAction Stop; $accessGranted = $true; } catch { Write-Warning "^""Failed to grant access to `"^""$originalFilePath`"^"": $($_.Exception.Message)"^""; }; if ($revert -eq $true) { $newFilePath = $originalFilePath.Substring(0, $originalFilePath.Length - 4); } else { $newFilePath = "^""$($originalFilePath).OLD"^""; }; try { Move-Item -LiteralPath "^""$($originalFilePath)"^"" -Destination "^""$newFilePath"^"" -Force -ErrorAction Stop; Write-Host "^""Successfully processed `"^""$originalFilePath`"^""."^""; $renamedCount++; if ($accessGranted) { try { Set-Acl -Path $newFilePath -AclObject $originalAcl -ErrorAction Stop; } catch { Write-Warning "^""Failed to restore access on `"^""$newFilePath`"^"": $($_.Exception.Message)"^""; }; }; } catch { Write-Error "^""Failed to rename `"^""$originalFilePath`"^"" to `"^""$newFilePath`"^"": $($_.Exception.Message)"^""; $failedCount++; if ($accessGranted) { try { Set-Acl -Path $originalFilePath -AclObject $originalAcl -ErrorAction Stop; } catch { Write-Warning "^""Failed to restore access on `"^""$originalFilePath`"^"": $($_.Exception.Message)"^""; }; }; }; }; if (($renamedCount -gt 0) -or ($skippedCount -gt 0)) { Write-Host "^""Successfully processed $renamedCount items and skipped $skippedCount items."^""; }; if ($failedCount -gt 0) { Write-Warning "^""Failed to process $($failedCount) items."^""; }; [Privileges]::RemovePrivilege('SeRestorePrivilege') | Out-Null; [Privileges]::RemovePrivilege('SeTakeOwnershipPrivilege') | Out-Null"
-:: Enable removal of system app 'Microsoft.MicrosoftEdgeDevToolsClient' by marking it as "EndOfLife"
-:: Create "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\EndOfLife\$CURRENT_USER_SID\Microsoft.MicrosoftEdgeDevToolsClient_8wekyb3d8bbwe" registry key
-PowerShell -ExecutionPolicy Unrestricted -Command "$keyPath='HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\EndOfLife\$CURRENT_USER_SID\Microsoft.MicrosoftEdgeDevToolsClient_8wekyb3d8bbwe'; $registryHive = $keyPath.Split('\')[0]; $registryPath = "^""$($registryHive):$($keyPath.Substring($registryHive.Length))"^""; $userSid = (New-Object System.Security.Principal.NTAccount($env:USERNAME)).Translate([Security.Principal.SecurityIdentifier]).Value; $registryPath = $registryPath.Replace('$CURRENT_USER_SID', $userSid); if (Test-Path $registryPath) { Write-Host "^""Skipping, no action needed, registry path `"^""$registryPath`"^"" already exists."^""; exit 0; }; try { New-Item -Path $registryPath -Force -ErrorAction Stop | Out-Null; Write-Host "^""Successfully created the registry key at path `"^""$registryPath`"^""."^""; } catch { Write-Error "^""Failed to create the registry key at path `"^""$registryPath`"^"": $($_.Exception.Message)"^""; }"
-:: Uninstall 'Microsoft.MicrosoftEdgeDevToolsClient' Store app
-PowerShell -ExecutionPolicy Unrestricted -Command "Get-AppxPackage 'Microsoft.MicrosoftEdgeDevToolsClient' | Remove-AppxPackage"
-:: Mark 'Microsoft.MicrosoftEdgeDevToolsClient' as deprovisioned to block reinstall during Windows updates.
-:: Create "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Deprovisioned\Microsoft.MicrosoftEdgeDevToolsClient_8wekyb3d8bbwe" registry key
-PowerShell -ExecutionPolicy Unrestricted -Command "$keyPath='HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\Deprovisioned\Microsoft.MicrosoftEdgeDevToolsClient_8wekyb3d8bbwe'; $registryHive = $keyPath.Split('\')[0]; $registryPath = "^""$($registryHive):$($keyPath.Substring($registryHive.Length))"^""; if (Test-Path $registryPath) { Write-Host "^""Skipping, no action needed, registry path `"^""$registryPath`"^"" already exists."^""; exit 0; }; try { New-Item -Path $registryPath -Force -ErrorAction Stop | Out-Null; Write-Host "^""Successfully created the registry key at path `"^""$registryPath`"^""."^""; } catch { Write-Error "^""Failed to create the registry key at path `"^""$registryPath`"^"": $($_.Exception.Message)"^""; }"
-:: Remove the registry key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\EndOfLife\$CURRENT_USER_SID\Microsoft.MicrosoftEdgeDevToolsClient_8wekyb3d8bbwe" (Revert 'Microsoft.MicrosoftEdgeDevToolsClient' to its default, non-removable state.)
-PowerShell -ExecutionPolicy Unrestricted -Command "$keyPath='HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Appx\AppxAllUserStore\EndOfLife\$CURRENT_USER_SID\Microsoft.MicrosoftEdgeDevToolsClient_8wekyb3d8bbwe'; $registryHive = $keyPath.Split('\')[0]; $registryPath = "^""$($registryHive):$($keyPath.Substring($registryHive.Length))"^""; $userSid = (New-Object System.Security.Principal.NTAccount($env:USERNAME)).Translate([Security.Principal.SecurityIdentifier]).Value; $registryPath = $registryPath.Replace('$CURRENT_USER_SID', $userSid); Write-Host "^""Removing registry key at `"^""$registryPath`"^""."^""; if (-not (Test-Path -LiteralPath $registryPath)) { Write-Host "^""Skipping, no action needed, registry key `"^""$registryPath`"^"" does not exist."^""; exit 0; }; try { Remove-Item -LiteralPath $registryPath -Force -ErrorAction Stop | Out-Null; Write-Host "^""Successfully removed the registry key at path `"^""$registryPath`"^""."^""; } catch { Write-Error "^""Failed to remove the registry key at path `"^""$registryPath`"^"": $($_.Exception.Message)"^""; }"
-:: Soft delete files matching pattern: "%LOCALAPPDATA%\Packages\Microsoft.MicrosoftEdgeDevToolsClient_8wekyb3d8bbwe\*"  
-PowerShell -ExecutionPolicy Unrestricted -Command "$pathGlobPattern = "^""%LOCALAPPDATA%\Packages\Microsoft.MicrosoftEdgeDevToolsClient_8wekyb3d8bbwe\*"^""; $expandedPath = [System.Environment]::ExpandEnvironmentVariables($pathGlobPattern); Write-Host "^""Searching for items matching pattern: `"^""$($expandedPath)`"^""."^""; $renamedCount   = 0; $skippedCount   = 0; $failedCount    = 0; $foundAbsolutePaths = @(); Write-Host 'Iterating files and directories recursively.'; try { $foundAbsolutePaths += @(; Get-ChildItem -Path $expandedPath -Force -Recurse -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; try { $foundAbsolutePaths += @(; Get-Item -Path $expandedPath -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; $foundAbsolutePaths = $foundAbsolutePaths | Select-Object -Unique | Sort-Object -Property { $_.Length } -Descending; if (!$foundAbsolutePaths) { Write-Host 'Skipping, no items available.'; exit 0; }; Write-Host "^""Initiating processing of $($foundAbsolutePaths.Count) items from `"^""$expandedPath`"^""."^""; foreach ($path in $foundAbsolutePaths) { if (Test-Path -Path $path -PathType Container) { Write-Host "^""Skipping folder (not its contents): `"^""$path`"^""."^""; $skippedCount++; continue; }; if($revert -eq $true) { if (-not $path.EndsWith('.OLD')) { Write-Host "^""Skipping non-backup file: `"^""$path`"^""."^""; $skippedCount++; continue; }; } else { if ($path.EndsWith('.OLD')) { Write-Host "^""Skipping backup file: `"^""$path`"^""."^""; $skippedCount++; continue; }; }; $originalFilePath = $path; Write-Host "^""Processing file: `"^""$originalFilePath`"^""."^""; if (-Not (Test-Path $originalFilePath)) { Write-Host "^""Skipping, file `"^""$originalFilePath`"^"" not found."^""; $skippedCount++; exit 0; }; if ($revert -eq $true) { $newFilePath = $originalFilePath.Substring(0, $originalFilePath.Length - 4); } else { $newFilePath = "^""$($originalFilePath).OLD"^""; }; try { Move-Item -LiteralPath "^""$($originalFilePath)"^"" -Destination "^""$newFilePath"^"" -Force -ErrorAction Stop; Write-Host "^""Successfully processed `"^""$originalFilePath`"^""."^""; $renamedCount++; } catch { Write-Error "^""Failed to rename `"^""$originalFilePath`"^"" to `"^""$newFilePath`"^"": $($_.Exception.Message)"^""; $failedCount++; }; }; if (($renamedCount -gt 0) -or ($skippedCount -gt 0)) { Write-Host "^""Successfully processed $renamedCount items and skipped $skippedCount items."^""; }; if ($failedCount -gt 0) { Write-Warning "^""Failed to process $($failedCount) items."^""; }"
-:: Soft delete files matching pattern: "%PROGRAMDATA%\Microsoft\Windows\AppRepository\Packages\Microsoft.MicrosoftEdgeDevToolsClient_*_8wekyb3d8bbwe\*" with additional permissions 
-PowerShell -ExecutionPolicy Unrestricted -Command "$pathGlobPattern = "^""%PROGRAMDATA%\Microsoft\Windows\AppRepository\Packages\Microsoft.MicrosoftEdgeDevToolsClient_*_8wekyb3d8bbwe\*"^""; $expandedPath = [System.Environment]::ExpandEnvironmentVariables($pathGlobPattern); Write-Host "^""Searching for items matching pattern: `"^""$($expandedPath)`"^""."^""; $renamedCount   = 0; $skippedCount   = 0; $failedCount    = 0; Add-Type -TypeDefinition "^""using System;`r`nusing System.Runtime.InteropServices;`r`npublic class Privileges {`r`n    [DllImport(`"^""advapi32.dll`"^"", ExactSpelling = true, SetLastError = true)]`r`n    internal static extern bool AdjustTokenPrivileges(IntPtr htok, bool disall,`r`n        ref TokPriv1Luid newst, int len, IntPtr prev, IntPtr relen);`r`n    [DllImport(`"^""advapi32.dll`"^"", ExactSpelling = true, SetLastError = true)]`r`n    internal static extern bool OpenProcessToken(IntPtr h, int acc, ref IntPtr phtok);`r`n    [DllImport(`"^""advapi32.dll`"^"", SetLastError = true)]`r`n    internal static extern bool LookupPrivilegeValue(string host, string name, ref long pluid);`r`n    [StructLayout(LayoutKind.Sequential, Pack = 1)]`r`n    internal struct TokPriv1Luid {`r`n        public int Count;`r`n        public long Luid;`r`n        public int Attr;`r`n    }`r`n    internal const int SE_PRIVILEGE_ENABLED = 0x00000002;`r`n    internal const int TOKEN_QUERY = 0x00000008;`r`n    internal const int TOKEN_ADJUST_PRIVILEGES = 0x00000020;`r`n    public static bool AddPrivilege(string privilege) {`r`n        try {`r`n            bool retVal;`r`n            TokPriv1Luid tp;`r`n            IntPtr hproc = GetCurrentProcess();`r`n            IntPtr htok = IntPtr.Zero;`r`n            retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);`r`n            tp.Count = 1;`r`n            tp.Luid = 0;`r`n            tp.Attr = SE_PRIVILEGE_ENABLED;`r`n            retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);`r`n            retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);`r`n            return retVal;`r`n        } catch (Exception ex) {`r`n            throw new Exception(`"^""Failed to adjust token privileges`"^"", ex);`r`n        }`r`n    }`r`n    public static bool RemovePrivilege(string privilege) {`r`n        try {`r`n            bool retVal;`r`n            TokPriv1Luid tp;`r`n            IntPtr hproc = GetCurrentProcess();`r`n            IntPtr htok = IntPtr.Zero;`r`n            retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);`r`n            tp.Count = 1;`r`n            tp.Luid = 0;`r`n            tp.Attr = 0;  // This line is changed to revoke the privilege`r`n            retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);`r`n            retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);`r`n            return retVal;`r`n        } catch (Exception ex) {`r`n            throw new Exception(`"^""Failed to adjust token privileges`"^"", ex);`r`n        }`r`n    }`r`n    [DllImport(`"^""kernel32.dll`"^"", CharSet = CharSet.Auto)]`r`n    public static extern IntPtr GetCurrentProcess();`r`n}"^""; [Privileges]::AddPrivilege('SeRestorePrivilege') | Out-Null; [Privileges]::AddPrivilege('SeTakeOwnershipPrivilege') | Out-Null; $adminSid = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544'; $adminAccount = $adminSid.Translate([System.Security.Principal.NTAccount]); $adminFullControlAccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule( $adminAccount, [System.Security.AccessControl.FileSystemRights]::FullControl, [System.Security.AccessControl.AccessControlType]::Allow ); $foundAbsolutePaths = @(); Write-Host 'Iterating files and directories recursively.'; try { $foundAbsolutePaths += @(; Get-ChildItem -Path $expandedPath -Force -Recurse -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; try { $foundAbsolutePaths += @(; Get-Item -Path $expandedPath -ErrorAction Stop | Select-Object -ExpandProperty FullName; ); } catch [System.Management.Automation.ItemNotFoundException] { <# Swallow, do not run `Test-Path` before, it's unreliable for globs requiring extra permissions #>; }; $foundAbsolutePaths = $foundAbsolutePaths | Select-Object -Unique | Sort-Object -Property { $_.Length } -Descending; if (!$foundAbsolutePaths) { Write-Host 'Skipping, no items available.'; exit 0; }; Write-Host "^""Initiating processing of $($foundAbsolutePaths.Count) items from `"^""$expandedPath`"^""."^""; foreach ($path in $foundAbsolutePaths) { if (Test-Path -Path $path -PathType Container) { Write-Host "^""Skipping folder (not its contents): `"^""$path`"^""."^""; $skippedCount++; continue; }; if($revert -eq $true) { if (-not $path.EndsWith('.OLD')) { Write-Host "^""Skipping non-backup file: `"^""$path`"^""."^""; $skippedCount++; continue; }; } else { if ($path.EndsWith('.OLD')) { Write-Host "^""Skipping backup file: `"^""$path`"^""."^""; $skippedCount++; continue; }; }; $originalFilePath = $path; Write-Host "^""Processing file: `"^""$originalFilePath`"^""."^""; if (-Not (Test-Path $originalFilePath)) { Write-Host "^""Skipping, file `"^""$originalFilePath`"^"" not found."^""; $skippedCount++; exit 0; }; $originalAcl = Get-Acl -Path "^""$originalFilePath"^""; $accessGranted = $false; try { $acl = Get-Acl -Path "^""$originalFilePath"^""; $acl.SetOwner($adminAccount) <# Take Ownership (because file is owned by TrustedInstaller) #>; $acl.AddAccessRule($adminFullControlAccessRule) <# Grant rights to be able to move the file #>; Set-Acl -Path $originalFilePath -AclObject $acl -ErrorAction Stop; $accessGranted = $true; } catch { Write-Warning "^""Failed to grant access to `"^""$originalFilePath`"^"": $($_.Exception.Message)"^""; }; if ($revert -eq $true) { $newFilePath = $originalFilePath.Substring(0, $originalFilePath.Length - 4); } else { $newFilePath = "^""$($originalFilePath).OLD"^""; }; try { Move-Item -LiteralPath "^""$($originalFilePath)"^"" -Destination "^""$newFilePath"^"" -Force -ErrorAction Stop; Write-Host "^""Successfully processed `"^""$originalFilePath`"^""."^""; $renamedCount++; if ($accessGranted) { try { Set-Acl -Path $newFilePath -AclObject $originalAcl -ErrorAction Stop; } catch { Write-Warning "^""Failed to restore access on `"^""$newFilePath`"^"": $($_.Exception.Message)"^""; }; }; } catch { Write-Error "^""Failed to rename `"^""$originalFilePath`"^"" to `"^""$newFilePath`"^"": $($_.Exception.Message)"^""; $failedCount++; if ($accessGranted) { try { Set-Acl -Path $originalFilePath -AclObject $originalAcl -ErrorAction Stop; } catch { Write-Warning "^""Failed to restore access on `"^""$originalFilePath`"^"": $($_.Exception.Message)"^""; }; }; }; }; if (($renamedCount -gt 0) -or ($skippedCount -gt 0)) { Write-Host "^""Successfully processed $renamedCount items and skipped $skippedCount items."^""; }; if ($failedCount -gt 0) { Write-Warning "^""Failed to process $($failedCount) items."^""; }; [Privileges]::RemovePrivilege('SeRestorePrivilege') | Out-Null; [Privileges]::RemovePrivilege('SeTakeOwnershipPrivilege') | Out-Null"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
-:: -Remove Edge (Legacy) application selection associations--
-:: ----------------------------------------------------------
-echo --- Remove Edge (Legacy) application selection associations
-:: Remove file association for "AppX4hxtad77fbk3jkkeerkrm0ze94wjf3s9" for .htm
-:: Delete the registry value "AppX4hxtad77fbk3jkkeerkrm0ze94wjf3s9_.htm" from the key "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts" 
-PowerShell -ExecutionPolicy Unrestricted -Command "$keyName = 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts'; $valueName = 'AppX4hxtad77fbk3jkkeerkrm0ze94wjf3s9_.htm'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
-:: Remove file association for "AppX4hxtad77fbk3jkkeerkrm0ze94wjf3s9" for .html
-:: Delete the registry value "AppX4hxtad77fbk3jkkeerkrm0ze94wjf3s9_.html" from the key "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts" 
-PowerShell -ExecutionPolicy Unrestricted -Command "$keyName = 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts'; $valueName = 'AppX4hxtad77fbk3jkkeerkrm0ze94wjf3s9_.html'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
-:: Remove file association for "AppXd4nrz8ff68srnhf9t5a8sbjyar1cr723" for .pdf
-:: Delete the registry value "AppXd4nrz8ff68srnhf9t5a8sbjyar1cr723_.pdf" from the key "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts" 
-PowerShell -ExecutionPolicy Unrestricted -Command "$keyName = 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts'; $valueName = 'AppXd4nrz8ff68srnhf9t5a8sbjyar1cr723_.pdf'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
-:: Remove file association for "AppXq0fevzme2pys62n3e0fbqa7peapykr8v" for http
-:: Delete the registry value "AppXq0fevzme2pys62n3e0fbqa7peapykr8v_http" from the key "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts" 
-PowerShell -ExecutionPolicy Unrestricted -Command "$keyName = 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts'; $valueName = 'AppXq0fevzme2pys62n3e0fbqa7peapykr8v_http'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
-:: Remove file association for "AppX90nv6nhay5n6a98fnetv7tpk64pp35es" for https
-:: Delete the registry value "AppX90nv6nhay5n6a98fnetv7tpk64pp35es_https" from the key "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts" 
-PowerShell -ExecutionPolicy Unrestricted -Command "$keyName = 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts'; $valueName = 'AppX90nv6nhay5n6a98fnetv7tpk64pp35es_https'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
-:: Remove file association for "AppX7rm9drdg8sk7vqndwj3sdjw11x96jc0y" for microsoft-edge
-:: Delete the registry value "AppX7rm9drdg8sk7vqndwj3sdjw11x96jc0y_microsoft-edge" from the key "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts" 
-PowerShell -ExecutionPolicy Unrestricted -Command "$keyName = 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts'; $valueName = 'AppX7rm9drdg8sk7vqndwj3sdjw11x96jc0y_microsoft-edge'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
-:: Remove file association for "AppX3xxs313wwkfjhythsb8q46xdsq8d2cvv" for microsoft-edge-holographic
-:: Delete the registry value "AppX3xxs313wwkfjhythsb8q46xdsq8d2cvv_microsoft-edge-holographic" from the key "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts" 
-PowerShell -ExecutionPolicy Unrestricted -Command "$keyName = 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts'; $valueName = 'AppX3xxs313wwkfjhythsb8q46xdsq8d2cvv_microsoft-edge-holographic'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
-:: Remove file association for "AppX7rm9drdg8sk7vqndwj3sdjw11x96jc0y" for microsoft-edge
-:: Delete the registry value "AppX7rm9drdg8sk7vqndwj3sdjw11x96jc0y_microsoft-edge" from the key "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts" 
-:: This operation will not run on Windows versions earlier than Windows10-1909.This operation will not run on Windows versions later than Windows11-21H2.
-PowerShell -ExecutionPolicy Unrestricted -Command "$versionName = 'Windows10-1909'; $buildNumber = switch ($versionName) { 'Windows11-FirstRelease' { '10.0.22000' }; 'Windows11-22H2' { '10.0.22621' }; 'Windows11-21H2' { '10.0.22000' }; 'Windows10-22H2' { '10.0.19045' }; 'Windows10-21H2' { '10.0.19044' }; 'Windows10-20H2' { '10.0.19042' }; 'Windows10-1909' { '10.0.18363' }; 'Windows10-1607' { '10.0.14393' }; default { throw "^""Internal privacy$([char]0x002E)sexy error: No build for minimum Windows '$versionName'"^""; }; }; $minVersion = [System.Version]::Parse($buildNumber); $ver = [Environment]::OSVersion.Version; $verNoPatch = [System.Version]::new($ver.Major, $ver.Minor, $ver.Build); if ($verNoPatch -lt $minVersion) { Write-Output "^""Skipping: Windows ($verNoPatch) is below minimum $minVersion ($versionName)"^""; Exit 0; }$versionName = 'Windows11-21H2'; $buildNumber = switch ($versionName) { 'Windows11-21H2' { '10.0.22000' }; 'Windows10-MostRecent' { '10.0.19045' }; 'Windows10-22H2' { '10.0.19045' }; 'Windows10-1909' { '10.0.18363' }; 'Windows10-1903' { '10.0.18362' }; default { throw "^""Internal privacy$([char]0x002E)sexy error: No build for maximum Windows '$versionName'"^""; }; }; $maxVersion=[System.Version]::Parse($buildNumber); $ver = [Environment]::OSVersion.Version; $verNoPatch = [System.Version]::new($ver.Major, $ver.Minor, $ver.Build); if ($verNoPatch -gt $maxVersion) { Write-Output "^""Skipping: Windows ($verNoPatch) is above maximum $maxVersion ($versionName)"^""; Exit 0; }; $keyName = 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts'; $valueName = 'AppX7rm9drdg8sk7vqndwj3sdjw11x96jc0y_microsoft-edge'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
-:: ----------Remove Edge (Legacy) user associations----------
-:: ----------------------------------------------------------
-echo --- Remove Edge (Legacy) user associations
-:: Remove user-chosen URL association for "AppXq0fevzme2pys62n3e0fbqa7peapykr8v" for http URL protocol
-:: Delete the registry value "ProgId" from the key "HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice" 
-:: This operation will not run on Windows versions later than Windows10-1903.
-PowerShell -ExecutionPolicy Unrestricted -Command "$versionName = 'Windows10-1903'; $buildNumber = switch ($versionName) { 'Windows11-21H2' { '10.0.22000' }; 'Windows10-MostRecent' { '10.0.19045' }; 'Windows10-22H2' { '10.0.19045' }; 'Windows10-1909' { '10.0.18363' }; 'Windows10-1903' { '10.0.18362' }; default { throw "^""Internal privacy$([char]0x002E)sexy error: No build for maximum Windows '$versionName'"^""; }; }; $maxVersion=[System.Version]::Parse($buildNumber); $ver = [Environment]::OSVersion.Version; $verNoPatch = [System.Version]::new($ver.Major, $ver.Minor, $ver.Build); if ($verNoPatch -gt $maxVersion) { Write-Output "^""Skipping: Windows ($verNoPatch) is above maximum $maxVersion ($versionName)"^""; Exit 0; }; $keyName = 'HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice'; $valueName = 'ProgId'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; $expectedData = 'AppXq0fevzme2pys62n3e0fbqa7peapykr8v'; $currentData = Get-ItemProperty -LiteralPath $path -Name $valueName | Select-Object -ExpandProperty $valueName; if ($currentData -ne $expectedData) { Write-Host "^""Skipping, no action needed, current data '$currentData' is not same as '$expectedData'."^""; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
-:: Remove user-chosen URL association for "AppX90nv6nhay5n6a98fnetv7tpk64pp35es" for https URL protocol
-:: Delete the registry value "ProgId" from the key "HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\https\UserChoice" 
-:: This operation will not run on Windows versions later than Windows10-1903.
-PowerShell -ExecutionPolicy Unrestricted -Command "$versionName = 'Windows10-1903'; $buildNumber = switch ($versionName) { 'Windows11-21H2' { '10.0.22000' }; 'Windows10-MostRecent' { '10.0.19045' }; 'Windows10-22H2' { '10.0.19045' }; 'Windows10-1909' { '10.0.18363' }; 'Windows10-1903' { '10.0.18362' }; default { throw "^""Internal privacy$([char]0x002E)sexy error: No build for maximum Windows '$versionName'"^""; }; }; $maxVersion=[System.Version]::Parse($buildNumber); $ver = [Environment]::OSVersion.Version; $verNoPatch = [System.Version]::new($ver.Major, $ver.Minor, $ver.Build); if ($verNoPatch -gt $maxVersion) { Write-Output "^""Skipping: Windows ($verNoPatch) is above maximum $maxVersion ($versionName)"^""; Exit 0; }; $keyName = 'HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\https\UserChoice'; $valueName = 'ProgId'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; $expectedData = 'AppX90nv6nhay5n6a98fnetv7tpk64pp35es'; $currentData = Get-ItemProperty -LiteralPath $path -Name $valueName | Select-Object -ExpandProperty $valueName; if ($currentData -ne $expectedData) { Write-Host "^""Skipping, no action needed, current data '$currentData' is not same as '$expectedData'."^""; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
-:: Remove user-chosen URL association for "AppX7rm9drdg8sk7vqndwj3sdjw11x96jc0y" for microsoft-edge URL protocol
-:: Delete the registry value "ProgId" from the key "HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\microsoft-edge\UserChoice" 
-:: This operation will not run on Windows versions later than Windows10-1903.
-PowerShell -ExecutionPolicy Unrestricted -Command "$versionName = 'Windows10-1903'; $buildNumber = switch ($versionName) { 'Windows11-21H2' { '10.0.22000' }; 'Windows10-MostRecent' { '10.0.19045' }; 'Windows10-22H2' { '10.0.19045' }; 'Windows10-1909' { '10.0.18363' }; 'Windows10-1903' { '10.0.18362' }; default { throw "^""Internal privacy$([char]0x002E)sexy error: No build for maximum Windows '$versionName'"^""; }; }; $maxVersion=[System.Version]::Parse($buildNumber); $ver = [Environment]::OSVersion.Version; $verNoPatch = [System.Version]::new($ver.Major, $ver.Minor, $ver.Build); if ($verNoPatch -gt $maxVersion) { Write-Output "^""Skipping: Windows ($verNoPatch) is above maximum $maxVersion ($versionName)"^""; Exit 0; }; $keyName = 'HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\microsoft-edge\UserChoice'; $valueName = 'ProgId'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; $expectedData = 'AppX7rm9drdg8sk7vqndwj3sdjw11x96jc0y'; $currentData = Get-ItemProperty -LiteralPath $path -Name $valueName | Select-Object -ExpandProperty $valueName; if ($currentData -ne $expectedData) { Write-Host "^""Skipping, no action needed, current data '$currentData' is not same as '$expectedData'."^""; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
-:: Remove user-chosen URL association for "AppX3xxs313wwkfjhythsb8q46xdsq8d2cvv" for microsoft-edge-holographic URL protocol
-:: Delete the registry value "ProgId" from the key "HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\microsoft-edge-holographic\UserChoice" 
-:: This operation will not run on Windows versions later than Windows10-1903.
-PowerShell -ExecutionPolicy Unrestricted -Command "$versionName = 'Windows10-1903'; $buildNumber = switch ($versionName) { 'Windows11-21H2' { '10.0.22000' }; 'Windows10-MostRecent' { '10.0.19045' }; 'Windows10-22H2' { '10.0.19045' }; 'Windows10-1909' { '10.0.18363' }; 'Windows10-1903' { '10.0.18362' }; default { throw "^""Internal privacy$([char]0x002E)sexy error: No build for maximum Windows '$versionName'"^""; }; }; $maxVersion=[System.Version]::Parse($buildNumber); $ver = [Environment]::OSVersion.Version; $verNoPatch = [System.Version]::new($ver.Major, $ver.Minor, $ver.Build); if ($verNoPatch -gt $maxVersion) { Write-Output "^""Skipping: Windows ($verNoPatch) is above maximum $maxVersion ($versionName)"^""; Exit 0; }; $keyName = 'HKCU\Software\Microsoft\Windows\Shell\Associations\UrlAssociations\microsoft-edge-holographic\UserChoice'; $valueName = 'ProgId'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; $expectedData = 'AppX3xxs313wwkfjhythsb8q46xdsq8d2cvv'; $currentData = Get-ItemProperty -LiteralPath $path -Name $valueName | Select-Object -ExpandProperty $valueName; if ($currentData -ne $expectedData) { Write-Host "^""Skipping, no action needed, current data '$currentData' is not same as '$expectedData'."^""; Exit 0; }; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; }"
-:: Remove user-chosen file association for "AppX4hxtad77fbk3jkkeerkrm0ze94wjf3s9" for .htm files
-:: Delete the registry value "ProgId" from the key "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.htm\UserChoice" (with additional permissions)
-:: This operation will not run on Windows versions later than Windows10-1903.
-PowerShell -ExecutionPolicy Unrestricted -Command "$versionName = 'Windows10-1903'; $buildNumber = switch ($versionName) { 'Windows11-21H2' { '10.0.22000' }; 'Windows10-MostRecent' { '10.0.19045' }; 'Windows10-22H2' { '10.0.19045' }; 'Windows10-1909' { '10.0.18363' }; 'Windows10-1903' { '10.0.18362' }; default { throw "^""Internal privacy$([char]0x002E)sexy error: No build for maximum Windows '$versionName'"^""; }; }; $maxVersion=[System.Version]::Parse($buildNumber); $ver = [Environment]::OSVersion.Version; $verNoPatch = [System.Version]::new($ver.Major, $ver.Minor, $ver.Build); if ($verNoPatch -gt $maxVersion) { Write-Output "^""Skipping: Windows ($verNoPatch) is above maximum $maxVersion ($versionName)"^""; Exit 0; }; $RawRegistryPath = 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.htm\UserChoice'; $AclChanges = [PSCustomObject]@{ PreviousOwner = $null; RemovedRules = @(); AddedRules = @(); InheritanceDisabled = $false; }; function Test-AccessModified { return $AclChanges.PreviousOwner -Or $AclChanges.RemovedRules.Count -gt 0 -Or $AclChanges.AddedRules.Count  -gt 0 -Or $AclChanges.InheritanceDisabled; }; function Open-RegistryKey { param ([Parameter(Mandatory=$true)][int]$Rights); <# [OutputType([Microsoft.Win32.RegistryKey])] # Not working through cmd.exe #>; $hive = $RawRegistryPath.Split('\')[0]; $pathWithoutHive = $RawRegistryPath.Substring($hive.Length + 1); try { $rootKey = switch ($hive) { 'HKCU' { [Microsoft.Win32.Registry]::CurrentUser }; 'HKLM' { [Microsoft.Win32.Registry]::LocalMachine }; default { Write-Error "^""Internal error: Unknown registry hive ($hive)."^""; Exit 1; }; }; $key = $rootKey.OpenSubKey( $pathWithoutHive, [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree, $Rights ); } catch { throw "^""Error when opening '$pathWithoutHive' on '$hive' hive: $_"^""; }; if (-Not $key) { throw "^""Unknown error when opening '$pathWithoutHive' on '$hive' hive."^""; }; return $key; }; function Grant-Permissions { Write-Host "^""Granting permissions to '$RawRegistryPath' registry key."^""; $adminSid = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544'; $adminAccount = $adminSid.Translate([System.Security.Principal.NTAccount]); try { $subkey = Open-RegistryKey -Rights ([System.Security.AccessControl.RegistryRights]::TakeOwnership); $acl = $subkey.GetAccessControl(); $owner = $acl.GetOwner([System.Security.Principal.NTAccount]); if ($owner -eq $adminAccount) { $subkey.Close(); } else { $AclChanges.PreviousOwner = $owner; $acl.SetOwner($adminAccount); $subkey.SetAccessControl($acl); $subkey.Close(); Write-Host "^""Successfully took ownership from '$($owner.Value)'."^""; }; } catch { Write-Warning "^""Failed to take ownership. Error: $($_.Exception.Message)"^""; }; try { $subkey = Open-RegistryKey -Rights ([System.Security.AccessControl.RegistryRights]::ChangePermissions); $acl = $subkey.GetAccessControl(); $adminFullControlExists = $acl.Access | Where-Object { $_.IdentityReference -eq $adminAccount -and $_.RegistryRights -eq [System.Security.AccessControl.RegistryRights]::FullControl -and $_.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Allow }; if (-Not $adminFullControlExists) { Write-Host 'Granting full control to administrators.'; $fullControlRule = New-Object System.Security.AccessControl.RegistryAccessRule( $adminAccount, [System.Security.AccessControl.RegistryRights]::FullControl, [System.Security.AccessControl.AccessControlType]::Allow ); $acl.AddAccessRule($fullControlRule); $AclChanges.AddedRules += $fullControlRule; }; if ($acl.AreAccessRulesProtected) { $acl.SetAccessRuleProtection($false, $false); $AclChanges.InheritanceDisabled = $true; }; $denyRules = @($acl.Access.Where({ $_.AccessControlType -eq 'Deny' })); foreach ($denyRule in $denyRules) { Write-Host "^""Removing a deny rule for '$($denyRule.IdentityReference)'."^""; if ($acl.RemoveAccessRule($denyRule)) { $AclChanges.RemovedRules += $denyRule; } else { Write-Warning 'Failed to remove the rule.'; }; }; if (-Not (Test-AccessModified)) { Write-Host 'No access modifications were necessary.'; $subkey.Close(); } else { $subkey.SetAccessControl($acl); $subkey.Close(); Write-Host 'Successfully applied new access rules.'; }; } catch { Write-Warning "^""Failed to modify access. Error: $($_.Exception.Message)"^""; }; }; function Revoke-Permissions { Write-Host "^""Restoring permissions: '$RawRegistryPath'."^""; if (-Not (Test-AccessModified)) { Write-Host 'Skipping revoking permissions, they were not granted.'; return; } else { try { $subkey = Open-RegistryKey -Rights ( [System.Security.AccessControl.RegistryRights]::TakeOwnership -bor [System.Security.AccessControl.RegistryRights]::ChangePermissions ); $acl = $subkey.GetAccessControl(); if ($AclChanges.PreviousOwner) { Write-Host 'Restoring owner.'; $acl.SetOwner($AclChanges.PreviousOwner); }; foreach ($rule in $AclChanges.AddedRules) { Write-Host "^""Removing rule for '$($rule.IdentityReference)'."^""; if (-Not $acl.RemoveAccessRule($rule)) { Write-Warning 'Failed to remove the rule.'; }; }; foreach ($rule in $AclChanges.RemovedRules) { $acl.AddAccessRule($rule); Write-Host "^""Adding a rule for '$($rule.IdentityReference)'."^""; }; if ($AclChanges.InheritanceDisabled) { $acl.SetAccessRuleProtection($true, $true); Write-Host 'Restoring inheritance.'; }; $subkey.SetAccessControl($acl); $subkey.Close(); Write-Host 'Successfully restored permissions.'; } catch { Write-Warning "^""Failed to restore permissions. Error: $($_.Exception.Message)"^""; }; }; }; $keyName = 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.htm\UserChoice'; $valueName = 'ProgId'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; $expectedData = 'AppX4hxtad77fbk3jkkeerkrm0ze94wjf3s9'; $currentData = Get-ItemProperty -LiteralPath $path -Name $valueName | Select-Object -ExpandProperty $valueName; if ($currentData -ne $expectedData) { Write-Host "^""Skipping, no action needed, current data '$currentData' is not same as '$expectedData'."^""; Exit 0; }; Grant-Permissions; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; } finally { Revoke-Permissions }"
-:: Remove user-chosen file association for "AppX4hxtad77fbk3jkkeerkrm0ze94wjf3s9" for .html files
-:: Delete the registry value "ProgId" from the key "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.html\UserChoice" (with additional permissions)
-:: This operation will not run on Windows versions later than Windows10-1903.
-PowerShell -ExecutionPolicy Unrestricted -Command "$versionName = 'Windows10-1903'; $buildNumber = switch ($versionName) { 'Windows11-21H2' { '10.0.22000' }; 'Windows10-MostRecent' { '10.0.19045' }; 'Windows10-22H2' { '10.0.19045' }; 'Windows10-1909' { '10.0.18363' }; 'Windows10-1903' { '10.0.18362' }; default { throw "^""Internal privacy$([char]0x002E)sexy error: No build for maximum Windows '$versionName'"^""; }; }; $maxVersion=[System.Version]::Parse($buildNumber); $ver = [Environment]::OSVersion.Version; $verNoPatch = [System.Version]::new($ver.Major, $ver.Minor, $ver.Build); if ($verNoPatch -gt $maxVersion) { Write-Output "^""Skipping: Windows ($verNoPatch) is above maximum $maxVersion ($versionName)"^""; Exit 0; }; $RawRegistryPath = 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.html\UserChoice'; $AclChanges = [PSCustomObject]@{ PreviousOwner = $null; RemovedRules = @(); AddedRules = @(); InheritanceDisabled = $false; }; function Test-AccessModified { return $AclChanges.PreviousOwner -Or $AclChanges.RemovedRules.Count -gt 0 -Or $AclChanges.AddedRules.Count  -gt 0 -Or $AclChanges.InheritanceDisabled; }; function Open-RegistryKey { param ([Parameter(Mandatory=$true)][int]$Rights); <# [OutputType([Microsoft.Win32.RegistryKey])] # Not working through cmd.exe #>; $hive = $RawRegistryPath.Split('\')[0]; $pathWithoutHive = $RawRegistryPath.Substring($hive.Length + 1); try { $rootKey = switch ($hive) { 'HKCU' { [Microsoft.Win32.Registry]::CurrentUser }; 'HKLM' { [Microsoft.Win32.Registry]::LocalMachine }; default { Write-Error "^""Internal error: Unknown registry hive ($hive)."^""; Exit 1; }; }; $key = $rootKey.OpenSubKey( $pathWithoutHive, [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree, $Rights ); } catch { throw "^""Error when opening '$pathWithoutHive' on '$hive' hive: $_"^""; }; if (-Not $key) { throw "^""Unknown error when opening '$pathWithoutHive' on '$hive' hive."^""; }; return $key; }; function Grant-Permissions { Write-Host "^""Granting permissions to '$RawRegistryPath' registry key."^""; $adminSid = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544'; $adminAccount = $adminSid.Translate([System.Security.Principal.NTAccount]); try { $subkey = Open-RegistryKey -Rights ([System.Security.AccessControl.RegistryRights]::TakeOwnership); $acl = $subkey.GetAccessControl(); $owner = $acl.GetOwner([System.Security.Principal.NTAccount]); if ($owner -eq $adminAccount) { $subkey.Close(); } else { $AclChanges.PreviousOwner = $owner; $acl.SetOwner($adminAccount); $subkey.SetAccessControl($acl); $subkey.Close(); Write-Host "^""Successfully took ownership from '$($owner.Value)'."^""; }; } catch { Write-Warning "^""Failed to take ownership. Error: $($_.Exception.Message)"^""; }; try { $subkey = Open-RegistryKey -Rights ([System.Security.AccessControl.RegistryRights]::ChangePermissions); $acl = $subkey.GetAccessControl(); $adminFullControlExists = $acl.Access | Where-Object { $_.IdentityReference -eq $adminAccount -and $_.RegistryRights -eq [System.Security.AccessControl.RegistryRights]::FullControl -and $_.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Allow }; if (-Not $adminFullControlExists) { Write-Host 'Granting full control to administrators.'; $fullControlRule = New-Object System.Security.AccessControl.RegistryAccessRule( $adminAccount, [System.Security.AccessControl.RegistryRights]::FullControl, [System.Security.AccessControl.AccessControlType]::Allow ); $acl.AddAccessRule($fullControlRule); $AclChanges.AddedRules += $fullControlRule; }; if ($acl.AreAccessRulesProtected) { $acl.SetAccessRuleProtection($false, $false); $AclChanges.InheritanceDisabled = $true; }; $denyRules = @($acl.Access.Where({ $_.AccessControlType -eq 'Deny' })); foreach ($denyRule in $denyRules) { Write-Host "^""Removing a deny rule for '$($denyRule.IdentityReference)'."^""; if ($acl.RemoveAccessRule($denyRule)) { $AclChanges.RemovedRules += $denyRule; } else { Write-Warning 'Failed to remove the rule.'; }; }; if (-Not (Test-AccessModified)) { Write-Host 'No access modifications were necessary.'; $subkey.Close(); } else { $subkey.SetAccessControl($acl); $subkey.Close(); Write-Host 'Successfully applied new access rules.'; }; } catch { Write-Warning "^""Failed to modify access. Error: $($_.Exception.Message)"^""; }; }; function Revoke-Permissions { Write-Host "^""Restoring permissions: '$RawRegistryPath'."^""; if (-Not (Test-AccessModified)) { Write-Host 'Skipping revoking permissions, they were not granted.'; return; } else { try { $subkey = Open-RegistryKey -Rights ( [System.Security.AccessControl.RegistryRights]::TakeOwnership -bor [System.Security.AccessControl.RegistryRights]::ChangePermissions ); $acl = $subkey.GetAccessControl(); if ($AclChanges.PreviousOwner) { Write-Host 'Restoring owner.'; $acl.SetOwner($AclChanges.PreviousOwner); }; foreach ($rule in $AclChanges.AddedRules) { Write-Host "^""Removing rule for '$($rule.IdentityReference)'."^""; if (-Not $acl.RemoveAccessRule($rule)) { Write-Warning 'Failed to remove the rule.'; }; }; foreach ($rule in $AclChanges.RemovedRules) { $acl.AddAccessRule($rule); Write-Host "^""Adding a rule for '$($rule.IdentityReference)'."^""; }; if ($AclChanges.InheritanceDisabled) { $acl.SetAccessRuleProtection($true, $true); Write-Host 'Restoring inheritance.'; }; $subkey.SetAccessControl($acl); $subkey.Close(); Write-Host 'Successfully restored permissions.'; } catch { Write-Warning "^""Failed to restore permissions. Error: $($_.Exception.Message)"^""; }; }; }; $keyName = 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.html\UserChoice'; $valueName = 'ProgId'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; $expectedData = 'AppX4hxtad77fbk3jkkeerkrm0ze94wjf3s9'; $currentData = Get-ItemProperty -LiteralPath $path -Name $valueName | Select-Object -ExpandProperty $valueName; if ($currentData -ne $expectedData) { Write-Host "^""Skipping, no action needed, current data '$currentData' is not same as '$expectedData'."^""; Exit 0; }; Grant-Permissions; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; } finally { Revoke-Permissions }"
-:: Remove user-chosen file association for "AppXd4nrz8ff68srnhf9t5a8sbjyar1cr723" for .pdf files
-:: Delete the registry value "ProgId" from the key "HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.pdf\UserChoice" (with additional permissions)
-:: This operation will not run on Windows versions later than Windows10-1903.
-PowerShell -ExecutionPolicy Unrestricted -Command "$versionName = 'Windows10-1903'; $buildNumber = switch ($versionName) { 'Windows11-21H2' { '10.0.22000' }; 'Windows10-MostRecent' { '10.0.19045' }; 'Windows10-22H2' { '10.0.19045' }; 'Windows10-1909' { '10.0.18363' }; 'Windows10-1903' { '10.0.18362' }; default { throw "^""Internal privacy$([char]0x002E)sexy error: No build for maximum Windows '$versionName'"^""; }; }; $maxVersion=[System.Version]::Parse($buildNumber); $ver = [Environment]::OSVersion.Version; $verNoPatch = [System.Version]::new($ver.Major, $ver.Minor, $ver.Build); if ($verNoPatch -gt $maxVersion) { Write-Output "^""Skipping: Windows ($verNoPatch) is above maximum $maxVersion ($versionName)"^""; Exit 0; }; $RawRegistryPath = 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.pdf\UserChoice'; $AclChanges = [PSCustomObject]@{ PreviousOwner = $null; RemovedRules = @(); AddedRules = @(); InheritanceDisabled = $false; }; function Test-AccessModified { return $AclChanges.PreviousOwner -Or $AclChanges.RemovedRules.Count -gt 0 -Or $AclChanges.AddedRules.Count  -gt 0 -Or $AclChanges.InheritanceDisabled; }; function Open-RegistryKey { param ([Parameter(Mandatory=$true)][int]$Rights); <# [OutputType([Microsoft.Win32.RegistryKey])] # Not working through cmd.exe #>; $hive = $RawRegistryPath.Split('\')[0]; $pathWithoutHive = $RawRegistryPath.Substring($hive.Length + 1); try { $rootKey = switch ($hive) { 'HKCU' { [Microsoft.Win32.Registry]::CurrentUser }; 'HKLM' { [Microsoft.Win32.Registry]::LocalMachine }; default { Write-Error "^""Internal error: Unknown registry hive ($hive)."^""; Exit 1; }; }; $key = $rootKey.OpenSubKey( $pathWithoutHive, [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree, $Rights ); } catch { throw "^""Error when opening '$pathWithoutHive' on '$hive' hive: $_"^""; }; if (-Not $key) { throw "^""Unknown error when opening '$pathWithoutHive' on '$hive' hive."^""; }; return $key; }; function Grant-Permissions { Write-Host "^""Granting permissions to '$RawRegistryPath' registry key."^""; $adminSid = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544'; $adminAccount = $adminSid.Translate([System.Security.Principal.NTAccount]); try { $subkey = Open-RegistryKey -Rights ([System.Security.AccessControl.RegistryRights]::TakeOwnership); $acl = $subkey.GetAccessControl(); $owner = $acl.GetOwner([System.Security.Principal.NTAccount]); if ($owner -eq $adminAccount) { $subkey.Close(); } else { $AclChanges.PreviousOwner = $owner; $acl.SetOwner($adminAccount); $subkey.SetAccessControl($acl); $subkey.Close(); Write-Host "^""Successfully took ownership from '$($owner.Value)'."^""; }; } catch { Write-Warning "^""Failed to take ownership. Error: $($_.Exception.Message)"^""; }; try { $subkey = Open-RegistryKey -Rights ([System.Security.AccessControl.RegistryRights]::ChangePermissions); $acl = $subkey.GetAccessControl(); $adminFullControlExists = $acl.Access | Where-Object { $_.IdentityReference -eq $adminAccount -and $_.RegistryRights -eq [System.Security.AccessControl.RegistryRights]::FullControl -and $_.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Allow }; if (-Not $adminFullControlExists) { Write-Host 'Granting full control to administrators.'; $fullControlRule = New-Object System.Security.AccessControl.RegistryAccessRule( $adminAccount, [System.Security.AccessControl.RegistryRights]::FullControl, [System.Security.AccessControl.AccessControlType]::Allow ); $acl.AddAccessRule($fullControlRule); $AclChanges.AddedRules += $fullControlRule; }; if ($acl.AreAccessRulesProtected) { $acl.SetAccessRuleProtection($false, $false); $AclChanges.InheritanceDisabled = $true; }; $denyRules = @($acl.Access.Where({ $_.AccessControlType -eq 'Deny' })); foreach ($denyRule in $denyRules) { Write-Host "^""Removing a deny rule for '$($denyRule.IdentityReference)'."^""; if ($acl.RemoveAccessRule($denyRule)) { $AclChanges.RemovedRules += $denyRule; } else { Write-Warning 'Failed to remove the rule.'; }; }; if (-Not (Test-AccessModified)) { Write-Host 'No access modifications were necessary.'; $subkey.Close(); } else { $subkey.SetAccessControl($acl); $subkey.Close(); Write-Host 'Successfully applied new access rules.'; }; } catch { Write-Warning "^""Failed to modify access. Error: $($_.Exception.Message)"^""; }; }; function Revoke-Permissions { Write-Host "^""Restoring permissions: '$RawRegistryPath'."^""; if (-Not (Test-AccessModified)) { Write-Host 'Skipping revoking permissions, they were not granted.'; return; } else { try { $subkey = Open-RegistryKey -Rights ( [System.Security.AccessControl.RegistryRights]::TakeOwnership -bor [System.Security.AccessControl.RegistryRights]::ChangePermissions ); $acl = $subkey.GetAccessControl(); if ($AclChanges.PreviousOwner) { Write-Host 'Restoring owner.'; $acl.SetOwner($AclChanges.PreviousOwner); }; foreach ($rule in $AclChanges.AddedRules) { Write-Host "^""Removing rule for '$($rule.IdentityReference)'."^""; if (-Not $acl.RemoveAccessRule($rule)) { Write-Warning 'Failed to remove the rule.'; }; }; foreach ($rule in $AclChanges.RemovedRules) { $acl.AddAccessRule($rule); Write-Host "^""Adding a rule for '$($rule.IdentityReference)'."^""; }; if ($AclChanges.InheritanceDisabled) { $acl.SetAccessRuleProtection($true, $true); Write-Host 'Restoring inheritance.'; }; $subkey.SetAccessControl($acl); $subkey.Close(); Write-Host 'Successfully restored permissions.'; } catch { Write-Warning "^""Failed to restore permissions. Error: $($_.Exception.Message)"^""; }; }; }; $keyName = 'HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.pdf\UserChoice'; $valueName = 'ProgId'; $hive = $keyName.Split('\')[0]; $path = "^""$($hive):$($keyName.Substring($hive.Length))"^""; Write-Host "^""Removing the registry value '$valueName' from '$path'."^""; if (-Not (Test-Path -LiteralPath $path)) { Write-Host 'Skipping, no action needed, registry key does not exist.'; Exit 0; }; $existingValueNames = (Get-ItemProperty -LiteralPath $path).PSObject.Properties.Name; if (-Not ($existingValueNames -Contains $valueName)) { Write-Host 'Skipping, no action needed, registry value does not exist.'; Exit 0; }; $expectedData = 'AppXd4nrz8ff68srnhf9t5a8sbjyar1cr723'; $currentData = Get-ItemProperty -LiteralPath $path -Name $valueName | Select-Object -ExpandProperty $valueName; if ($currentData -ne $expectedData) { Write-Host "^""Skipping, no action needed, current data '$currentData' is not same as '$expectedData'."^""; Exit 0; }; Grant-Permissions; try { if ($valueName -ieq '(default)') { Write-Host 'Removing the default value.'; $(Get-Item -LiteralPath $path).OpenSubKey('', $true).DeleteValue(''); } else { Remove-ItemProperty -LiteralPath $path -Name $valueName -Force -ErrorAction Stop; }; Write-Host 'Successfully removed the registry value.'; } catch { Write-Error "^""Failed to remove the registry value: $($_.Exception.Message)"^""; } finally { Revoke-Permissions }"
-:: ----------------------------------------------------------
-
-
-:: ----------------------------------------------------------
 :: ---------------Disable "XPS Viewer" feature---------------
 :: ----------------------------------------------------------
 echo --- Disable "XPS Viewer" feature
@@ -19645,6 +19513,111 @@ function Invoke-PersonalizeWin {
 	regsvr32 /s "C:\ExplorerBlurMica\Release\ExplorerBlurMica.dll"
 }
 
+function Invoke-Chrome {
+	Write-Host "Installing Google Chrome" -ForegroundColor Green
+	# Silent install latest Google Chrome (official Google link)
+	$chromeInstaller = "$env:TEMP\ChromeSetup.msi"
+	Get-FileFromWeb -URL "https://dl.google.com/chrome/install/googlechromestandaloneenterprise64.msi" -File $chromeInstaller
+	Start-Process msiexec.exe -ArgumentList "/i `"$chromeInstaller`" /qn /norestart" -Wait
+
+	# DEBLOAT CHROME
+	$MultilineComment = @"
+Windows Registry Editor Version 5.00	
+
+; CHROME
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome]
+"StartupBoostEnabled"=dword:00000000
+"HardwareAccelerationModeEnabled"=dword:00000000
+"BackgroundModeEnabled"=dword:00000000
+"HighEfficiencyModeEnabled"=dword:00000001
+"DeviceMetricsReportingEnabled"=dword:00000000
+"MetricsReportingEnabled"=dword:00000000
+"ChromeCleanupReportingEnabled"=dword:00000000
+"UserFeedbackAllowed"=dword:00000000
+"WebRtcEventLogCollectionAllowed"=dword:00000000
+"NetworkPredictionOptions"=dword:00000002 ; Disable DNS prefetching
+"ChromeCleanupEnabled"=dword:00000000
+"DefaultGeolocationSetting"=dword:00000002
+"DefaultNotificationsSetting"=dword:00000002
+"DefaultLocalFontsSetting"=dword:00000002
+"DefaultSensorsSetting"=dword:00000002
+"DefaultSerialGuardSetting"=dword:00000002
+"CloudReportingEnabled"=dword:00000000
+"DriveDisabled"=dword:00000001
+"PasswordManagerEnabled"=dword:00000000
+"PasswordSharingEnabled"=dword:00000000
+"PasswordLeakDetectionEnabled"=dword:00000000
+"QuickAnswersEnabled"=dword:00000000
+"SafeBrowsingExtendedReportingEnabled"=dword:00000000
+"SafeBrowsingSurveysEnabled"=dword:00000000
+"SafeBrowsingDeepScanningEnabled"=dword:00000000
+"DeviceActivityHeartbeatEnabled"=dword:00000000
+"HeartbeatEnabled"=dword:00000000
+"LogUploadEnabled"=dword:00000000
+"ReportAppInventory"=""
+"ReportDeviceActivityTimes"=dword:00000000
+"ReportDeviceAppInfo"=dword:00000000
+"ReportDeviceSystemInfo"=dword:00000000
+"ReportDeviceUsers"=dword:00000000
+"ReportWebsiteTelemetry"=""
+"AlternateErrorPagesEnabled"=dword:00000000
+"AutofillCreditCardEnabled"=dword:00000000
+"BrowserGuestModeEnabled"=dword:00000000
+"BrowserSignin"=dword:00000000
+"BuiltInDnsClientEnabled"=dword:00000000
+"DefaultBrowserSettingEnabled"=dword:00000000
+"ParcelTrackingEnabled"=dword:00000000
+"RelatedWebsiteSetsEnabled"=dword:00000000
+"ShoppingListEnabled"=dword:00000000
+"SyncDisabled"=dword:00000001
+"ExtensionManifestV2Availability"=dword:00000002
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\GoogleChromeElevationService]
+"Start"=dword:00000004
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\gupdate]
+"Start"=dword:00000004
+
+[HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\gupdatem]
+"Start"=dword:00000004
+"@
+
+	Set-Content -Path "$env:TEMP\DebloatChrome.reg" -Value $MultilineComment -Force				
+	
+	# edit reg file				
+	$path = "$env:TEMP\DebloatChrome.reg"				
+	(Get-Content $path) -replace "\?","$" | Out-File $path				
+	
+	# import reg file				
+	Regedit.exe /S "$env:TEMP\DebloatChrome.reg"
+	
+	# Debloat Google Chrome using Chromium policies
+	try {
+	    Invoke-WebRequest -Uri "https://github.com/yashgorana/chrome-debloat/raw/refs/heads/main/generated/windows/chrome.reg" -OutFile "$env:TEMP\chrome.reg" -ErrorAction Stop
+	    
+	    if (Test-Path "$env:TEMP\chrome.reg" -and (Get-Item "$env:TEMP\chrome.reg").Length -gt 0) {
+			# apply the reg file
+	        Regedit.exe /S "$env:TEMP\chrome.reg"
+	        # Remove forced extensions 
+	        Remove-Item -Path "HKLM:\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist" -Recurse -Force -ErrorAction SilentlyContinue
+	    }
+	} catch {
+	    Write-Warning "Failed to download or apply Chrome debloat settings: $_"
+	}
+
+	# Force install uBlock Origin Lite
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Google\Chrome\ExtensionInstallForcelist" -Name "1" -Value "ddkjiahejlhfcafbddmgiahcphecmpfh" -PropertyType String -Force | Out-Null
+	
+	# remove logon chrome
+	cmd /c "reg delete `"HKLM\Software\Microsoft\Active Setup\Installed Components\{8A69D345-D564-463c-AFF1-A69D9E530F96}`" /f >nul 2>&1"
+	
+	# disable chrome services
+	Get-Service | Where-Object Name -match 'Google' | ForEach-Object { Set-Service $_.Name -StartupType Disabled; Stop-Service $_.Name -Force | Out-Null }	
+
+	# Disable Chrome tasks
+	Get-ScheduledTask | Where-Object { $_.TaskName -like "*Google*" } | ForEach-Object { Disable-ScheduledTask -TaskName $_.TaskName | Out-Null }
+}
+
 # LibreWolf installation
 function Invoke-LibreWolf {
 	Write-Host "Installing LibreWolf..." -ForegroundColor Green
@@ -19685,6 +19658,9 @@ defaultPref("privacy.clearOnShutdown.history", false);
 defaultPref("privacy.window.maxInnerWidth", 1920);
 defaultPref("privacy.window.maxInnerHeight", 1080);
 defaultPref("browser.newtabpage.activity-stream.section.highlights.includeBookmarks", false);
+
+// Enable Google Safe Browsing
+/* 
 defaultPref("browser.safebrowsing.malware.enabled", true);
 defaultPref("browser.safebrowsing.phishing.enabled", true);
 defaultPref("browser.safebrowsing.blockedURIs.enabled", true);
@@ -19705,6 +19681,8 @@ defaultPref(
   "https://safebrowsing.google.com/safebrowsing/downloads?client=SAFEBROWSING_ID&appver=%MAJOR_VERSION%&pver=2.2&key=%GOOGLE_SAFEBROWSING_API_KEY%"
 );
 defaultPref("browser.safebrowsing.downloads.enabled", true);
+*/
+
 defaultPref("browser.urlbar.suggest.engines", false);
 defaultPref("browser.urlbar.suggest.bookmark", false);
 defaultPref("browser.urlbar.suggest.history", false);
@@ -19733,23 +19711,16 @@ defaultPref("browser.sessionstore.resume_from_crash", false);
 	if(!(Test-Path $path)){New-Item -ItemType Directory -Path $path -Force|Out-Null}
 	Set-Content -Path "$path\librewolf.overrides.cfg" -Value $MultilineComment -Force
 
-Remove-Item "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\LibreWolf Private Browsing.lnk" -Force 
-	
-# Define the shortcut name
-$shortcutName = "LibreWolf Private Browsing.lnk"
+	# Aggressively remove LibreWolf Private Browsing shortcuts
+	$shortcut = "LibreWolf Private Browsing.lnk"
+	$locations = @(
+    	"$env:APPDATA\Microsoft\Windows\Start Menu\Programs",
+    	"$env:ProgramData\Microsoft\Windows\Start Menu\Programs"
+	)
 
-# Paths to check for the shortcut
-$pathsToCheck = @(
-    "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\$shortcutName",
-    "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\$shortcutName"
-)
-
-	# Remove shortcut from all locations
-	foreach ($path in $pathsToCheck) {
-    	if (Test-Path $path) {
-			Remove-Item $path -Force
-		}else {
-    	}
+	$locations | ForEach-Object {
+    	Get-ChildItem -Path $_ -Filter $shortcut -Recurse |
+        	Remove-Item -Force
 	}
 }
 
@@ -19973,38 +19944,38 @@ set "Steam=%programfiles(x86)%\Steam\steam.exe"
 start "" "%Steam%" -dev -console -nofriendsui -no-dwrite -nointro -nobigpicture -nofasthtml -nocrashmonitor -noshaders -no-shared-textures -disablehighdpi -cef-single-process -cef-in-process-gpu -single_core -cef-disable-d3d11 -cef-disable-sandbox -disable-winh264 -cef-force-32bit -no-cef-sandbox -vrdisable -cef-disable-breakpad -noverifyfiles -nobootstrapupdate -skipinitialbootstrap -norepairfiles -overridepackageurl steam://open/minigameslist
 exit
 '@
+    
+	$steamDir = "${env:ProgramFiles} (x86)\Steam"
+	$batPath = "$steamDir\Steam.bat"
+    
+	Set-Content -Path $batPath -Value $batchCode -Encoding ASCII -Force
+    
+	$desktopShortcut = "$env:USERPROFILE\Desktop\Steam.lnk"
+	$startMenuFolder = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Steam"
+	$startMenuShortcut = "$startMenuFolder\Steam.lnk"
+    
+	Remove-Item -Path $desktopShortcut -Force -ErrorAction SilentlyContinue
+	Remove-Item -Path $startMenuShortcut -Force -ErrorAction SilentlyContinue
+    
+	if (-not (Test-Path $startMenuFolder)) {
+    	New-Item -ItemType Directory -Path $startMenuFolder -Force | Out-Null
+	}
 
-$steamDir = "${env:ProgramFiles} (x86)\Steam"
-$batPath = "$steamDir\Steam.bat"
-
-Set-Content -Path $batPath -Value $batchCode -Encoding ASCII -Force
-
-$desktopShortcut = "$env:USERPROFILE\Desktop\Steam.lnk"
-$startMenuFolder = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Steam"
-$startMenuShortcut = "$startMenuFolder\Steam.lnk"
-
-Remove-Item -Path $desktopShortcut -Force -ErrorAction SilentlyContinue
-Remove-Item -Path $startMenuShortcut -Force -ErrorAction SilentlyContinue
-
-if (-not (Test-Path $startMenuFolder)) {
-    New-Item -ItemType Directory -Path $startMenuFolder -Force | Out-Null
-}
-
-$shell = New-Object -ComObject WScript.Shell
-$steamExe = "$steamDir\steam.exe"
-
-$desktopSC = $shell.CreateShortcut($desktopShortcut)
-$desktopSC.TargetPath = $batPath
-$desktopSC.WorkingDirectory = $steamDir
-$desktopSC.IconLocation = "$steamExe, 0"
-$desktopSC.Save()
-
-$startMenuSC = $shell.CreateShortcut($startMenuShortcut)
-$startMenuSC.TargetPath = $batPath
-$startMenuSC.WorkingDirectory = $steamDir
-$startMenuSC.IconLocation = "$steamExe, 0"
-$startMenuSC.Save()
-
+	$shell = New-Object -ComObject WScript.Shell
+	$steamExe = "$steamDir\steam.exe"
+    
+	$desktopSC = $shell.CreateShortcut($desktopShortcut)
+	$desktopSC.TargetPath = $batPath
+	$desktopSC.WorkingDirectory = $steamDir
+	$desktopSC.IconLocation = "$steamExe, 0"
+	$desktopSC.Save()
+    
+	$startMenuSC = $shell.CreateShortcut($startMenuShortcut)
+	$startMenuSC.TargetPath = $batPath
+	$startMenuSC.WorkingDirectory = $steamDir
+	$startMenuSC.IconLocation = "$steamExe, 0"
+	$startMenuSC.Save()
+    
 	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($desktopSC) | Out-Null
 	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($startMenuSC) | Out-Null
 	[System.Runtime.Interopservices.Marshal]::ReleaseComObject($shell) | Out-Null
@@ -20124,6 +20095,228 @@ CoreFrequencySelector=-1;
 		$Dsc = "$env:USERPROFILE\Desktop\$_"
 		if (Test-Path $Dsc) { Remove-Item $Dsc -Force }
 	}
+}
+
+#################
+# Microsoft 365 #
+
+function Invoke-Office365 {
+	try {
+		$dir="$env:ProgramData\Bloatware"
+		New-Item $dir -ItemType Directory -Force
+		$script=@'
+"RuntimeBroker","MoUsoCoreWorker","UserOOBEBroker","SearchApp","ConnectedUserExperiences","ctfmon","CrossDeviceResume","MicrosoftEdgeUpdate","ONENOTEM","OfficeClickToRun" | % { Get-Process $_ | Stop-Process -Force }
+"MSDTC","VSS","ClickToRunSvc" | % { Stop-Service $_ -Force }
+'@
+		$script | Set-Content "$dir\KillBloatware.ps1" -Encoding UTF8 -Force
+		$trigger=New-ScheduledTaskTrigger -AtStartup
+		$action=New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$dir\KillBloatware.ps1`""
+		Register-ScheduledTask -TaskName "KillBloatwareAtStartup" -Action $action -Trigger $trigger -RunLevel Highest -User "SYSTEM" -Force	
+	} catch {
+
+	}
+									
+	Get-FileFromWeb -URL "https://c2rsetup.officeapps.live.com/c2r/download.aspx?ProductreleaseID=O365AppsBasicRetail&platform=x64&language=en-us&version=O16GA" -File "$env:TEMP\OfficeSetup.exe"
+	Start-Process -FilePath "$env:TEMP\OfficeSetup.exe" -Wait
+
+	Invoke-WebRequest -Uri "https://github.com/massgravel/Microsoft-Activation-Scripts/raw/refs/heads/master/MAS/Separate-Files-Version/Activators/Ohook_Activation_AIO.cmd" -OutFile "$env:TEMP\Ohook_Activation_AIO.cmd"
+	Start-Process "$env:TEMP\Ohook_Activation_AIO.cmd" "/Ohook"
+}
+
+#############
+# Notepad++ #
+
+function Invoke-NotepadPlusPlus {
+    # Dynamically retrieve the latest installer URL
+    $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/notepad-plus-plus/notepad-plus-plus/releases/latest" -Headers @{ 'User-Agent' = 'pwsh' }
+    $asset = $rel.assets | Where-Object { $_.name -match "Installer\.x64\.exe$" } | Select-Object -First 1
+    $url = $asset.browser_download_url
+    
+    $exe = "$env:TEMP\npp.Installer.x64.exe"
+    
+    Get-FileFromWeb -URL $url -File $exe -UseBasicParsing
+    Start-Process -FilePath $exe -ArgumentList '/S' -Wait -PassThru
+
+	# remove modern notepad		
+	Get-AppxPackage -AllUsers *Microsoft.WindowsNotepad* | Remove-AppxPackage -AllUsers
+	
+	# remove legacy notepad
+	# "Microsoft.Windows.Notepad.System~~~~0.0.1.0","Microsoft.Windows.Notepad~~~~0.0.1.0" | ForEach-Object { Remove-WindowsCapability -Online -Name $_ >$null 2>&1 }
+	
+	# notepad++ default file type associations		
+	$MultilineComment = @"
+Windows Registry Editor Version 5.00				
+
+; Created by: Shawn Brink
+; http://www.tenforums.com
+; Tutorial: http://www.tenforums.com/tutorials/8703-default-file-type-associations-restore-windows-10-a.html
+; enhanced by WillingMost7
+
+[HKEY_CLASSES_ROOT\.txt]	
+@="txtfile"	
+"Content Type"="text/plain"	
+"PerceivedType"="text"	
+	
+[HKEY_CLASSES_ROOT\.txt\PersistentHandler]	
+@="{5e941d80-bf96-11cd-b579-08002b30bfeb}"	
+	
+[HKEY_CLASSES_ROOT\.txt\ShellNew]	
+"ItemName"=hex(2):40,00,25,00,53,00,79,00,73,00,74,00,65,00,6d,00,52,00,6f,00,\	
+  6f,00,74,00,25,00,5c,00,73,00,79,00,73,00,74,00,65,00,6d,00,33,00,32,00,5c,\	
+  00,6e,00,6f,00,74,00,65,00,70,00,61,00,64,00,2e,00,65,00,78,00,65,00,2c,00,\	
+  2d,00,34,00,37,00,30,00,00,00	
+"NullFile"=""	
+	
+[-HKEY_CLASSES_ROOT\SystemFileAssociations\.txt]	
+	
+[HKEY_CLASSES_ROOT\SystemFileAssociations\.txt]	
+"PerceivedType"="document"	
+	
+[-HKEY_CLASSES_ROOT\txtfile]	
+	
+[HKEY_CLASSES_ROOT\txtfile]	
+@="Text Document"	
+"EditFlags"=dword:00210000	
+"FriendlyTypeName"=hex(2):40,00,25,00,53,00,79,00,73,00,74,00,65,00,6d,00,52,\	
+  00,6f,00,6f,00,74,00,25,00,5c,00,73,00,79,00,73,00,74,00,65,00,6d,00,33,00,\	
+  32,00,5c,00,6e,00,6f,00,74,00,65,00,70,00,61,00,64,00,2e,00,65,00,78,00,65,\	
+  00,2c,00,2d,00,34,00,36,00,39,00,00,00	
+	
+[HKEY_CLASSES_ROOT\txtfile\DefaultIcon]	
+@="C:\\Program Files\\Notepad++\\notepad++.exe,0"	
+	
+[HKEY_CLASSES_ROOT\txtfile\shell\open\command]	
+@="\"C:\\Program Files\\Notepad++\\notepad++.exe\" \"%1\""	
+	
+[-HKEY_CLASSES_ROOT\txtfile\shell\print]	
+	
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.txt]	
+	
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.txt\OpenWithList]	
+	
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.txt\OpenWithProgids]	
+"txtfile"=hex(0):	
+	
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.txt\UserChoice]	
+"Hash"="hyXk/CpboWw="	
+"ProgId"="txtfile"	
+	
+[-HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Roaming\OpenWith\FileExts\.txt]	
+	
+[HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\Roaming\OpenWith\FileExts\.txt\UserChoice]	
+"Hash"="FvJcqeZpmOE="	
+"ProgId"="txtfile"	
+	
+[HKEY_CLASSES_ROOT\regfile\shell\edit\command]	
+@="\"C:\\Program Files\\Notepad++\\notepad++.exe\" \"%1\""	
+	
+[-HKEY_CLASSES_ROOT\regfile\shell\print]	
+	
+[HKEY_CLASSES_ROOT\batfile\shell\edit\command]	
+@="\"C:\\Program Files\\Notepad++\\notepad++.exe\" \"%1\""	
+	
+[-HKEY_CLASSES_ROOT\batfile\shell\print]	
+	
+[HKEY_CLASSES_ROOT\VBSFile\Shell\Edit\Command]	
+@="\"C:\\Program Files\\Notepad++\\notepad++.exe\" \"%1\""	
+	
+[-HKEY_CLASSES_ROOT\VBSFile\Shell\Print]	
+	
+[HKEY_CLASSES_ROOT\cmdfile\shell\edit\command]	
+@="\"C:\\Program Files\\Notepad++\\notepad++.exe\" \"%1\""	
+	
+[-HKEY_CLASSES_ROOT\cmdfile\shell\print]	
+	
+[-HKEY_CLASSES_ROOT\xbox-tcui]	
+[-HKEY_CLASSES_ROOT\xboxmusic]						
+"@
+
+	Set-Content -Path "$env:TEMP\NotepadPlusPlus.reg" -Value $MultilineComment -Force								
+	$path = "$env:TEMP\NotepadPlusPlus.reg"				
+	(Get-Content $path) -replace "\?","$" | Out-File $path							
+	Regedit.exe /S "$env:TEMP\NotepadPlusPlus.reg"	
+
+	# create config for notepad ++
+	$MultilineComment = @"
+<?xml version="1.0" encoding="UTF-8" ?>
+<NotepadPlus>
+    <FindHistory nbMaxFindHistoryPath="10" nbMaxFindHistoryFilter="10" nbMaxFindHistoryFind="10" nbMaxFindHistoryReplace="10" matchWord="no" matchCase="no" wrap="yes" directionDown="yes" fifRecuisive="yes" fifInHiddenFolder="no" fifProjectPanel1="no" fifProjectPanel2="no" fifProjectPanel3="no" fifFilterFollowsDoc="no" fifFolderFollowsDoc="no" searchMode="0" transparencyMode="1" transparency="150" dotMatchesNewline="no" isSearch2ButtonsMode="no" regexBackward4PowerUser="no" bookmarkLine="no" purge="no">
+        <Filter name="" />
+        <Find name="" />
+        <Find name="sharpening" />
+        <Find name="sharpen" />
+        <Find name="sharp" />
+        <Replace name="" />
+    </FindHistory>
+    <History nbMaxFile="0" inSubMenu="no" customLength="-1" />
+    <ProjectPanels>
+        <ProjectPanel id="0" workSpaceFile="" />
+        <ProjectPanel id="1" workSpaceFile="" />
+        <ProjectPanel id="2" workSpaceFile="" />
+    </ProjectPanels>
+    <ColumnEditor choice="number">
+        <text content="" />
+        <number initial="-1" increase="-1" repeat="-1" formatChoice="dec" leadingChoice="none" />
+    </ColumnEditor>
+    <GUIConfigs>
+        <GUIConfig name="ToolBar" visible="yes">small</GUIConfig>
+        <GUIConfig name="StatusBar">show</GUIConfig>
+        <GUIConfig name="TabBar" dragAndDrop="yes" drawTopBar="yes" drawInactiveTab="yes" reduce="yes" closeButton="yes" doubleClick2Close="no" vertical="no" multiLine="no" hide="no" quitOnEmpty="no" iconSetNumber="0" />
+        <GUIConfig name="ScintillaViewsSplitter">vertical</GUIConfig>
+        <GUIConfig name="UserDefineDlg" position="undocked">hide</GUIConfig>
+        <GUIConfig name="TabSetting" replaceBySpace="no" size="4" />
+        <GUIConfig name="AppPosition" x="148" y="77" width="1234" height="773" isMaximized="no" />
+        <GUIConfig name="FindWindowPosition" left="460" top="338" right="1074" bottom="702" isLessModeOn="no" />
+        <GUIConfig name="FinderConfig" wrappedLines="no" purgeBeforeEverySearch="no" showOnlyOneEntryPerFoundLine="yes" />
+        <GUIConfig name="noUpdate" intervalDays="15" nextUpdateDate="20250326">yes</GUIConfig>
+        <GUIConfig name="Auto-detection">yes</GUIConfig>
+        <GUIConfig name="CheckHistoryFiles">no</GUIConfig>
+        <GUIConfig name="TrayIcon">no</GUIConfig>
+        <GUIConfig name="MaintainIndent">yes</GUIConfig>
+        <GUIConfig name="TagsMatchHighLight" TagAttrHighLight="yes" HighLightNonHtmlZone="no">yes</GUIConfig>
+        <GUIConfig name="RememberLastSession">no</GUIConfig>
+        <GUIConfig name="KeepSessionAbsentFileEntries">no</GUIConfig>
+        <GUIConfig name="DetectEncoding">yes</GUIConfig>
+        <GUIConfig name="SaveAllConfirm">yes</GUIConfig>
+        <GUIConfig name="NewDocDefaultSettings" format="0" encoding="4" lang="0" codepage="-1" openAnsiAsUTF8="yes" addNewDocumentOnStartup="no" />
+        <GUIConfig name="langsExcluded" gr0="0" gr1="0" gr2="0" gr3="0" gr4="0" gr5="0" gr6="0" gr7="0" gr8="0" gr9="0" gr10="0" gr11="0" gr12="0" langMenuCompact="yes" />
+        <GUIConfig name="Print" lineNumber="yes" printOption="3" headerLeft="" headerMiddle="" headerRight="" footerLeft="" footerMiddle="" footerRight="" headerFontName="" headerFontStyle="0" headerFontSize="0" footerFontName="" footerFontStyle="0" footerFontSize="0" margeLeft="0" margeRight="0" margeTop="0" margeBottom="0" />
+        <GUIConfig name="Backup" action="0" useCustumDir="no" dir="" isSnapshotMode="no" snapshotBackupTiming="7000" />
+        <GUIConfig name="TaskList">yes</GUIConfig>
+        <GUIConfig name="MRU">yes</GUIConfig>
+        <GUIConfig name="URL">0</GUIConfig>
+        <GUIConfig name="uriCustomizedSchemes">svn:// cvs:// git:// imap:// irc:// irc6:// ircs:// ldap:// ldaps:// news: telnet:// gopher:// ssh:// sftp:// smb:// skype: snmp:// spotify: steam:// sms: slack:// chrome:// bitcoin:</GUIConfig>
+        <GUIConfig name="globalOverride" fg="no" bg="no" font="no" fontSize="no" bold="no" italic="no" underline="no" />
+        <GUIConfig name="auto-completion" autoCAction="3" triggerFromNbChar="1" autoCIgnoreNumbers="yes" insertSelectedItemUseENTER="yes" insertSelectedItemUseTAB="yes" autoCBrief="no" funcParams="yes" />
+        <GUIConfig name="auto-insert" parentheses="no" brackets="no" curlyBrackets="no" quotes="no" doubleQuotes="no" htmlXmlTag="no" />
+        <GUIConfig name="sessionExt"></GUIConfig>
+        <GUIConfig name="workspaceExt"></GUIConfig>
+        <GUIConfig name="MenuBar">show</GUIConfig>
+        <GUIConfig name="Caret" width="1" blinkRate="600" />
+        <GUIConfig name="openSaveDir" value="0" defaultDirPath="" lastUsedDirPath="" />
+        <GUIConfig name="titleBar" short="no" />
+        <GUIConfig name="insertDateTime" customizedFormat="yyyy-MM-dd HH:mm:ss" reverseDefaultOrder="no" />
+        <GUIConfig name="wordCharList" useDefault="yes" charsAdded="" />
+        <GUIConfig name="delimiterSelection" leftmostDelimiter="40" rightmostDelimiter="41" delimiterSelectionOnEntireDocument="no" />
+        <GUIConfig name="largeFileRestriction" fileSizeMB="200" isEnabled="yes" allowAutoCompletion="no" allowBraceMatch="no" allowSmartHilite="no" allowClickableLink="no" deactivateWordWrap="yes" suppress2GBWarning="no" />
+        <GUIConfig name="multiInst" setting="0" clipboardHistory="no" documentList="no" characterPanel="no" folderAsWorkspace="no" projectPanels="no" documentMap="no" fuctionList="no" pluginPanels="no" />
+        <GUIConfig name="MISC" fileSwitcherWithoutExtColumn="no" fileSwitcherExtWidth="50" fileSwitcherWithoutPathColumn="yes" fileSwitcherPathWidth="50" fileSwitcherNoGroups="no" backSlashIsEscapeCharacterForSql="yes" writeTechnologyEngine="1" isFolderDroppedOpenFiles="no" docPeekOnTab="no" docPeekOnMap="no" sortFunctionList="no" saveDlgExtFilterToAllTypes="no" muteSounds="no" enableFoldCmdToggable="no" hideMenuRightShortcuts="no" />
+        <GUIConfig name="Searching" monospacedFontFindDlg="no" fillFindFieldWithSelected="yes" fillFindFieldSelectCaret="yes" findDlgAlwaysVisible="no" confirmReplaceInAllOpenDocs="yes" replaceStopsWithoutFindingNext="no" inSelectionAutocheckThreshold="1024" />
+        <GUIConfig name="searchEngine" searchEngineChoice="2" searchEngineCustom="" />
+        <GUIConfig name="MarkAll" matchCase="no" wholeWordOnly="yes" />
+        <GUIConfig name="SmartHighLight" matchCase="no" wholeWordOnly="yes" useFindSettings="no" onAnotherView="no">yes</GUIConfig>
+        <GUIConfig name="DarkMode" enable="yes" colorTone="0" customColorTop="2105376" customColorMenuHotTrack="4210752" customColorActive="4210752" customColorMain="2105376" customColorError="176" customColorText="14737632" customColorDarkText="12632256" customColorDisabledText="8421504" customColorLinkText="65535" customColorEdge="6579300" customColorHotEdge="10197915" customColorDisabledEdge="4737096" enableWindowsMode="no" darkThemeName="DarkModeDefault.xml" darkToolBarIconSet="0" darkTabIconSet="2" darkTabUseTheme="no" lightThemeName="" lightToolBarIconSet="4" lightTabIconSet="0" lightTabUseTheme="yes" />
+        <GUIConfig name="ScintillaPrimaryView" lineNumberMargin="show" lineNumberDynamicWidth="yes" bookMarkMargin="show" indentGuideLine="show" folderMarkStyle="box" isChangeHistoryEnabled="1" lineWrapMethod="aligned" currentLineIndicator="1" currentLineFrameWidth="1" virtualSpace="no" scrollBeyondLastLine="yes" rightClickKeepsSelection="no" disableAdvancedScrolling="no" wrapSymbolShow="hide" Wrap="no" borderEdge="yes" isEdgeBgMode="no" edgeMultiColumnPos="" zoom="4" zoom2="0" whiteSpaceShow="hide" eolShow="hide" eolMode="1" npcShow="hide" npcMode="1" npcCustomColor="no" npcIncludeCcUniEOL="no" npcNoInputC0="yes" ccShow="yes" borderWidth="2" smoothFont="no" paddingLeft="0" paddingRight="0" distractionFreeDivPart="4" lineCopyCutWithoutSelection="yes" multiSelection="yes" columnSel2MultiEdit="yes" />
+        <GUIConfig name="DockingManager" leftWidth="200" rightWidth="200" topHeight="200" bottomHeight="200">
+            <ActiveTabs cont="0" activeTab="-1" />
+            <ActiveTabs cont="1" activeTab="-1" />
+            <ActiveTabs cont="2" activeTab="-1" />
+            <ActiveTabs cont="3" activeTab="-1" />
+        </GUIConfig>
+    </GUIConfigs>
+</NotepadPlus>
+"@
+	Set-Content -Path "$env:AppData\Notepad++\config.xml" -Value $MultilineComment -Force
 }
 
 # Install and configure Process Explorer
@@ -20507,10 +20700,10 @@ function Invoke-Powershell7 {
 	Write-Host "Installing Windows Terminal..." -ForegroundColor Green
 	Get-AppXPackage -AllUsers *Microsoft.WindowsTerminal* | ForEach-Object {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"}
 
-	# Oh My Posh
-	Invoke-Winget
-	choco install oh-my-posh -y -r --no-progress --quiet | Out-Null
-	
+	# remove "open in terminal" context menu
+	New-Item -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions" -Name "Blocked" -Force | Out-Null
+	New-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions\Blocked" -Name "{9F156763-7844-4DC4-B2B1-901F640F5155}" -Value "" -PropertyType String -Force | Out-Null
+
 	Write-Host "Installing Powershell 7..." -ForegroundColor Green
 	# download & install latest PowerShell 7 silently
 	$api = "https://api.github.com/repos/PowerShell/PowerShell/releases/latest"
@@ -20543,7 +20736,73 @@ function Invoke-Powershell7 {
 	# CTT PowerShell Profile 
 	Invoke-RestMethod "https://github.com/ChrisTitusTech/powershell-profile/raw/main/setup.ps1" | Invoke-Expression
 
+	# Oh My Posh
+	Invoke-Winget
+	winget.exe install --id "JanDeDobbeleer.OhMyPosh" --exact --source winget --accept-source-agreements --disable-interactivity --silent --accept-package-agreements --force
 }
+
+function Invoke-UniGetUI {
+	Write-Host "Installing UniGetUI...." -ForegroundColor Green
+    # Get latest release
+    $relApi = 'https://api.github.com/repos/marticliment/UniGetUI/releases/latest'
+    $json = Invoke-RestMethod -Uri $relApi -Headers @{ 'User-Agent' = 'PowerShell' }
+    $asset = $json.assets | Where-Object { $_.name -like 'UniGetUI.Installer.exe' } | Select-Object -First 1
+    if ($asset) {
+        $url = $asset.browser_download_url
+        $tmp = "$env:TEMP\UniGetUI.Installer.exe"
+        Get-FileFromWeb -URL $url -File $tmp
+		Start-Process -FilePath $tmp -ArgumentList "/SP", "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/NoAutoStart", "/ALLUSERS", "/LANG=english" -Wait
+    }
+
+	# Remove shortcuts from all common locations
+    $shortcutsToRemove = @(
+        "$env:PUBLIC\Desktop\UniGetUI.lnk"
+        "$env:USERPROFILE\Desktop\UniGetUI.lnk"
+		"C:\ProgramData\Microsoft\Windows\Start Menu\Programs\UniGetUI.lnk"
+		"$env:APPDATA\Microsoft\Windows\Start Menu\Programs\UniGetUI.lnk"
+    )
+    
+    $shortcutsToRemove | ForEach-Object {
+        if (Test-Path $_) { Remove-Item $_ -Force }
+    }
+
+    $UniGetUIDir = "C:\Program Files\UniGetUI"
+    $batPath = "$UniGetUIDir\UniGetUI.bat"
+
+    # Fixed batch code - removed quotes issue and simplified
+    $batchCode = @'
+@echo off
+set "exe=C:\Program Files\UniGetUI\UniGetUI.exe"
+runas /trustlevel:0x20000 "powershell -NoProfile -WindowStyle Hidden -Command Start-Process -FilePath '%exe%'"
+exit
+'@
+
+    # Ensure directory exists and write batch file
+    if (-not (Test-Path $UniGetUIDir)) { 
+        New-Item -ItemType Directory -Path $UniGetUIDir -Force | Out-Null 
+    }
+    Set-Content -Path $batPath -Value $batchCode -Encoding ASCII -Force
+
+    # Create new shortcuts
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcutsToCreate = @(
+        "$env:USERPROFILE\Desktop\UniGetUI.lnk"
+        "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\UniGetUI.lnk"
+    )
+
+    foreach ($shortcutPath in $shortcutsToCreate) {
+        $sc = $shell.CreateShortcut($shortcutPath)
+        $sc.TargetPath = $batPath
+        $sc.WorkingDirectory = $UniGetUIDir
+        $sc.IconLocation = "$UniGetUIDir\UniGetUI.exe,0"
+        $sc.Save()
+        [System.Runtime.Interopservices.Marshal]::ReleaseComObject($sc) | Out-Null
+    }
+
+    # Cleanup
+    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($shell) | Out-Null
+}
+
 
 # Perform comprehensive Windows cleanup
 function Invoke-WindowsCleanup {
@@ -20730,17 +20989,17 @@ if ($PSBoundParameters.Count -gt 0) {
 			Invoke-DisableMitigations
 			Invoke-WPDTweaks
 			Invoke-ShutUp10Tweaks
-			Invoke-StartXback
+			Invoke-StartXBack
 			Invoke-DisableServices
 			Invoke-WindowsCleanup
 			pause
 		}
 		if ($Full) {
-			<#
+			
 			Invoke-CreateRestorePoint
 			Invoke-Win11Debloat
 			Clear-Host
-			# Invoke-WinUtilAutoStandard
+			Invoke-WinUtilAutoStandard
 			Show-WinLogo
 			Invoke-WinActivation
 			Invoke-ActivateUltimatePlan
@@ -20752,7 +21011,7 @@ if ($PSBoundParameters.Count -gt 0) {
 			Invoke-RemoveGaming
 			Invoke-RemoveWindowsAI
 			Invoke-RemWinBloat # remote desktop not working
-			#>
+			
 			Invoke-NETFreamework35
 			Invoke-DirectX
 			Invoke-CPlusPlusAIO
@@ -20762,59 +21021,64 @@ if ($PSBoundParameters.Count -gt 0) {
 			Invoke-DebloatBrave
 			# Invoke-SpotX # Flag by Windows Defender
 			Invoke-DisableTelemetry
+			
+			Invoke-DisableUpdates # DELETE
 			Invoke-OptimizeRegistry
 			Invoke-OptimizeNetwork
 			Invoke-BCDEditTweaks
-			Invoke-StartXback # Crash StartAllBack Download sometimes
+			Invoke-StartXBack # Crash StartAllBack Download sometimes
 			Invoke-PersonalizeWin
 			Invoke-DisableServices
 			Invoke-DisableUAC
 			Invoke-DisableMitigations
-			Invoke-DisableDefenderV2
 			Invoke-WindowsCleanup
+			Invoke-DisableDefenderV2
 			pause
 			# reboot
 			shutdown -r -t 00
 		}
-        if ($RestorePoint) 	   { Invoke-CreateRestorePoint }
-        if ($WinActivation)    { Invoke-WinActivation }
-		if ($DebloatWin)       { Invoke-RemoveWinbloat }
-		if ($PauseUpdates)     { Invoke-PauseUpdates }
-		if ($DisableUpdates)   { Invoke-DisableUpdates }
-		if ($RemoveGaming)     { Invoke-RemoveGaming }
-		if ($RemoveAI)         { Invoke-RemoveWindowsAI }
-		if ($WinUtil)          { Invoke-WinUtilAutoStandard }
-		if ($UltimatePlan)     { Invoke-ActivateUltimatePlan }
-		if ($DisableUAC)       { Invoke-DisableUAC }
-		if ($OneDrive)         { Invoke-UninstallOneDrive }
-		if ($DebloatEdge)      { Invoke-DebloatEdge }
-		if ($Store)            { Invoke-FixStore }
-		if ($CPlusPlus)        { Invoke-CPlusPlus }
-		if ($Winget)           { Invoke-Winget }
-		if ($Brave)            { Invoke-Brave } 
-		if ($DebloatBrave)     { Invoke-DebloatBrave }
-		if ($Simplewall)       { Invoke-Simplewall }
-		if ($Network)          { Invoke-OptimizeNetwork }
-		if ($Registry)         { Invoke-OptimizeRegistry }
-		if ($DisableVBS)       { Invoke-DisableVBS }
-		if ($Mitigations)      { Invoke-DisableMitigations }
-		if ($Services)         { Invoke-DisableServices }
-		if ($WPD)              { Invoke-WPDTweaks }
-		if ($ShutUp10)         { Invoke-ShutUp10Tweaks }
-		if ($BCDEdit)          { Invoke-BCDEditTweaks }
-		if ($StartXback)       { Invoke-StartXback }
-		if ($Cleanup)          { Invoke-WinCleanup }
+        if ($RestorePoint) 	   		{ Invoke-CreateRestorePoint }
+        if ($ActivateWindows)  		{ Invoke-WinActivation }
+		if ($DebloatWindows)   		{ Invoke-RemWinbloat }
+		if ($PauseUpdates)     		{ Invoke-PauseUpdates }
+		if ($DisableUpdates)   		{ Invoke-DisableUpdates }
+		if ($RemoveGaming)     		{ Invoke-RemoveGaming }
+		if ($RemoveWindowsAI)  		{ Invoke-RemoveWindowsAI }
+		if ($WinUtil)          		{ Invoke-WinUtilAutoStandard }
+		if ($UltimatePerformance)	{ Invoke-ActivateUltimatePlan }
+		if ($DisableUAC)       		{ Invoke-DisableUAC }
+		if ($OneDrive)         		{ Invoke-UninstallOneDrive }
+		if ($DebloatEdge)      		{ Invoke-DebloatEdge }
+		if ($FixStore)         		{ Invoke-FixStore }
+		if ($FixOneDrive)	   		{ Invoke-FixOneDrive }
+		if ($CPlusPlus)        		{ Invoke-CPlusPlusAIO }
+		if ($DirectX)		   		{ Invoke-DirectX	}
+		if ($NETDesktop)	   		{ Invoke-NETDesktopAIO }
+		if ($Winget)           		{ Invoke-Winget }
+		if ($Brave)            		{ Invoke-Brave } 
+		if ($DebloatBrave)     		{ Invoke-DebloatBrave }
+		if ($Simplewall)       		{ Invoke-Simplewall }
+		if ($Network)          		{ Invoke-OptimizeNetwork }
+		if ($Registry)         		{ Invoke-OptimizeRegistry }
+		if ($DisableVBS)       		{ Invoke-DisableVBS }
+		if ($Mitigations)      		{ Invoke-DisableMitigations }
+		if ($Services)        		{ Invoke-DisableServices }
+		if ($WPD)              		{ Invoke-WPDTweaks }
+		if ($ShutUp10)         		{ Invoke-ShutUp10Tweaks }
+		if ($BCDEdit)          		{ Invoke-BCDEditTweaks }
+		if ($StartXback)       		{ Invoke-StartXBack }
+		if ($Cleanup)          		{ Invoke-WinCleanup }
 		if ($DisableTelemetry) {
 			Invoke-WPDTweaks
 			Invoke-ShutUp10Tweaks
 			Invoke-PrivacyScript
 		}
 		if ($DisableSecurity)  {
-			Invoke-DisableMitigations
 			Invoke-DisableUAC
-			Invoke-DisableDefender
+			Invoke-DisableMitigations			
+			Invoke-DisableDefenderV2
 		}
-		if ($DisableDefender)  { Invoke-DisableDefender }
+		if ($DisableDefender)  { Invoke-DisableDefenderV2 }
         if ($Restart)          { shutdown -r -t 00 }
     } catch {
         Write-Host "Error while running parameter actions: $_" -ForegroundColor Red
@@ -20944,6 +21208,8 @@ while ($true) {
 								Start-Process 'ms-settings:activation'
 								$skipPause = $true
 							}
+							'i' { Start-Process "https://massgrave.dev/" }
+
                             'R' { $exitSubMenu = $true; $skipPause = $true }
                             default { Write-Host "INVALID SELECTION!" -ForegroundColor White -BackgroundColor Red; Start-Sleep 3; $skipPause = $true }
                         }
@@ -20955,7 +21221,8 @@ while ($true) {
 					$bloatwareOptions = @(
 						'Debloat Windows','Uninstall OneDrive','Toggle Xbox Gamebar'						
 						'Toggle Edge','Toggle Windows AI','Toggle Widgets',
-						'Toggle Network Adapters','Reinstall Store + Phone Link','Toggle Shell'
+						'Toggle Network Adapters','Reinstall Microsoft Store', 'Reinstall OneDrive',
+						'Toggle Start Search Shell'
 					)
 					$exitSubMenu = $false   # flag
 					while (-not $exitSubMenu) {
@@ -20980,7 +21247,7 @@ while ($true) {
 							'1' { 
 								# Invoke-WinUtilAuto 
 								# Invoke-Win11Debloat 
-								Invoke-RemoveBloat
+								Invoke-RemWinBloat
 								Invoke-DebloatEdge
 							}
 				            '2' { Invoke-UninstallOneDrive }  
@@ -20996,7 +21263,8 @@ while ($true) {
 								# Open Phone Link App page
 								Start-Process "ms-windows-store://pdp/?ProductId=9NMPJ99VJBWV" 
 							}
-							'9' { Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command "irm https://github.com/FR33THYFR33THY/Ultimate-Windows-Optimization-Guide/raw/refs/heads/main/8%20Advanced/12%20Start%20Search%20Shell.ps1 | iex"' }
+							'9' {  }
+							'10' { Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command "irm https://github.com/FR33THYFR33THY/Ultimate-Windows-Optimization-Guide/raw/refs/heads/main/8%20Advanced/12%20Start%20Search%20Shell.ps1 | iex"' }
 							'R' { $exitSubMenu = $true; $skipPause = $true }
 				            
 							'S' { @( 'https://github.com/asheroto/UninstallOneDrive' ,'https://github.com/he3als/EdgeRemover' ,'https://github.com/ShadowWhisperer/Remove-MS-Edge' ,'https://github.com/zoicware/RemoveWindowsAI/tree/main' ) | ForEach-Object { Start-Process $_ } }
@@ -21037,12 +21305,20 @@ while ($true) {
 								Invoke-WebRequest -Uri "https://github.com/sergiye/winUpdateMiniTool/releases/latest/download/winUpdateMiniTool.exe" -OutFile "$env:TEMP\winUpdateMiniTool.exe"
 								Start-Process "$env:TEMP\winUpdateMiniTool.exe" -Wait
 								# $skipPause = $true
-							}											
+							}						
 							'5' {
 								Invoke-WebRequest 'https://github.com/abbodi1406/offlineinsiderenroll/raw/refs/heads/master/OfflineInsiderEnroll.cmd' -OutFile "$env:TEMP\OfflineInsiderEnroll.cmd" -UseBasicParsing
 								Start-Process -FilePath "$env:TEMP\OfflineInsiderEnroll.cmd" -Verb RunAs
-							}						
+							}		
 							'6' { Start-Process 'https://www.youtube.com/watch?v=WyUvy4zHLkA' }
+
+							'I' { @(
+								'https://github.com/tsgrgo/windows-update-disabler', 
+								'https://github.com/sergiye/winUpdateMiniTool',
+								'https://github.com/abbodi1406/offlineinsiderenroll'
+								) | ForEach-Object { Start-Process $_ } 
+							}
+
                             'R' { $exitSubMenu = $true; $skipPause = $true }
                             default { Write-Host "INVALID SELECTION!" -ForegroundColor White -BackgroundColor Red; Start-Sleep 3; $skipPause = $true }
                         }
@@ -21052,16 +21328,49 @@ while ($true) {
 				############################################################################
 				5 {
 					$telemetryOptions = @(
-						'WPD','ShutUp10','PRIVACY.SEXY',
-						'WindowsSpyBlocker','Portmaster','simplewall'
+						'WPD (Privacy dashboard for Windows)','O&O ShutUp10++','DoNotSpy11',
+						'privacy.sexy','WindowsSpyBlocker','DNS Blocklists',
+						'Portmaster','simplewall','TinyWall',
+						'LibreWolf','Mullvad Browser','Tor Browser',
+						'Proton VPN','',''
 					)
 					$exitSubMenu = $false   # flag
                     while (-not $exitSubMenu) {
+
 						Clear-Host
-						1..3 | ForEach-Object { '' }
+
+				        1..3 | ForEach-Object { '' }
+						
+						$lines = @(
+						"    ______________    ________  _____________________  __ ",
+						"   /_  __/ ____/ /   / ____/  |/  / ____/_  __/ __ \ \/ / ",
+						"    / / / __/ / /   / __/ / /|_/ / __/   / / / /_/ /\  /  ",
+						"   / / / /___/ /___/ /___/ /  / / /___  / / / _, _/ / /   ",
+						"  /_/ /_____/_____/_____/_/  /_/_____/ /_/ /_/ |_| /_/    "
+						)
+
+		                $width = [console]::WindowWidth
+		                foreach($line in $lines){
+		                    $pad = ($width + $line.Length) / 2
+		                    Write-Host $line.PadLeft($pad) -ForegroundColor Blue
+		                }
+						
+						1..2 | ForEach-Object { '' }
+
+						Write-Host (& $c "You are being watched.") -ForegroundColor DarkGray
+						Write-Host (& $c "Private and state-sponsored organizations are monitoring and recording your online activities.") -ForegroundColor DarkGray
+						Write-Host (& $c "Use tools and privacy guides to counter global mass surveillance") -ForegroundColor DarkGray
+						
+				        1..2 | ForEach-Object { '' }
 						
 						# Show submenu
-				        $colorOptions = @{ 'WPD' = 'Green'; 'ShutUp10' = 'Green'; 'simplewall' = 'Green' }
+				        $colorOptions = @{
+							'O&O ShutUp10++' = 'Green'
+							'privacy.sexy' = 'Red'
+							'simplewall' = 'Green'
+							'Proton VPN' = 'Green'
+						}
+
 						Show-Menu -Options $telemetryOptions -ColorOptions $colorOptions						
 
                         Write-Host (& $c "Enter a number to select an option") -ForegroundColor Cyan
@@ -21070,33 +21379,76 @@ while ($true) {
                         $skipPause = $false
                         Clear-Host
                         switch ($appChoice.ToUpper()) {
-                            '1' { 
-								Invoke-WPDTweaks 
+                            '1' {
+								Invoke-WPDTweaks
 								Start-Process "$env:TEMP\WPD.exe"
 							}
-							'2' { 
-								Invoke-ShutUp10Tweaks 
+							'2' {
+								Invoke-ShutUp10Tweaks
 								Start-Process "$env:TEMP\OOSU10.exe"
-							} 							
-                            '3' { 
+							}
+							'3'{
+								Get-FileFromWeb -URL "https://pxc-coding.com/dl/donotspy11/" -File "$env:TEMP\DoNotSpy11-Setup.exe"
+								Start-Process -Wait -FilePath "$env:TEMP\DoNotSpy11-Setup.exe" -ArgumentList "/VERYSILENT", "/NORESTART", "/SP-", "/SUPPRESSMSGBOXES"
+								Start-Process "C:\Program Files (x86)\DoNotSpy11\DoNotSpy11.exe"	
+							}
+                            '4' {
                                 $url=(Invoke-RestMethod "https://api.github.com/repos/undergroundwires/privacy.sexy/releases/latest").assets | Where-Object { $_.name -like '*.exe' } | Select-Object -First 1 -ExpandProperty browser_download_url
 								$exe="$env:TEMP\privacy.sexy-Setup.exe"
 								Get-FileFromWeb $url $exe
-								Start-Process $exe -Arg '/s' -Wait 
-								Invoke-PrivacyScript 
-							}
-							'4' {
-								Get-FileFromWeb "https://github.com/crazy-max/WindowsSpyBlocker/releases/latest/download/WindowsSpyBlocker.exe" -File "$env:TEMP\WindowsSpyBlocker.exe"
-								Start-Process "$env:TEMP\WindowsSpyBlocker.exe"
+								Start-Process $exe -Arg '/s' -Wait
+								$shortcut = Join-Path $env:PUBLIC 'Desktop\privacy.sexy.lnk'
+    							if (Test-Path $shortcut) { Remove-Item $shortcut -Force }
+								Invoke-PrivacyScript
 							}
 							'5' {
+								Get-FileFromWeb -URL "https://github.com/crazy-max/WindowsSpyBlocker/releases/latest/download/WindowsSpyBlocker.exe" -File "$env:TEMP\WindowsSpyBlocker.exe"
+								Start-Process "$env:TEMP\WindowsSpyBlocker.exe"
+							}
+							'6' {
+								# dns block list
+								Write-Host "Coming soon..." -ForegroundColor White
+								Start-Sleep 3
+							}
+							'7' {
 								Invoke-Portmaster
 								Start-Process "C:\Program Files\Portmaster\portmaster.exe"
 							}
-							'6' { 
+							'8' {
 								Invoke-Simplewall 
 								Start-Process "C:\Program Files\simplewall\simplewall.exe"
 							}
+							'9' {
+								Invoke-WebRequest -Uri "https://tinywall.pados.hu/ccount/click.php?id=4" -OutFile "$env:TEMP\TinyWall-Installer.msi"
+								Start-Process -Wait -FilePath "msiexec.exe" -ArgumentList "/i", "`"$env:TEMP\TinyWall-Installer.msi`"", "/qb", "/norestart"
+							}
+							'10' {
+								Invoke-LibreWolf
+								Start-Process "C:\Program Files\LibreWolf\librewolf.exe"
+							}
+							'11' {
+								# proton
+							}
+							'12' {
+								# dns
+							}
+
+							'I' { @(
+									'https://wpd.app/',				
+									'https://www.oo-software.com/en/shutup10',
+									'https://pxc-coding.com/donotspy11/',
+									'https://www.privacy.sexy/',				
+									'https://crazymax.dev/WindowsSpyBlocker/',
+									'https://github.com/hagezi/dns-blocklists',					
+									'https://github.com/safing/portmaster',					
+									'https://github.com/henrypp/simplewall',
+									'https://github.com/pylorak/TinyWall?tab=readme-ov-file',
+									'https://mullvad.net/en/browser',
+									'https://www.torproject.org/'
+						
+								) | ForEach-Object { Start-Process $_ } 						
+							}	
+
                             'R' { $exitSubMenu = $true; $skipPause = $true }
                             default { Write-Host "INVALID SELECTION!" -ForegroundColor White -BackgroundColor Red; Start-Sleep 3; $skipPause = $true }
                         }
@@ -21223,14 +21575,13 @@ while ($true) {
 				############################################################################
 				10 {
 					$appsOptions = @(
-						'C++','.NET','DirectX',
-						'Brave','LibreWolf','Chrome',
-						'Start(X)back','Everything','7-Zip',
-						'VLC media player','Microsoft Store','Powershell 7',
-						'simplewall','Winget','SpotX (Spotify)',
+						'Visual C++ Runtimes','.NET Desktop Runtimes','DirectX Runtime',
+						'Brave','Firefox','Chrome',
+						'Start(X)Back','Everything','7-Zip',
+						'VLC media player','SpotX (Spotify)','Powershell 7',
+						'UniGetUI','Winget','',
 						'WebCord (Discord)','Steam','Process Explorer',
-						'Core Temp','Microsoft 365 Basic','Notepad++',
-						'UniGetUI'
+						'Core Temp','Notepad++','Microsoft 365 Basic'
 					)
 					$exitSubMenu = $false   # flag
                     while (-not $exitSubMenu) {
@@ -21254,59 +21605,126 @@ while ($true) {
 					    $skipPause = $false
 						Clear-Host
 					
-					foreach ($choice in $appChoices) {
-					if ([int]::TryParse($choice,[ref]$null)) {
-					    # Numeric selection
-					    $aSel = [int]$choice
-					    switch ($aSel) {
-							'1' { Invoke-CPlusPlusAIO }
-                            '2' { Invoke-NETFreamework35; Invoke-NETDesktopAIO }
-							'3' { Invoke-DirectX }
-							'4' { Invoke-Brave; Invoke-DebloatBrave }
-							'5' { Invoke-LibreWolf }
-							'6' { Invoke-StartXback }
-							'7' { Invoke-EverythingSearch }
-							'8' { Invoke-7Zip }
-							'9' { Invoke-VLC }
-							'10' { Invoke-FixStore }
-							'11' { Invoke-Powershell7 }
-							'12' { Invoke-Simplewall }
-							'13' { Invoke-Winget }
-							'14' { Invoke-SpotX }
-							'15' { Invoke-WebCord }
-							'16' { Invoke-Steam }
-							'17' { Invoke-ProcessExplorer }
-							'18' { Invoke-CoreTemp }
-							'19' {  }
-							'20' {  }
-							'21' {  }
-							
-
-					                default {
-					                    Write-Host "Invalid number: $aSel" -ForegroundColor White -BackgroundColor Red
-					                    Start-Sleep 2
-					                    $skipPause = $true
-					                }
-					            }
-					        }
-							
-					        else {
-					            # Letter selection
-					            switch ($choice) {
-					                'R' { $exitSubMenu = $true; $skipPause = $true } # Return to Main Menu
-					                default {
-					                    Write-Host "Invalid letter: $choice" -ForegroundColor White -BackgroundColor Red
-					                    Start-Sleep 2
-					                    $skipPause = $true
-					                }
+						foreach ($choice in $appChoices) {
+						if ([int]::TryParse($choice,[ref]$null)) {
+					    	# Numeric selection
+					    	$aSel = [int]$choice
+					    	switch ($aSel) {
+								'1' { Invoke-CPlusPlusAIO }
+                            	'2' { Invoke-NETFreamework35; Invoke-NETDesktopAIO }
+								'3' { Invoke-DirectX }
+								'4' { Invoke-Brave; Invoke-DebloatBrave }
+								'5' { Invoke-LibreWolf }
+								'6' { Invoke-Chrome } # chrome
+								'7' { Invoke-StartXBack }
+								'8' { Invoke-EverythingSearch }
+								'9' { Invoke-7Zip }
+								'10' { Invoke-VLC }
+								'11' { Invoke-SpotX }
+								'12' { Invoke-Powershell7 }
+								'13' { Invoke-UniGetUI }
+								'14' { Invoke-Winget }
+								'15' {  }
+								'16' { Invoke-WebCord }
+								'17' { Invoke-Steam }
+								'18' { Invoke-ProcessExplorer }
+								'19' { Invoke-CoreTemp }
+								'20' { Invoke-NotepadPlusPlus }
+								'21' { Invoke-Office365 }													
+									
+					            default {
+					                Write-Host "Invalid number: $aSel" -ForegroundColor White -BackgroundColor Red
+					                Start-Sleep 2
+					                $skipPause = $true
 					            }
 					        }
 					    }
+							
+					    else {
+					        # Letter selection
+					        switch ($choice) {
+					            'R' { $exitSubMenu = $true; $skipPause = $true } # Return to Main Menu
+					            default {
+					                Write-Host "Invalid letter: $choice" -ForegroundColor White -BackgroundColor Red
+					                Start-Sleep 2
+					                $skipPause = $true
+					            }
+					        }
+					    }
+					}
 					
-					    if (-not $skipPause) { Press-AnyKey }
+					if (-not $skipPause) { Press-AnyKey }
 					}
 				}
 				############################################################################
+				11 {		
+
+					clear-host
+
+					$tuningOptions = @(
+						'ThrottleStop','Process Lasso','CPU Unpark',
+						'MSI Mode','MSI Afterburner','Timer Res','Reduce Audio Latency',
+						'GoInterruptPolicy','Custom Resolution Utility','Fan Control',
+						'TCP Optimizer','DNS Jumper','Win32Prior Tool',
+						'PowerSettingsExplorer','NVIDIA Profile Inspector'
+					)
+
+					$exitSubMenu = $false
+					while (-not $exitSubMenu) {
+					    Clear-Host
+				        1..3 | ForEach-Object { '' }
+					    	
+						$lines = @(
+							"  ________  ___   _______   ________",
+							" /_  __/ / / / | / /  _/ | / / ____/",
+							"  / / / / / /  |/ // //  |/ / / __  ",
+							" / / / /_/ / /|  // // /|  / /_/ /  ",
+							"/_/  \____/_/ |_/___/_/ |_/\____/   "
+						)
+                        
+				        $width = [console]::WindowWidth
+				        foreach($line in $lines){
+				            $pad = ($width + $line.Length) / 2
+				            Write-Host $line.PadLeft($pad)
+				        }
+				        
+						1..3 | ForEach-Object { '' }
+						Write-Host (& $c "A bunch of registry tweaks.") -ForegroundColor DarkGray
+						
+				        1..2 | ForEach-Object { '' }
+				    
+				        Show-Menu $tuningOptions
+				    
+				        Write-Host (& $c "Enter a number to select an option") -ForegroundColor Cyan
+				        Write-Host (& $c "SELECTION: ") -NoNewline
+				        $appChoice = Read-Host
+						$skipPause = $false
+						Clear-Host
+						switch ($appChoice.ToUpper()) {
+							'1' { Get-FileFromWeb -URL "https://geeks3d.com/dl/get/10061" -File "$env:TEMP\ThrottleStop.zip"; $dst="$env:TEMP\ThrottleStop"; if(Test-Path $dst){Remove-Item $dst -Recurse -Force -ErrorAction SilentlyContinue}; Expand-Archive "$env:TEMP\ThrottleStop.zip" $dst -Force; $exe=Get-ChildItem $dst -Recurse -Filter "ThrottleStop.exe" -ErrorAction SilentlyContinue | Select-Object -First 1; if($exe){ Start-Process $exe.FullName } }
+							'2' { Install-ProcessLasso }
+				            '3' { Get-FileFromWeb -URL "https://www.coderbag.com/assets/downloads/disable-cpu-core-parking/Unpark-CPU-App.zip" -File "$env:TEMP\Unpark-CPU-App.zip"; $dst="$env:TEMP\Unpark-CPU-App"; if(Test-Path $dst){Remove-Item $dst -Recurse -Force -ErrorAction SilentlyContinue}; Expand-Archive "$env:TEMP\Unpark-CPU-App.zip" $dst -Force; $exe=Join-Path $dst "UnparkCpu.exe"; if(Test-Path $exe){ Start-Process $exe } }
+				            '4' { Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command "irm https://github.com/FR33THYFR33THY/Ultimate-Windows-Optimization-Guide/raw/refs/heads/main/5%20Graphics/9%20Msi%20Mode.ps1 | iex"' }
+				            '5' { Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command "irm https://github.com/FR33THYFR33THY/Ultimate-Windows-Optimization-Guide/raw/refs/heads/main/4%20Installers/3%20MSI%20Afterburner.ps1 | iex"' }
+							'6' { Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command "irm https://github.com/FR33THYFR33THY/Ultimate-Windows-Optimization-Guide/raw/refs/heads/main/6%20Windows/10%20Timer%20Resolution.ps1 | iex"' }
+				            '7' { Invoke-WebRequest -Uri "https://github.com/sherifmagdy32/gaming_os_tweaker/raw/refs/heads/main/scripts/tweaks/audio.cmd" -OutFile "$env:TEMP\audio.cmd"; Start-Process "$env:TEMP\audio.cmd"; Invoke-WebRequest -Uri "https://github.com/miniant-git/REAL/releases/download/updater-v2/REAL.exe" -OutFile "$env:TEMP\REAL.exe"; Start-Process "$env:TEMP\REAL.exe"}
+				            '8' { Get-FileFromWeb -URL "https://github.com/spddl/GoInterruptPolicy/releases/latest/download/GoInterruptPolicy.exe" -File "$env:TEMP\GoInterruptPolicy.exe"; Start-Process "$env:TEMP\GoInterruptPolicy.exe" }	
+							'9' { Get-FileFromWeb -URL "https://www.monitortests.com/download/cru/cru-1.5.3.zip" -File "$env:TEMP\cru.zip"; Expand-Archive "$env:TEMP\cru.zip" -DestinationPath "$env:TEMP" -Force; Start-Process "$env:TEMP\CRU.exe" }
+							'10' { $rel=Invoke-RestMethod "https://api.github.com/repos/Rem0o/FanControl.Releases/releases/latest"; $asset=$rel.assets | Where-Object { $_.name -match '_net_4_8_Installer\.exe$' } | Select-Object -First 1; if($asset){ $exe=Join-Path $env:TEMP $asset.name; Invoke-WebRequest $asset.browser_download_url -OutFile $exe -UseBasicParsing; Start-Process -FilePath $exe -ArgumentList '/verysilent' -Wait; $fc1="C:\Program Files (x86)\FanControl\FanControl.exe"; $fc2="C:\Program Files\FanControl\FanControl.exe"; if(Test-Path $fc1){ Start-Process $fc1 } elseif(Test-Path $fc2){ Start-Process $fc2 } } }
+							'11' { Get-FileFromWeb -URL "https://www.speedguide.net/files/TCPOptimizer.exe" -File "$env:TEMP\TCPOptimizer.exe"; Start-Process "$env:TEMP\TCPOptimizer.exe" }
+							'12' { Get-FileFromWeb -URL "https://www.sordum.org/files/downloads.php?dns-jumper" -File "$env:TEMP\DnsJumper.zip"; $dst="$env:TEMP\DnsJumper"; if(Test-Path $dst){Remove-Item $dst -Recurse -Force -ErrorAction SilentlyContinue}; Expand-Archive "$env:TEMP\DnsJumper.zip" $dst -Force; $exe=Join-Path $dst "DnsJumper\DnsJumper.exe"; if(Test-Path $exe){ Start-Process $exe } }
+							'13' { $url=(Invoke-RestMethod "https://api.github.com/repos/keoy7am/Win32PrioritySeparationTool/releases/latest").assets | Where-Object name -like '*.zip' | Select-Object -f 1 -exp browser_download_url; $zip="$env:TEMP\Win32PrioritySeparationTool.zip"; Invoke-WebRequest $url -OutFile $zip; Expand-Archive $zip -DestinationPath $env:TEMP -Force; Start-Process "$env:TEMP\Win32PrioritySeparationTool.exe" }
+							'14' { Invoke-WebRequest -Uri "https://github.com/ManueITest/Windows/raw/refs/heads/main/PowerSettingsExplorer.exe" -OutFile "$env:TEMP\PowerSettingsExplorer.exe"; Start-Process "$env:TEMP\PowerSettingsExplorer.exe" }
+							'15' { Start-Process powershell -ArgumentList '-NoProfile -ExecutionPolicy Bypass -Command "irm https://github.com/FR33THYFR33THY/Ultimate-Windows-Optimization-Guide/raw/refs/heads/main/5%20Graphics/5%20Nvidia%20Settings.ps1 | iex"' }
+							
+							'I' { @( '', '' ,'https://github.com/keoy7am/Win32PrioritySeparationTool' ) | ForEach-Object { Start-Process $_ } }
+							'R' { $exitSubMenu = $true; $skipPause = $true }
+				            default { Write-Host "INVALID SELECTION!" -ForegroundColor White -BackgroundColor Red; Start-Sleep 3; $skipPause = $true }	
+						}	
+						if (-not $skipPause) { Press-AnyKey }
+				    }						
+				}								
+                #############################################################
                 default {
                     Write-Host "Invalid option." -ForegroundColor Red
                     Start-Sleep 1

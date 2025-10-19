@@ -2,9 +2,6 @@
 :: Re-enable Windows auto updates and undo all changes by 'disable updates.bat'
 :: PsExec is required to get system privileges - it should be in this directory
 
-if not "%1"=="admin" (powershell start -verb runas '%0' admin & exit /b)
-if not "%2"=="system" (powershell . '%~dp0\PsExec.exe' /accepteula -i -s -d '%0' admin system & exit /b)
-
 :: Enable update related services
 sc config wuauserv start= auto
 sc config UsoSvc start= auto
