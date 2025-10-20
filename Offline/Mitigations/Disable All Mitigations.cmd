@@ -1,34 +1,30 @@
-@Echo Off & Set "_F0=%~f0" & Title
-
-PowerShell.exe -NoProfile -Command "Set-Content -LiteralPath $Env:Temp\_.ps1 -Value ([RegEx]::Matches([System.IO.File]::ReadAllText($Env:_F0), '(?smi)^(Pause|Exit)(.*)$').Groups[2].Value) -Encoding Unicode -Force"
-PowerShell.exe -NoProfile -ExecutionPolicy Bypass -File "%Temp%\_.ps1"
-exit
-
-function Del-PS1 {Remove-Item -LiteralPath $Env:Temp\_.ps1 -Force}
-
-if ((Get-Item -LiteralPath 'Registry::HKU\S-1-5-19' -ErrorAction SilentlyContinue)) {Del-PS1} Else {
-    try {Start-Process -FilePath PowerShell.exe -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$Env:Temp\_.ps1`"" -Verb RunAs} Catch {Del-PS1}
-    exit
-}
-
-# Atlas
-$batchCode = @"
 @echo off
-setlocal EnableDelayedExpansion
-
-if "%~1" == "/silent" goto main
+:: Change to match the setting name (e.g., Sleep, Indexing, etc.)
+set "settingName=Mitigations"
+:: Change to 0 (Disabled) or 1 (Enabled/Minimal) etc
+set "stateValue=0"
+set "scriptPath=%~f0"
 
 set "___args="%~f0" %*"
 fltmc > nul 2>&1 || (
-	echo Administrator privileges are required.
-	powershell -c "Start-Process -Verb RunAs -FilePath 'cmd' -ArgumentList """/c $env:___args"""" 2> nul || (
-		echo You must run this script as admin.
-		if "%*"=="" pause
-		exit /b 1
-	)
-	exit /b
+    echo Administrator privileges are required.
+    powershell -c "Start-Process -Verb RunAs -FilePath 'cmd' -ArgumentList """/c $env:___args"""" 2> nul || (
+        echo You must run this script as admin.
+        if "%*"=="" pause
+        exit /b 1
+    )
+    exit /b
 )
 
+:: Update Registry (State and Path)
+reg add "HKLM\SOFTWARE\AtlasOS\Services\%settingName%" /v state /t REG_DWORD /d %stateValue% /f > nul
+reg add "HKLM\SOFTWARE\AtlasOS\Services\%settingName%" /v path /t REG_SZ /d "%scriptPath%" /f > nul
+
+:: End of state and path update
+
+setlocal EnableDelayedExpansion
+
+if "%~1" == "/silent" goto main
 :main
 :: Disable Spectre and Meltdown
 reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Memory Management" /v "FeatureSettingsOverride" /t REG_DWORD /d "3" /f > nul
@@ -72,15 +68,5 @@ reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager" /v "ProtectionMo
 if "%~1" == "/silent" exit /b
 
 echo Finished, please reboot your device for changes to apply.
+pause
 exit /b
-"@
-
-$batPath = "$env:TEMP\DisableAllMitigations.bat"
-Set-Content -Path $batPath -Value $batchCode -Encoding ASCII
-Start-Process -FilePath $batPath -Wait
-Remove-Item $batPath -Force -ErrorAction SilentlyContinue
-
-clear-host
-write-host "Press any key to continue . . ."
-$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-exit

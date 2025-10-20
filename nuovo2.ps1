@@ -11,6 +11,11 @@
 	https://github.com/
 #>
 
+
+
+
+##############
+# Parameters #
 [CmdletBinding()]
 param (
 	[switch]$Recommended,
@@ -46,8 +51,77 @@ param (
 	[switch]$DisableUAC,
 	[switch]$DisabelMitigations,
 	[switch]$DisableDefender,
-	[switch]$Restart
+	[switch]$Reboot
 )
+##############
+
+
+
+
+#####################################
+# Set window title and color scheme #
+$Host.UI.RawUI.WindowTitle = $myInvocation.MyCommand.Definition + " (Administrator)"
+$Host.UI.RawUI.BackgroundColor = "Black"
+$Host.PrivateData.ProgressBackgroundColor = "Black"
+$Host.PrivateData.ProgressForegroundColor = "White"
+Clear-Host
+#####################################
+
+
+
+
+################################
+# Center the PowerShell window #
+$psWindow = Get-Process -Id $pid | ForEach-Object { $_.MainWindowHandle }
+Add-Type @"
+using System;
+using System.Runtime.InteropServices;
+public class WindowCentering {
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+    
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool MoveWindow(IntPtr hWnd, int X, int Y, int nWidth, int nHeight, bool bRepaint);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    public static void CenterWindow(IntPtr hWnd) {
+        RECT rect;
+        GetWindowRect(hWnd, out rect);
+        int windowWidth = rect.Right - rect.Left;
+        int windowHeight = rect.Bottom - rect.Top;
+        
+        int screenWidth = GetSystemMetrics(0);
+        int screenHeight = GetSystemMetrics(1);
+        
+        int x = (screenWidth / 2) - (windowWidth / 2);
+        int y = (screenHeight / 2) - (windowHeight / 2);
+
+        MoveWindow(hWnd, x, y, windowWidth, windowHeight, true);
+    }
+
+    [DllImport("user32.dll")]
+    public static extern int GetSystemMetrics(int nIndex);
+}
+"@
+
+[WindowCentering]::CenterWindow($psWindow)
+################################
+
+
+
+
+###################
+# Global Settings #
+$ProgressPreference = 'SilentlyContinue'  
+$ErrorActionPreference = 'SilentlyContinue'
+###################
 
 
 
@@ -106,75 +180,13 @@ if ($11bug) {[Windows.Forms.SendKeys]::SendWait($path)}; do {sleep 7} while(Q); 
 '@; $V = ''; 'cmd', 'arg', 'id', 'key' | ForEach-Object { $V += "`n`$$_='$($(Get-Variable $_ -val)-replace"'","''")';" }; Set-ItemProperty $key $id $($V, $code) -type 7 -force -ea 0
 	Start-Process powershell -args "-win 1 -nop -c `n$V `$env:R=(gi `$key -ea 0).getvalue(`$id)-join''; iex `$env:R" -verb runas -Wait
 } # lean & mean snippet by AveYo, 2022.01.28
+#########################
 
 
 
 
-###############################
-# Safe console customization #
-# Colors
-$Host.UI.RawUI.WindowTitle = ''
-$Host.UI.RawUI.BackgroundColor = 'Black'
-$Host.UI.RawUI.ForegroundColor = 'DarkGray'
-$Host.PrivateData.ProgressBackgroundColor = 'Black'
-$Host.PrivateData.ProgressForegroundColor = 'DarkGray'
-Clear-Host
-
-<# 
-:: Function: Center-PowerShellWindow
-:: Purpose:  Centers the current PowerShell console window on the screen. #>
-<# REM Get the main window handle of the current PowerShell process #>
-$psWindowHandle = Get-Process -Id $PID | ForEach-Object { $_.MainWindowHandle }
-
-<# REM Define a .NET class to interact with Windows API for window positioning #>
-Add-Type @"
-using System;
-using System.Runtime.InteropServices;
-
-public class WindowCentering {
-
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern bool MoveWindow(IntPtr hWnd, int X, int Y, int nWidth, int nHeight, bool bRepaint);
-
-    [StructLayout(LayoutKind.Sequential)]
-    public struct RECT {
-        public int Left;
-        public int Top;
-        public int Right;
-        public int Bottom;
-    }
-
-    [DllImport("user32.dll")]
-    public static extern int GetSystemMetrics(int nIndex);
-
-    public static void CenterWindow(IntPtr hWnd) {
-        RECT rect;
-        GetWindowRect(hWnd, out rect);
-
-        int windowWidth = rect.Right - rect.Left;
-        int windowHeight = rect.Bottom - rect.Top;
-
-        int screenWidth = GetSystemMetrics(0);
-        int screenHeight = GetSystemMetrics(1);
-
-        int x = (screenWidth / 2) - (windowWidth / 2);
-        int y = (screenHeight / 2) - (windowHeight / 2);
-
-        MoveWindow(hWnd, x, y, windowWidth, windowHeight, true);
-    }
-}
-"@
-
-<# REM Center the PowerShell console window using the WindowCentering class #>
-[WindowCentering]::CenterWindow($psWindowHandle)
-
-# Global setting
-$ProgressPreference = 'SilentlyContinue'  
-$ErrorActionPreference = 'SilentlyContinue'
-
+#####################
+# Show Windows Logo #
 Function Show-WinLogo {
     <#
         .SYNOPSIS
@@ -360,10 +372,20 @@ function Invoke-NETFreamework35 {
 			.NET Freamework 3.5 (includes .NET 2.0 and 3.0)
 	#>
 	
- 	Write-Host "Installing .NET Freamework 3.5..." -ForegroundColor Green
-	Get-FileFromWeb -URL "https://github.com/abbodi1406/dotNetFx35W10/releases/download/v0.20.01/dotNetFx35_WX_9_x86_x64.zip" -File "$env:TEMP\dotNetFx35_WX_9_x86_x64.zip"
-	Expand-Archive "$env:TEMP\dotNetFx35_WX_9_x86_x64.zip" $env:TEMP -Force
-	Start-Process "$env:TEMP\dotNetFx35_WX_9_x86_x64.exe" -ArgumentList "/ai /S /NORESTART" -Wait
+	Write-Host "Installing .NET Freamework 3.5..." -ForegroundColor Green
+	
+ 	if ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild -le 19045) {
+		Get-FileFromWeb -URL "https://github.com/abbodi1406/dotNetFx35W10/releases/download/v0.20.01/dotNetFx35_WX_9_x86_x64.zip" -File "$env:TEMP\dotNetFx35_WX_9_x86_x64.zip"
+		Expand-Archive "$env:TEMP\dotNetFx35_WX_9_x86_x64.zip" $env:TEMP -Force
+		Start-Process "$env:TEMP\dotNetFx35_WX_9_x86_x64.exe" -ArgumentList "/ai /S /NORESTART" -Wait
+	}
+
+	elseif ((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild -ge 22000) {
+		Get-FileFromWeb -Url "https://github.com/ionuttbara/dotNet2035onW1X/releases/download/release_tag/dotNet2035_W11.exe" -File "$env:TEMP\dotNet.exe"
+		& "$env:TEMP\dotNet.exe"
+	}
+	else {	
+	}
 }
 
 function Invoke-NETDesktopAIO {
@@ -1935,10 +1957,67 @@ endlocal
 	Set-Content -Path $batPath -Value $batchCode -Encoding ASCII
 	Start-Process -FilePath $batPath -Wait -NoNewWindow *> $null
 
+	<#
 	# Install Edge
 	$temp = "$env:TEMP\EdgeRemover.ps1"
 	Invoke-WebRequest -Uri "https://cdn.jsdelivr.net/gh/he3als/EdgeRemover@main/get.ps1" -OutFile $temp -UseBasicParsing
 	Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$temp`" -InstallEdge -InstallWebView -NonInteractive" -Wait
+	#>
+
+	# stop edge running
+	$stop = "MicrosoftEdgeUpdate", "OneDrive", "WidgetService", "Widgets", "msedge", "Resume", "CrossDeviceResume", "msedgewebview2"
+	$stop | ForEach-Object { Stop-Process -Name $_ -Force -ErrorAction SilentlyContinue }
+	# install copilot
+	Get-AppXPackage -AllUsers *Microsoft.Windows.Ai.Copilot.Provider* | ForEach-Object-Object {Add-AppxPackage -DisableDevelopmentMode -Register "$($_.InstallLocation)\AppXManifest.xml"}
+	# enable edge updates regedit
+	cmd /c "reg delete `"HKLM\SOFTWARE\Microsoft\EdgeUpdate`" /f >nul 2>&1"
+	# remove allow edge uninstall regedit
+	cmd /c "reg delete `"HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdateDev`" /f >nul 2>&1"
+	# download edge installer
+	Get-FileFromWeb -URL "https://go.microsoft.com/fwlink/?linkid=2109047&Channel=Stable&language=en&brand=M100" -File "$env:TEMP\Edge.exe"
+	# start edge installer
+	Start-Process -wait "$env:TEMP\Edge.exe"
+	# stop edge running
+	$stop = "MicrosoftEdgeUpdate", "OneDrive", "WidgetService", "Widgets", "msedge", "Resume", "CrossDeviceResume", "msedgewebview2"
+	$stop | ForEach-Object { Stop-Process -Name $_ -Force -ErrorAction SilentlyContinue }
+	# download edge webview installer
+	Get-FileFromWeb -URL "https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/304fddef-b073-4e0a-b1ff-c2ea02584017/MicrosoftEdgeWebview2Setup.exe" -File "$env:TEMP\EdgeWebView.exe"
+	# start edge webview installer
+	Start-Process -wait "$env:TEMP\EdgeWebView.exe"
+	# stop edge running
+	$stop = "MicrosoftEdgeUpdate", "OneDrive", "WidgetService", "Widgets", "msedge", "msedgewebview2"
+	$stop | ForEach-Object { Stop-Process -Name $_ -Force -ErrorAction SilentlyContinue }
+	# add edge shortcuts
+	$WshShell = New-Object -comObject WScript.Shell
+	$Shortcut = $WshShell.CreateShortcut("$env:SystemDrive\Windows\System32\config\systemprofile\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\Microsoft Edge.lnk")
+	$Shortcut.TargetPath = "$env:SystemDrive\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+	$Shortcut.Save()
+	$WshShell = New-Object -comObject WScript.Shell
+	$Shortcut = $WshShell.CreateShortcut("$env:USERPROFILE\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\Microsoft Edge.lnk")
+	$Shortcut.TargetPath = "$env:SystemDrive\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+	$Shortcut.Save()
+	$WshShell = New-Object -comObject WScript.Shell
+	$Shortcut = $WshShell.CreateShortcut("$env:USERPROFILE\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Microsoft Edge.lnk")
+	$Shortcut.TargetPath = "$env:SystemDrive\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+	$Shortcut.Save()
+	$WshShell = New-Object -comObject WScript.Shell
+	$Shortcut = $WshShell.CreateShortcut("$env:USERPROFILE\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar\Tombstones\Microsoft Edge.lnk")
+	$Shortcut.TargetPath = "$env:SystemDrive\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+	$Shortcut.Save()
+	$WshShell = New-Object -comObject WScript.Shell
+	$Shortcut = $WshShell.CreateShortcut("$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Microsoft Edge.lnk")
+	$Shortcut.TargetPath = "$env:SystemDrive\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+	$Shortcut.Save()
+	$WshShell = New-Object -comObject WScript.Shell
+	$Shortcut = $WshShell.CreateShortcut("$env:SystemDrive\Users\Public\Desktop\Microsoft Edge.lnk")
+	$Shortcut.TargetPath = "$env:SystemDrive\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+	$Shortcut.Save()
+	# install uwp edge & bing apps
+	Get-AppXPackage -AllUsers *Microsoft.MicrosoftEdge.Stable* | ForEach-Object {Add-AppxPackage -DisableDevelopmentMode -Register -ErrorAction SilentlyContinue "$($_.InstallLocation)\AppXManifest.xml"}
+	Get-AppXPackage -AllUsers *Microsoft.BingNews* | ForEach-Object-Object {Add-AppxPackage -DisableDevelopmentMode -Register -ErrorAction SilentlyContinue "$($_.InstallLocation)\AppXManifest.xml"}
+	Get-AppXPackage -AllUsers *Microsoft.BingSearch* | ForEach-Object {Add-AppxPackage -DisableDevelopmentMode -Register -ErrorAction SilentlyContinue "$($_.InstallLocation)\AppXManifest.xml"}
+	Get-AppXPackage -AllUsers *Microsoft.BingWeather* | ForEach-Object {Add-AppxPackage -DisableDevelopmentMode -Register -ErrorAction SilentlyContinue "$($_.InstallLocation)\AppXManifest.xml"}
+
 }
 
 #############################
@@ -2125,6 +2204,9 @@ function Invoke-RemoveEdge {
 	$temp = "$env:TEMP\EdgeRemover.ps1"
 	Invoke-WebRequest -Uri "https://cdn.jsdelivr.net/gh/he3als/EdgeRemover@main/get.ps1" -OutFile $temp -UseBasicParsing
 	Start-Process powershell -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$temp`" -UninstallEdge -RemoveEdgeData -NonInteractive" -Wait
+	
+	# Uninstall Microsoft Edge
+	Invoke-RestMethod https://gist.github.com/ave9858/c3451d9f452389ac7607c99d45edecc6/raw/UninstallEdge.ps1 | Invoke-Expression
 
 	<#
 	Write-Output "Uninstalling EdgeUpdate...."
@@ -12264,6 +12346,9 @@ reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\kernel" /v "Mitig
 
 :: Disable file system mitigations
 reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager" /v "ProtectionMode" /t REG_DWORD /d "0" /f > nul
+
+:: Disable Fault Tolerant Heap
+reg add "HKLM\SOFTWARE\Microsoft\FTH" /v Enabled /t REG_DWORD /d 0 /f > nul 2>&1
 '@
 	$batPath = "$env:TEMP\DisableAllMitigations.bat"
 	Set-Content -Path $batPath -Value $batchCode -Encoding ASCII
@@ -12298,7 +12383,8 @@ reg add "HKLM\SYSTEM\CurrentControlSet\Control\Session Manager" /v "ProtectionMo
 :: Default Hyper-V Settings
 reg delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization" /v "MinVmVersionForCpuBasedMitigations" /f > nul 2>&1
 
-exit /b
+:: Enable Fault Tolerant Heap
+reg add "HKLM\SOFTWARE\Microsoft\FTH" /v Enabled /t REG_DWORD /d 1 /f > nul 2>&1
 '@
 	$batPath = "$env:TEMP\DefaultMitigations.bat"
 	Set-Content -Path $batPath -Value $batchCode -Encoding ASCII
@@ -19030,11 +19116,12 @@ function Invoke-PersonalizeWin {
 		
 		# Center task icons - Together with start button
 		# New-ItemProperty -Path 'HKCU:\Software\StartIsBack' -Name 'TaskbarCenterIcons' -PropertyType DWord -Value 2 -Force | Out-Null
-		
+		<#
 		# Disable rounded corners (W11)	
 		Write-Output "Disabling rounded corners..."
 		Invoke-WebRequest -Uri "https://github.com/valinet/Win11DisableRoundedCorners/releases/latest/download/Win11DisableOrRestoreRoundedCorners.exe" -OutFile "$env:TEMP\Win11DisableOrRestoreRoundedCorners.exe" -UseBasicParsing
 		Start-Process -FilePath "$env:TEMP\Win11DisableOrRestoreRoundedCorners.exe" -ArgumentList "/disable" -Wait	
+		#>
 	}else{		
 	}
 <#
@@ -19174,6 +19261,7 @@ Windows Registry Editor Version 5.00
 
 	# Disable Chrome tasks
 	Get-ScheduledTask | Where-Object { $_.TaskName -like "*Google*" } | ForEach-Object { Disable-ScheduledTask -TaskName $_.TaskName | Out-Null }
+
 }
 
 # LibreWolf installation
@@ -19280,6 +19368,675 @@ defaultPref("browser.sessionstore.resume_from_crash", false);
     	Get-ChildItem -Path $_ -Filter $shortcut -Recurse |
         	Remove-Item -Force
 	}
+}
+
+###################
+# Mozilla Firefox #
+function Invoke-Firefox {
+
+	<#
+		.SYNOPSIS
+		
+		.DESCRIPTION
+	#>
+	
+	# Install Firefox
+	Write-Host "Installing Firefox..." -ForegroundColor Green
+	
+	Get-FileFromWeb -URL "https://download.mozilla.org/?product=firefox-latest&os=win64&lang=en-US" -File "$env:Temp\Firefox Setup.exe"
+	Start-Process "$env:TEMP\Firefox Setup.exe" -ArgumentList "/S" -Wait
+
+	# Uninstall Mozilla Maintenance Service
+	Write-Output "Uninstalling Mozilla Maintenance Service..."
+	if (Test-Path "C:\Program Files (x86)\Mozilla Maintenance Service\Uninstall.exe") {
+		Start-Process -FilePath "C:\Program Files (x86)\Mozilla Maintenance Service\Uninstall.exe" -ArgumentList "/S" -Wait -NoNewWindow
+	}
+	
+	# Firefox Policies
+	Write-Output "Configuring Firefox Policies..."
+	$MultilineComment = @"
+Windows Registry Editor Version 5.00
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox]
+; Allow file selection dialogs.
+"AllowFileSelectionDialogs"=dword:00000000
+; Enable or disable automatic application update.
+"AppAutoUpdate"=dword:00000000
+; Enable autofill for addresses.
+"AutofillAddressEnabled"=dword:00000000
+"AutofillCreditCardEnabled"=dword:00000000
+"BackgroundAppUpdate"=dword:00000000
+"BlockAboutAddons"=dword:00000000
+"BlockAboutConfig"=dword:00000000
+"BlockAboutProfiles"=dword:00000000
+"BlockAboutSupport"=dword:00000000
+"CaptivePortal"=dword:00000000
+"DisableAccounts"=dword:00000001
+"DisableAppUpdate"=dword:00000000
+"DisableBuiltinPDFViewer"=dword:00000001
+"DisableDefaultBrowserAgent"=dword:00000001
+"DisableDeveloperTools"=dword:00000001
+"DisableEncryptedClientHello"=dword:00000001
+"DisableFeedbackCommands"=dword:00000001
+"DisableFirefoxAccounts"=dword:00000001
+"DisableFirefoxScreenshots"=dword:00000001
+"DisableFirefoxStudies"=dword:00000001
+; Prevent access to the Forget button.
+"DisableForgetButton"=dword:00000001
+; Don’t remember search and form history.
+"DisableFormHistory"=dword:00000000
+"DisableMasterPasswordCreation"=dword:00000001
+"DisablePasswordReveal"=dword:00000001
+"DisablePrivateBrowsing"=dword:00000001
+"DisableProfileImport"=dword:00000000
+"DisableProfileRefresh"=dword:00000000
+"DisableSafeMode"=dword:00000001
+"DisableSetDesktopBackground"=dword:00000001
+"DisableSystemAddonUpdate"=dword:00000001
+"DisableTelemetry"=dword:00000001
+; Prevent the user from blocking third-party modules that get injected into the Firefox process.
+"DisableThirdPartyModuleBlocking"=dword:00000001
+"DisplayBookmarksToolbar"="newtab"
+"DisablePocket"=dword:00000001
+; Display the Menu Bar by default.
+"DisplayMenuBar"="never"
+"DontCheckDefaultBrowser"=dword:00000001
+"DownloadDirectory"="%USERPROFILE%\\Downloads"
+"ExtensionUpdate"=dword:00000001
+"GoToIntranetSiteForSingleWordEntryInAddressBar"=dword:00000000
+"HardwareAcceleration"=dword:00000000
+"HttpsOnlyMode"="enabled"
+"LegacyProfiles"=dword:00000000
+; Allow manual updates only and do not notify the user about updates.
+"ManualAppUpdateOnly"=dword:00000001
+"MicrosoftEntraSSO"=dword:00000000
+"NetworkPrediction"=dword:00000000
+"NewTabPage"=dword:00000000
+"NoDefaultBookmarks"=dword:00000001
+; Enforce the setting to allow Firefox to offer to remember saved logins and passwords. Both true and false values are accepted.
+"OfferToSaveLogins"=dword:00000000
+"OverridePostUpdatePage"=""
+"PasswordManagerEnabled"=dword:00000000
+"PostQuantumKeyAgreementEnabled"=dword:00000000
+; Require or prevent using a Primary Password.
+"PrimaryPassword"=dword:00000000
+; disable printing	
+"PrintingEnabled"=dword:00000000
+"PrivateBrowsingModeAvailability"=dword:00000000
+"PromptForDownloadLocation"=dword:00000001
+"SearchBar"="unified"
+"SearchSuggestEnabled"=dword:00000000
+"ShowHomeButton"=dword:00000000
+"SkipTermsOfUse"=dword:00000001
+; "StartDownloadsInTempDirectory"=dword:00000001
+; Enable or disable webpage translation.
+"TranslateEnabled"=dword:00000001
+; Set the minimum SSL version.
+"SSLVersionMin"="tls1.2"
+"UseSystemPrintDialog"=dword:00000000
+"VisualSearchEnabled"=dword:00000000
+"WindowsSSO"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\ContentAnalysis]
+"Enabled"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\Cookies]
+"Behavior"="reject-tracker-and-partition-foreign"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\DisableSecurityBypass]
+"InvalidCertificate"=dword:00000000
+"SafeBrowsing"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\DNSOverHTTPS]
+"Enabled"=dword:00000000
+"ProviderURL"=""
+"Locked"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\EnableTrackingProtection]
+"Cryptomining"=dword:00000001
+"Fingerprinting"=dword:00000001
+"EmailTracking"=dword:00000001
+"SuspectedFingerprinting"=dword:00000001
+
+; Enable or disable Encrypted Media Extensions and optionally lock it.
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\EncryptedMediaExtensions]
+"Enabled"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\Extensions\Install]
+"1"="https://addons.mozilla.org/firefox/downloads/latest/ublock-origin/latest.xpi"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\Extensions\Uninstall]
+"1"="amazondotcom@search.mozilla.org"
+"2"="ebay@search.mozilla.org"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\FirefoxHome]
+"Search"=dword:00000000
+"TopSites"=dword:00000000
+"SponsoredTopSites"=dword:00000000
+"Highlights"=dword:00000000
+"Pocket"=dword:00000000
+"Stories"=dword:00000000
+"SponsoredPocket"=dword:00000000
+"SponsoredStories"=dword:00000000
+"Snippets"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\FirefoxSuggest]
+"WebSuggestions"=dword:00000000
+"SponsoredSuggestions"=dword:00000000
+"ImproveSuggest"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\GenerativeAI]
+; "Chatbot"=dword:00000001
+; "LinkPreviews"=dword:00000000
+; "TabGroups"=dword:00000000
+"Enabled"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\Homepage]
+"StartPage"="homepage"
+"URL"="https://search.brave.com/"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\InstallAddonsPermission\Allow\1]
+@="https://addons.mozilla.org"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\InstallAddonsPermission]
+"Default"=dword:00000001
+
+; Disable PDF.js, the built-in PDF viewer in Firefox.
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\PDFjs]
+"Enabled"=dword:00000000
+
+; Permissions
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\Permissions\Camera]
+"BlockNewRequests"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\Permissions\Microphone]
+"BlockNewRequests"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\Permissions\Location]
+"BlockNewRequests"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\Permissions\Notifications]
+"BlockNewRequests"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\Permissions\VirtualReality]
+"BlockNewRequests"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\Permissions\ScreenShare]
+"BlockNewRequests"=dword:00000001
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\Permissions\Autoplay]
+"Default"="allow-audio-video"
+
+; Disable Picture-in-Picture.
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\PictureInPicture]
+"Enabled"=dword:00000000
+
+; Allow certain websites to display popups and be redirected by third-party frames
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\PopupBlocking]
+"Default"=dword:00000000
+
+; Clear navigation data on shutdown
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\SanitizeOnShutdown]
+"Cache"=dword:00000000
+"Cookies"=dword:00000001
+"FormData"=dword:00000000
+"History"=dword:00000000
+"Sessions"=dword:00000000
+"SiteSettings"=dword:00000000
+
+; Configure search engine settings
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\SearchEngines]
+"PreventInstalls"=dword:00000000
+"Default"="Brave"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\SearchEngines\Remove]
+"1"="google"
+"2"="bing"
+"3"="duckduckgo"
+"4"="wikipedia"
+"5"="brave"
+"6"="searxng"
+"7"="metager"
+"8"="startpage"
+"9"="mojeek"
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\SearchEngines\Add\1]
+"Name"="Brave"
+"URLTemplate"="https://search.brave.com/search?q={searchTerms}"
+"Method"="GET"
+"IconURL"="https://www.vectorlogo.zone/logos/brave/brave-icon.svg"
+"Alias"=""
+"Description"="Brave's privacy-focused search engine"
+"SuggestURLTemplate"="https://search.brave.com/suggestions?q={searchTerms}"
+"PostData"=""
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\SearchEngines\Add\2]
+"Name"="SearXNG"
+"Description"="A privacy-respecting, hackable metasearch engine"
+"Alias"=""
+"Method"="POST"
+"URLTemplate"="https://searx.be/?q={searchTerms}"
+"PostData"="q={searchTerms}&time_range=&language=en-US&category_general=on"
+
+; Don’t show certain messages to the user
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\UserMessaging]
+"ExtensionRecommendations"=dword:00000000
+"FeatureRecommendations"=dword:00000000
+"UrlbarInterventions"=dword:00000000
+"SkipOnboarding"=dword:00000000
+"MoreFromMozilla"=dword:00000000
+"FirefoxLabs"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Mozilla\Firefox\WebsiteFilter]
+"Block"="https://localhost/*"
+"@
+
+	Set-Content -Path "$env:TEMP\FirefoxPolicies.reg" -Value $MultilineComment -Force
+	# edit reg file
+	$path = "$env:TEMP\FirefoxPolicies.reg"	
+	(Get-Content $path) -replace "\?","$" | Out-File $path
+	# import reg file
+	Regedit.exe /S "$env:TEMP\FirefoxPolicies.reg"
+
+	Write-Output "Configuring User Profile..."
+	# Create user.json in Firefox default-release profile
+	$firefoxExe = "C:\Program Files\Mozilla Firefox\firefox.exe"
+	$profilesPath = "$env:APPDATA\Mozilla\Firefox\Profiles"
+
+	# Ensure Firefox profile exists
+	Start-Process $firefoxExe -ArgumentList "--headless" -PassThru | Out-Null
+	Start-Sleep -Seconds 3
+	Stop-Process -Name "firefox" -Force -ErrorAction SilentlyContinue
+
+	# Detect default-release profile
+	$profileDir = Get-ChildItem $profilesPath | Where-Object { $_.Name -match "\.default(-release)?$" } | Select-Object -First 1
+	if (-not $profileDir) {
+		Write-Host "Could not find Firefox profile directory." -ForegroundColor Red
+	}
+	
+	$profilePath = $profileDir.FullName
+	Write-Host "Found Firefox profile: $profilePath" -ForegroundColor Green
+
+	# Define JSON configuration
+	$jsonContent = @"
+//
+/* You may copy+paste this file and use it as it is.
+ *
+ * If you make changes to your about:config while the program is running, the
+ * changes will be overwritten by the user.js when the application restarts.
+ *
+ * To make lasting changes to preferences, you will have to edit the user.js.
+ */
+
+/****************************************************************************
+ * Betterfox                                                                *
+ * "Ad meliora"                                                             *
+ * version: 144                                                             *
+ * url: https://github.com/yokoffing/Betterfox                              *
+****************************************************************************/
+
+/****************************************************************************
+ * SECTION: FASTFOX                                                         *
+****************************************************************************/
+/** GENERAL ***/
+user_pref("gfx.content.skia-font-cache-size", 32);
+
+/** GFX ***/
+user_pref("gfx.canvas.accelerated.cache-items", 32768);
+user_pref("gfx.canvas.accelerated.cache-size", 4096);
+user_pref("webgl.max-size", 16384);
+
+/** DISK CACHE ***/
+user_pref("browser.cache.disk.enable", false);
+
+/** MEMORY CACHE ***/
+user_pref("browser.cache.memory.capacity", 131072);
+user_pref("browser.cache.memory.max_entry_size", 20480);
+user_pref("browser.sessionhistory.max_total_viewers", 4);
+user_pref("browser.sessionstore.max_tabs_undo", 10);
+
+/** MEDIA CACHE ***/
+user_pref("media.memory_cache_max_size", 262144);
+user_pref("media.memory_caches_combined_limit_kb", 1048576);
+user_pref("media.cache_readahead_limit", 600);
+user_pref("media.cache_resume_threshold", 300);
+
+/** IMAGE CACHE ***/
+user_pref("image.cache.size", 10485760);
+user_pref("image.mem.decode_bytes_at_a_time", 65536);
+
+/** NETWORK ***/
+user_pref("network.http.max-connections", 1800);
+user_pref("network.http.max-persistent-connections-per-server", 10);
+user_pref("network.http.max-urgent-start-excessive-connections-per-host", 5);
+user_pref("network.http.request.max-start-delay", 5);
+user_pref("network.http.pacing.requests.enabled", false);
+user_pref("network.dnsCacheEntries", 10000);
+user_pref("network.dnsCacheExpiration", 3600);
+user_pref("network.ssl_tokens_cache_capacity", 10240);
+
+/** SPECULATIVE LOADING ***/
+user_pref("network.http.speculative-parallel-limit", 0);
+user_pref("network.dns.disablePrefetch", true);
+user_pref("network.dns.disablePrefetchFromHTTPS", true);
+user_pref("browser.urlbar.speculativeConnect.enabled", false);
+user_pref("browser.places.speculativeConnect.enabled", false);
+user_pref("network.prefetch-next", false);
+user_pref("network.predictor.enabled", false);
+
+/****************************************************************************
+ * SECTION: SECUREFOX                                                       *
+****************************************************************************/
+/** TRACKING PROTECTION ***/
+user_pref("browser.contentblocking.category", "strict");
+user_pref("privacy.trackingprotection.allow_list.baseline.enabled", true);
+user_pref("browser.download.start_downloads_in_tmp_dir", true);
+user_pref("browser.helperApps.deleteTempFileOnExit", true);
+user_pref("browser.uitour.enabled", false);
+user_pref("privacy.globalprivacycontrol.enabled", true);
+
+/** OCSP & CERTS / HPKP ***/
+user_pref("security.OCSP.enabled", 0);
+user_pref("security.csp.reporting.enabled", false);
+
+/** SSL / TLS ***/
+user_pref("security.ssl.treat_unsafe_negotiation_as_broken", true);
+user_pref("browser.xul.error_pages.expert_bad_cert", true);
+user_pref("security.tls.enable_0rtt_data", false);
+
+/** DISK AVOIDANCE ***/
+user_pref("browser.privatebrowsing.forceMediaMemoryCache", true);
+user_pref("browser.sessionstore.interval", 60000);
+
+/** SHUTDOWN & SANITIZING ***/
+user_pref("privacy.history.custom", true);
+user_pref("browser.privatebrowsing.resetPBM.enabled", true);
+
+/** SEARCH / URL BAR ***/
+user_pref("browser.urlbar.trimHttps", true);
+user_pref("browser.urlbar.untrimOnUserInteraction.featureGate", true);
+user_pref("browser.search.separatePrivateDefault.ui.enabled", true);
+user_pref("browser.search.suggest.enabled", false);
+user_pref("browser.urlbar.quicksuggest.enabled", false);
+user_pref("browser.urlbar.groupLabels.enabled", false);
+user_pref("browser.formfill.enable", false);
+user_pref("network.IDN_show_punycode", true);
+
+/** PASSWORDS ***/
+user_pref("signon.formlessCapture.enabled", false);
+user_pref("signon.privateBrowsingCapture.enabled", false);
+user_pref("network.auth.subresource-http-auth-allow", 1);
+user_pref("editor.truncate_user_pastes", false);
+
+/** MIXED CONTENT + CROSS-SITE ***/
+user_pref("security.mixed_content.block_display_content", true);
+user_pref("pdfjs.enableScripting", false);
+
+/** EXTENSIONS ***/
+user_pref("extensions.enabledScopes", 5);
+
+/** HEADERS / REFERERS ***/
+user_pref("network.http.referer.XOriginTrimmingPolicy", 2);
+
+/** CONTAINERS ***/
+user_pref("privacy.userContext.ui.enabled", true);
+
+/** SAFE BROWSING ***/
+user_pref("browser.safebrowsing.downloads.remote.enabled", false);
+
+/** MOZILLA ***/
+user_pref("permissions.default.desktop-notification", 2);
+user_pref("permissions.default.geo", 2);
+user_pref("geo.provider.network.url", "https://beacondb.net/v1/geolocate");
+user_pref("browser.search.update", false);
+user_pref("permissions.manager.defaultsUrl", "");
+user_pref("extensions.getAddons.cache.enabled", false);
+
+/** TELEMETRY ***/
+user_pref("datareporting.policy.dataSubmissionEnabled", false);
+user_pref("datareporting.healthreport.uploadEnabled", false);
+user_pref("toolkit.telemetry.unified", false);
+user_pref("toolkit.telemetry.enabled", false);
+user_pref("toolkit.telemetry.server", "data:,");
+user_pref("toolkit.telemetry.archive.enabled", false);
+user_pref("toolkit.telemetry.newProfilePing.enabled", false);
+user_pref("toolkit.telemetry.shutdownPingSender.enabled", false);
+user_pref("toolkit.telemetry.updatePing.enabled", false);
+user_pref("toolkit.telemetry.bhrPing.enabled", false);
+user_pref("toolkit.telemetry.firstShutdownPing.enabled", false);
+user_pref("toolkit.telemetry.coverage.opt-out", true);
+user_pref("toolkit.coverage.opt-out", true);
+user_pref("toolkit.coverage.endpoint.base", "");
+user_pref("browser.newtabpage.activity-stream.feeds.telemetry", false);
+user_pref("browser.newtabpage.activity-stream.telemetry", false);
+user_pref("datareporting.usage.uploadEnabled", false);
+
+/** EXPERIMENTS ***/
+user_pref("app.shield.optoutstudies.enabled", false);
+user_pref("app.normandy.enabled", false);
+user_pref("app.normandy.api_url", "");
+
+/** CRASH REPORTS ***/
+user_pref("breakpad.reportURL", "");
+user_pref("browser.tabs.crashReporting.sendReport", false);
+
+/****************************************************************************
+ * SECTION: PESKYFOX                                                        *
+****************************************************************************/
+/** MOZILLA UI ***/
+user_pref("browser.privatebrowsing.vpnpromourl", "");
+user_pref("extensions.getAddons.showPane", false);
+user_pref("extensions.htmlaboutaddons.recommendations.enabled", false);
+user_pref("browser.discovery.enabled", false);
+user_pref("browser.shell.checkDefaultBrowser", false);
+user_pref("browser.newtabpage.activity-stream.asrouter.userprefs.cfr.addons", false);
+user_pref("browser.newtabpage.activity-stream.asrouter.userprefs.cfr.features", false);
+user_pref("browser.preferences.moreFromMozilla", false);
+user_pref("browser.aboutConfig.showWarning", false);
+user_pref("browser.aboutwelcome.enabled", false);
+user_pref("browser.profiles.enabled", true);
+
+/** THEME ADJUSTMENTS ***/
+user_pref("toolkit.legacyUserProfileCustomizations.stylesheets", true);
+user_pref("browser.compactmode.show", true);
+user_pref("browser.privateWindowSeparation.enabled", false); // WINDOWS
+
+/** AI ***/
+user_pref("browser.ml.enable", false);
+user_pref("browser.ml.chat.enabled", false);
+user_pref("browser.ml.chat.menu", false);
+user_pref("browser.tabs.groups.smart.enabled", false);
+user_pref("browser.ml.linkPreview.enabled", false);
+
+/** FULLSCREEN NOTICE ***/
+user_pref("full-screen-api.transition-duration.enter", "0 0");
+user_pref("full-screen-api.transition-duration.leave", "0 0");
+user_pref("full-screen-api.warning.timeout", 0);
+
+/** URL BAR ***/
+user_pref("browser.urlbar.trending.featureGate", false);
+
+/** NEW TAB PAGE ***/
+user_pref("browser.newtabpage.activity-stream.default.sites", "");
+user_pref("browser.newtabpage.activity-stream.showSponsoredTopSites", false);
+user_pref("browser.newtabpage.activity-stream.feeds.section.topstories", false);
+user_pref("browser.newtabpage.activity-stream.showSponsored", false);
+user_pref("browser.newtabpage.activity-stream.showSponsoredCheckboxes", false);
+
+/** DOWNLOADS ***/
+user_pref("browser.download.manager.addToRecentDocs", false);
+
+/** PDF ***/
+user_pref("browser.download.open_pdf_attachments_inline", true);
+
+/** TAB BEHAVIOR ***/
+user_pref("browser.bookmarks.openInTabClosesMenu", false);
+user_pref("browser.menu.showViewImageInfo", true);
+user_pref("findbar.highlightAll", true);
+user_pref("layout.word_select.eat_space_to_next_word", false);
+
+/****************************************************************************
+ * START: MY OVERRIDES                                                      *
+****************************************************************************/
+// visit https://github.com/yokoffing/Betterfox/wiki/Common-Overrides
+// visit https://github.com/yokoffing/Betterfox/wiki/Optional-Hardening
+// Enter your personal overrides below this line:
+
+// PREF: revert back to Standard ETP
+// user_pref("browser.contentblocking.category", "standard");
+
+// PREF: make Strict ETP less aggressive
+user_pref("browser.contentblocking.features.strict", "tp,tpPrivate,cookieBehavior5,cookieBehaviorPBM5,cm,fp,stp,emailTP,emailTPPrivate,-lvl2,rp,rpTop,ocsp,qps,qpsPBM,fpp,fppPrivate,3pcd,btp");
+
+// PREF: improve font rendering by using DirectWrite everywhere like Chrome [WINDOWS]
+user_pref("gfx.font_rendering.cleartype_params.rendering_mode", 5);
+user_pref("gfx.font_rendering.cleartype_params.cleartype_level", 100);
+user_pref("gfx.font_rendering.directwrite.use_gdi_table_loading", false);
+//user_pref("gfx.font_rendering.cleartype_params.enhanced_contrast", 50); // 50-100 [OPTIONAL]
+
+// PREF: disable Firefox Sync
+user_pref("identity.fxaccounts.enabled", false);
+
+// PREF: disable the Firefox View tour from popping up
+user_pref("browser.firefox-view.feature-tour", "{\"screen\":\"\",\"complete\":true}");
+
+// PREF: disable login manager
+user_pref("signon.rememberSignons", false);
+
+// PREF: disable address and credit card manager
+user_pref("extensions.formautofill.addresses.enabled", false);
+user_pref("extensions.formautofill.creditCards.enabled", false);
+
+// PREF: do not allow embedded tweets, Instagram, Reddit, and Tiktok posts
+user_pref("urlclassifier.trackingSkipURLs", "");
+user_pref("urlclassifier.features.socialtracking.skipURLs", "");
+
+// PREF: enable HTTPS-Only Mode
+// Warn me before loading sites that don't support HTTPS
+// in both Normal and Private Browsing windows.
+user_pref("dom.security.https_only_mode", true);
+user_pref("dom.security.https_only_mode_error_page_user_suggestions", true);
+
+// PREF: disable captive portal detection
+// [WARNING] Do NOT use for mobile devices!
+user_pref("captivedetect.canonicalURL", ""); 
+user_pref("network.captive-portal-service.enabled", false); 
+user_pref("network.connectivity-service.enabled", false); 
+
+// PREF: hide site shortcut thumbnails on New Tab page
+user_pref("browser.newtabpage.activity-stream.feeds.topsites", false);
+
+// PREF: hide weather on New Tab page
+user_pref("browser.newtabpage.activity-stream.showWeather", false);
+
+// PREF: hide dropdown suggestions when clicking on the address bar
+user_pref("browser.urlbar.suggest.topsites", false);
+
+// PREF: ask where to save every file
+user_pref("browser.download.useDownloadDir", false);
+
+// PREF: ask whether to open or save new file types
+user_pref("browser.download.always_ask_before_handling_new_types", true);
+
+// PREF: enforce certificate pinning
+// [ERROR] MOZILLA_PKIX_ERROR_KEY_PINNING_FAILURE
+// 1 = allow user MiTM (such as your antivirus) (default)
+// 2 = strict
+user_pref("security.cert_pinning.enforcement_level", 2);
+
+// PREF: delete cookies, cache, and site data on shutdown
+user_pref("privacy.sanitize.sanitizeOnShutdown", true);
+user_pref("privacy.clearOnShutdown_v2.browsingHistoryAndDownloads", false); // Browsing & download history
+user_pref("privacy.clearOnShutdown_v2.cookiesAndStorage", true); // Cookies and site data
+user_pref("privacy.clearOnShutdown_v2.cache", true); // Temporary cached files and pages
+user_pref("privacy.clearOnShutdown_v2.formdata", true); // Saved form info
+
+// Disable WebRTC
+user_pref("media.peerconnection.enabled", false);
+
+
+/****************************************************************************
+ * SECTION: SMOOTHFOX                                                       *
+****************************************************************************/
+// visit https://github.com/yokoffing/Betterfox/blob/main/Smoothfox.js
+// Enter your scrolling overrides below this line:
+
+
+
+/****************************************************************************
+ * END: BETTERFOX                                                           *
+****************************************************************************/
+"@
+
+	# Write user.js to profile folder
+	$userJsPath = Join-Path $profilePath "user.js"
+	Set-Content -Path $userJsPath -Value $jsonContent -Encoding UTF8 -Force
+
+	# Debloat Firefox
+	Write-Output "Debloating Firefox..."
+	Remove-Item "C:\Program Files\Mozilla Firefox\crashhelper.exe" -Force
+	Remove-Item "C:\Program Files\Mozilla Firefox\crashreporter.exe" -Force
+	Remove-Item "C:\Program Files\Mozilla Firefox\crashreporter.ini" -Force
+	Remove-Item "C:\Program Files\Mozilla Firefox\default-browser-agent.exe" -Force
+	Remove-Item "C:\Program Files\Mozilla Firefox\maintenanceservice.exe" -Force
+	Remove-Item "C:\Program Files\Mozilla Firefox\maintenanceservice_installer.exe" -Force
+	Remove-Item "C:\Program Files\Mozilla Firefox\minidump-analyzer.exe" -Force
+	Remove-Item "C:\Program Files\Mozilla Firefox\pingsender.exe" -Force
+	# Remove-Item "C:\Program Files\Mozilla Firefox\updater.exe" -Force
+	Get-ChildItem -Path "C:\Program Files\Mozilla Firefox" -Filter "crash*.*" -File | Remove-Item -Force
+	Get-ChildItem -Path "C:\Program Files\Mozilla Firefox" -Filter "install.log" -File | Remove-Item -Force
+	Get-ChildItem -Path "C:\Program Files\Mozilla Firefox" -Filter "minidump*.*" -File | Remove-Item -Force
+
+	# Disable Firefox Default Browser Agent
+	Write-Output "Disabling Firefox Default Browser Agent..."
+	$batchCode = @'
+@echo off
+:: https://privacy.sexy — v0.13.8 — Fri, 12 Sep 2025 00:16:49 GMT
+:: Ensure PowerShell is available
+
+:: Initialize environment
+setlocal EnableExtensions DisableDelayedExpansion
+
+
+:: ----------------------------------------------------------
+:: --------Disable Firefox background browser checks---------
+:: ----------------------------------------------------------
+echo --- Disable Firefox background browser checks
+:: Disable scheduled task(s): `\Mozilla\Firefox Default Browser Agent 308046B0AF4A39CB`
+PowerShell -ExecutionPolicy Unrestricted -Command "$taskPathPattern='\Mozilla\'; $taskNamePattern='Firefox Default Browser Agent 308046B0AF4A39CB'; Write-Output "^""Disabling tasks matching pattern `"^""$taskNamePattern`"^""."^""; $tasks = @(Get-ScheduledTask -TaskPath $taskPathPattern -TaskName $taskNamePattern -ErrorAction Ignore); if (-Not $tasks) { Write-Output "^""Skipping, no tasks matching pattern `"^""$taskNamePattern`"^"" found, no action needed."^""; exit 0; }; $operationFailed = $false; foreach ($task in $tasks) { $taskName = $task.TaskName; if ($task.State -eq [Microsoft.PowerShell.Cmdletization.GeneratedTypes.ScheduledTask.StateEnum]::Disabled) { Write-Output "^""Skipping, task `"^""$taskName`"^"" is already disabled, no action needed."^""; continue; }; try { $task | Disable-ScheduledTask -ErrorAction Stop | Out-Null; Write-Output "^""Successfully disabled task `"^""$taskName`"^""."^""; } catch { Write-Error "^""Failed to disable task `"^""$taskName`"^"": $($_.Exception.Message)"^""; $operationFailed = $true; }; }; if ($operationFailed) { Write-Output 'Failed to disable some tasks. Check error messages above.'; exit 1; }"
+:: Disable scheduled task(s): `\Mozilla\Firefox Default Browser Agent D2CEEC440E2074BD`
+PowerShell -ExecutionPolicy Unrestricted -Command "$taskPathPattern='\Mozilla\'; $taskNamePattern='Firefox Default Browser Agent D2CEEC440E2074BD'; Write-Output "^""Disabling tasks matching pattern `"^""$taskNamePattern`"^""."^""; $tasks = @(Get-ScheduledTask -TaskPath $taskPathPattern -TaskName $taskNamePattern -ErrorAction Ignore); if (-Not $tasks) { Write-Output "^""Skipping, no tasks matching pattern `"^""$taskNamePattern`"^"" found, no action needed."^""; exit 0; }; $operationFailed = $false; foreach ($task in $tasks) { $taskName = $task.TaskName; if ($task.State -eq [Microsoft.PowerShell.Cmdletization.GeneratedTypes.ScheduledTask.StateEnum]::Disabled) { Write-Output "^""Skipping, task `"^""$taskName`"^"" is already disabled, no action needed."^""; continue; }; try { $task | Disable-ScheduledTask -ErrorAction Stop | Out-Null; Write-Output "^""Successfully disabled task `"^""$taskName`"^""."^""; } catch { Write-Error "^""Failed to disable task `"^""$taskName`"^"": $($_.Exception.Message)"^""; $operationFailed = $true; }; }; if ($operationFailed) { Write-Output 'Failed to disable some tasks. Check error messages above.'; exit 1; }"
+:: ----------------------------------------------------------
+
+
+:: Restore previous environment settings
+endlocal
+:: Exit the script successfully
+exit /b 0
+'@
+
+	$batPath = "$env:TEMP\ConfigureFirefox.bat"
+	Set-Content -Path $batPath -Value $batchCode -Encoding ASCII
+	Start-Process -FilePath $batPath -NoNewWindow -Wait
+
+	# Disable Mozilla Firefox Services
+	Write-Output "Disabling Mozilla Firefox Services..."
+	Get-Service | Where-Object { $_.Name -match 'Firefox|Mozilla' } | ForEach-Object {
+		Stop-Service $_.Name -Force -ErrorAction SilentlyContinue
+		Set-Service $_.Name -StartupType Disabled -ErrorAction SilentlyContinue
+	}
+
+	# Disable Mozilla Firefox Tasks
+	Write-Output "Disabling Mozilla Firefox Tasks..."
+	Get-ScheduledTask | Where-Object { $_.TaskName -like "*Firefox*" -or $_.TaskName -like "*Mozilla*" } | ForEach-Object {
+		Disable-ScheduledTask -TaskName $_.TaskName -TaskPath $_.TaskPath -ErrorAction SilentlyContinue | Out-Null
+	}
+
+	# Remove Firefox Private Browsing
+	Write-Output "Removing Firefox Private Browsing..."
+	Remove-Item "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Firefox Private Browsing.lnk" -Force -ErrorAction SilentlyContinue
+	Remove-Item "$env:PROGRAMDATA\Microsoft\Windows\Start Menu\Programs\Firefox Private Browsing.lnk" -Force -ErrorAction SilentlyContinue
+	
 }
 
 # Install or upgrade Brave browser
@@ -20223,6 +20980,20 @@ function Invoke-7Zip {
 	Remove-Item -Path "HKCR:\.zip\CompressedFolder\ShellNew" -Recurse -Force
 }
 
+###########
+# NanaZip #
+function Invoke-NanaZip {
+	
+	<#
+		.SYNOPSIS
+		
+		.DESCRIPTION
+	#>
+	
+	Get-FileFromWeb -Url "https://github.com/M2Team/NanaZip/releases/download/5.0.1263.0/NanaZip_5.0.1263.0.msixbundle" -File "$env:TEMP\NanaZip_5.0.1263.0.msixbundle"
+	PowerShell -NoLogo -NoProfile -NonInteractive -InputFormat None -ExecutionPolicy Bypass Add-AppxPackage -DeferRegistrationWhenPackagesAreInUse -ForceUpdateFromAnyVersion -Path "$env:TEMP\NanaZip_5.0.1263.0.msixbundle"
+}
+
 # Install or upgrade VLC Media Player
 function Invoke-VLC {
     Write-Host "Installing VLC..." -ForegroundColor Green
@@ -20527,7 +21298,6 @@ if ($PSBoundParameters.Count -gt 0) {
 			Invoke-DebloatEdge
 			Invoke-UninstallOneDrive
 			Invoke-RemWinBloat
-
 			# Win11Debloat Remove HP Apps
 			Write-Output "Removing HP Apps..."
 			Start-Process "powershell.exe" -ArgumentList @(
@@ -20552,8 +21322,7 @@ if ($PSBoundParameters.Count -gt 0) {
 			Invoke-WindowsCleanup
 			pause
 		}
-		if ($Full) {
-			
+		if ($Full) {	
 			Invoke-CreateRestorePoint
 			Invoke-Win11Debloat
 			Clear-Host
@@ -20568,8 +21337,7 @@ if ($PSBoundParameters.Count -gt 0) {
 			Invoke-UninstallOneDrive
 			Invoke-RemoveGaming
 			Invoke-RemoveWindowsAI
-			Invoke-RemWinBloat # remote desktop not working
-			
+			Invoke-RemWinBloat # remote desktop not working			
 			Invoke-NETFreamework35
 			Invoke-DirectX
 			Invoke-CPlusPlusAIO
@@ -20577,10 +21345,9 @@ if ($PSBoundParameters.Count -gt 0) {
 			# Invoke-LibreWolf
 			Invoke-Brave
 			Invoke-DebloatBrave
+			Invoke-NanaZip
 			# Invoke-SpotX # Flag by Windows Defender
 			Invoke-DisableTelemetry
-			
-			Invoke-DisableUpdates # DELETE
 			Invoke-OptimizeRegistry
 			Invoke-OptimizeNetwork
 			Invoke-BCDEditTweaks
@@ -21164,7 +21931,7 @@ while ($true) {
 					$appsOptions = @(
 						'Visual C++ Runtimes','.NET Desktop Runtimes','DirectX Runtime',
 						'Brave','Firefox','Chrome',
-						'Start(X)Back','Everything','7-Zip',
+						'Start(X)Back','Everything','7-Zip','NanaZip',
 						'VLC media player','SpotX (Spotify)','Powershell 7',
 						'UniGetUI','Winget','',
 						'WebCord (Discord)','Steam','Process Explorer',
@@ -21201,23 +21968,24 @@ while ($true) {
                             	'2' { Invoke-NETFreamework35; Invoke-NETDesktopAIO }
 								'3' { Invoke-DirectX }
 								'4' { Invoke-Brave; Invoke-DebloatBrave }
-								'5' { Invoke-LibreWolf }
+								'5' { Invoke-Firefox }
 								'6' { Invoke-Chrome } # chrome
 								'7' { Invoke-StartXBack }
 								'8' { Invoke-EverythingSearch }
 								'9' { Invoke-7Zip }
-								'10' { Invoke-VLC }
-								'11' { Invoke-SpotX }
-								'12' { Invoke-Powershell7 }
-								'13' { Invoke-UniGetUI }
-								'14' { Invoke-Winget }
-								'15' {  }
-								'16' { Invoke-WebCord }
-								'17' { Invoke-Steam }
-								'18' { Invoke-ProcessExplorer }
-								'19' { Invoke-CoreTemp }
-								'20' { Invoke-NotepadPlusPlus }
-								'21' { Invoke-Office365 }													
+								'10' { Invoke-NanaZip }
+								'11' { Invoke-VLC }
+								'12' { Invoke-SpotX }
+								'13' { Invoke-Powershell7 }
+								'14' { Invoke-UniGetUI }
+								'15' { Invoke-Winget }
+								'16' {  }
+								'17' { Invoke-WebCord }
+								'18' { Invoke-Steam }
+								'19' { Invoke-ProcessExplorer }
+								'20' { Invoke-CoreTemp }
+								'21' { Invoke-NotepadPlusPlus }
+								'22' { Invoke-Office365 }													
 									
 					            default {
 					                Write-Host "Invalid number: $aSel" -ForegroundColor White -BackgroundColor Red
