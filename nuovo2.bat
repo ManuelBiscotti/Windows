@@ -1,18 +1,51 @@
-#Requires -RunAsAdministrator
+@echo off
+setlocal
 
-<#
-.SYNOPSIS
+rem --- locations
+set "_SELF=%~f0"
+set "_PS=%TEMP%\_.ps1"
 
-.DESCRIPTION 
+rem --- extract PS payload (between #<ps1> and #</ps1>)
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$s = Get-Content -Raw -LiteralPath '%_SELF%'; $m = [regex]::Match($s, '(?smi)#<ps1>(.*)#</ps1>'); if(-not $m.Success){ Write-Error 'PS payload not found'; exit 1 }; Set-Content -LiteralPath '%_PS%' -Value $m.Groups[1].Value -Encoding Unicode -Force"
 
-.PARAMETER Recommended
+if errorlevel 1 (
+  echo Failed to extract PowerShell payload.
+  exit /b 1
+)
 
-	.LINK
-	https://github.com/
+rem --- run the PS file (ExecutionPolicy bypass). Forward all args exactly.
+rem Use -- to separate named switches from positional if needed.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%_PS%" -- %*
+set "EXITCODE=%ERRORLEVEL%"
+
+rem --- cleanup
+if exist "%_PS%" del /f /q "%_PS%" 2>nul
+
+endlocal
+exit /b %EXITCODE%
+
+#<ps1>
+<# PowerShell payload starts here.
+   Top of payload will self-elevate (UAC) and re-run with the same args.
 #>
 
+# Self-elevate robustly and forward the exact argument array
+$IsAdmin = (New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
-
+if (-not $IsAdmin) {
+    # Build argument list for Start-Process (array form is safer for quoting)
+    $exe = (Get-Command -CommandType Application powershell).Source
+    $argList = @('-NoProfile','-ExecutionPolicy','Bypass','-File',$PSCommandPath,'--')
+    if ($args) { $argList += $args }
+    try {
+        Start-Process -FilePath $exe -ArgumentList $argList -Verb RunAs -WindowStyle Normal | Out-Null
+        Exit 0
+    } catch {
+        Write-Error "Elevation cancelled or failed. Exiting."
+        Exit 1
+    }
+}
 
 ##############
 # Parameters #
