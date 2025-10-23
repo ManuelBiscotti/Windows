@@ -1,80 +1,128 @@
+   $Host.UI.RawUI.WindowTitle = $myInvocation.MyCommand.Definition + " (Administrator)"
+    $Host.UI.RawUI.BackgroundColor = "Black"
+	$Host.PrivateData.ProgressBackgroundColor = "Black"
+    $Host.PrivateData.ProgressForegroundColor = "White"
+    Clear-Host
 
-Clear-Host
-
-# GitHub config
-$repo = "Parcoil/Sparkle"
-$apiUrl = "https://api.github.com/repos/$repo/releases/latest"
-$headers = @{
-    "User-Agent" = "Sparkle-Fetcher"
-    "Accept"     = "application/vnd.github.v3+json"
+function Get-FileFromWeb {
+    param (
+        [Parameter(Mandatory)][string]$URL,
+        [Parameter(Mandatory)][string]$File
+    )
+    
+    try {
+        $request = [System.Net.HttpWebRequest]::Create($URL)
+        $response = $request.GetResponse()
+        
+        if ($response.StatusCode -eq 401 -or $response.StatusCode -eq 403 -or $response.StatusCode -eq 404) {
+            throw "Remote file either doesn't exist, is unauthorized, or is forbidden for '$URL'."
+        }
+        
+        # Handle relative paths
+        if ($File -match '^\.\\') {
+            $File = Join-Path (Get-Location -PSProvider 'FileSystem') ($File -Split '^\.')[1]
+        }
+        if ($File -and !(Split-Path $File)) {
+            $File = Join-Path (Get-Location -PSProvider 'FileSystem') $File
+        }
+        
+        # Create directory if it doesn't exist
+        if ($File) {
+            $fileDirectory = [System.IO.Path]::GetDirectoryName($File)
+            if (!(Test-Path($fileDirectory))) {
+                [System.IO.Directory]::CreateDirectory($fileDirectory) | Out-Null
+            }
+        }
+        
+        # Get file size for progress calculation
+        $totalBytes = $response.ContentLength
+        $progressId = Get-Random
+        
+        Write-Host "`n🚀 Downloading: $([System.IO.Path]::GetFileName($File))" -ForegroundColor Cyan
+        Write-Host "📦 Size: $([math]::Round($totalBytes/1MB, 2)) MB" -ForegroundColor Yellow
+        Write-Host "🎯 Target: $File" -ForegroundColor Gray
+        
+        # Custom progress bar display
+        function Show-ProgressBar {
+            param($Percent, $DownloadedMB, $TotalMB)
+            
+            $bars = 20
+            $filled = [math]::Round($Percent / 100 * $bars)
+            $empty = $bars - $filled
+            
+            $bar = "[" + ("█" * $filled) + ("░" * $empty) + "]"
+            $percentage = $Percent.ToString("0.0").PadLeft(5)
+            
+            Write-Host "`r$bar ${percentage}% ($DownloadedMB/$TotalMB MB)" -NoNewline -ForegroundColor Green
+        }
+        
+        # Download with progress tracking
+        [byte[]]$buffer = New-Object byte[] 1048576
+        $reader = $response.GetResponseStream()
+        $writer = New-Object System.IO.FileStream $File, 'Create'
+        
+        $totalBytesRead = 0
+        $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        
+        do {
+            $count = $reader.Read($buffer, 0, $buffer.Length)
+            $writer.Write($buffer, 0, $count)
+            
+            $totalBytesRead += $count
+            
+            if ($totalBytes -gt 0) {
+                $percentComplete = [math]::Round(($totalBytesRead / $totalBytes) * 100, 1)
+                $downloadedMB = [math]::Round($totalBytesRead / 1MB, 2)
+                $totalMB = [math]::Round($totalBytes / 1MB, 2)
+                
+                Show-ProgressBar -Percent $percentComplete -DownloadedMB $downloadedMB -TotalMB $totalMB
+            }
+        } while ($count -gt 0)
+        
+        $stopwatch.Stop()
+        $downloadSpeed = [math]::Round(($totalBytesRead / 1MB) / $stopwatch.Elapsed.TotalSeconds, 2)
+        
+        # Final completion message
+        Write-Host "`n✅ Download completed!" -ForegroundColor Green
+        Write-Host "⏱️  Time: $($stopwatch.Elapsed.ToString('mm\:ss'))" -ForegroundColor Gray
+        Write-Host "📊 Speed: $downloadSpeed MB/s" -ForegroundColor Gray
+        Write-Host "📍 Saved to: $File" -ForegroundColor Gray
+    }
+    finally {
+        if ($reader) { $reader.Close() }
+        if ($writer) { $writer.Close() }
+        if ($response) { $response.Close() }
+    }
 }
 
-# Use current dir if script folder is not defined
-$downloadFolder = if ($PSScriptRoot) { $PSScriptRoot } else { Get-Location }
 
-# Fetch latest release info
-try {
-    $release = Invoke-RestMethod -Uri $apiUrl -Headers $headers
-}
-catch {
-    Write-Host "[X] Failed to contact GitHub API." -ForegroundColor Red
-    exit 1
-}
+    clear-host
+    # Remove-Item "$env:TEMP\*","$env:SystemRoot\Temp\*" -Recurse -Force
+    $w = $Host.UI.RawUI.WindowSize.Width
+    $c = { param($t) (' ' * [Math]::Max(0,[Math]::Floor(($w-$t.Length)/2))) + $t }
 
-# Extract tag/version
-$tag = $release.tag_name
-$versionLabel = $tag -replace "^v", ""  # Remove leading "v" if present
+    1..3 | % { '' }
+    @(
+        "██╗    ██╗██╗███╗   ██╗██████╗  ██████╗ ██╗    ██╗███████╗",
+        "██║    ██║██║████╗  ██║██╔══██╗██╔═══██╗██║    ██║██╔════╝",
+        "██║ █╗ ██║██║██╔██╗ ██║██║  ██║██║   ██║██║ █╗ ██║███████╗",
+        "██║███╗██║██║██║╚██╗██║██║  ██║██║   ██║██║███╗██║╚════██║",
+        "╚███╔███╔╝██║██║ ╚████║██████╔╝╚██████╔╝╚███╔███╔╝███████║",
+        " ╚══╝╚══╝ ╚═╝╚═╝  ╚═══╝╚═════╝  ╚═════╝  ╚══╝╚══╝ ╚══════╝"
+    ) | % { Write-Host (& $c $_) }
 
-# ASCII art header
-$asciiHeader = @"
+    1..3 | % { '' }
+    Write-Host (& $c " Not your avarage Windows optimizer... ") -ForegroundColor DarkGray
+    Write-Host (& $c " Install Programs, Tweaks, Fixes, and Updates ") -ForegroundColor DarkGray
+    Write-Host (& $c " ") -ForegroundColor DarkGray
+    1..3 | % { '' }
 
-███████╗██████╗  █████╗ ██████╗ ██╗  ██╗██╗     ███████╗
-██╔════╝██╔══██╗██╔══██╗██╔══██╗██║ ██╔╝██║     ██╔════╝
-███████╗██████╔╝███████║██████╔╝█████╔╝ ██║     █████╗  
-╚════██║██╔═══╝ ██╔══██║██╔══██╗██╔═██╗ ██║     ██╔══╝  
-███████║██║     ██║  ██║██║  ██║██║  ██╗███████╗███████╗
-╚══════╝╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝                       
-"@
 
-Write-Host $asciiHeader -ForegroundColor Cyan
-Write-Host "Version: v$versionLabel" -ForegroundColor Yellow
-Write-Host ""
 
-# Find installer asset
-$asset = $release.assets | Where-Object { $_.name -match "^sparkle-.*-setup\.exe$" }
 
-if (-not $asset) {
-    Write-Host "[X] No installer (.exe) found in latest release." -ForegroundColor Red
-    exit 1
-}
 
-$fileName = $asset.name
-$downloadPath = Join-Path $downloadFolder $fileName
 
-Write-Host "[✓] Latest version: $tag" -ForegroundColor Green
-Write-Host "[✓] Found installer: $fileName" -ForegroundColor Green
-Write-Host "[>] Downloading to: $downloadPath" -ForegroundColor Cyan
+Write-Host "[ 🚀 ] Downlaoding..."
+Get-FileFromWeb -URL "https://github.com/memstechtips/Winhance/releases/latest/download/Winhance.Installer.exe" -File "$env:TEMP\Winhance.Installer.exe"; Start-Process "$env:TEMP\Winhance.Installer.exe"
 
-# Download the installer
-try {
-    Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $downloadPath -UseBasicParsing
-    Write-Host "`n[✔] Download complete!" -ForegroundColor Green
-}
-catch {
-    Write-Host "[X] Failed to download installer." -ForegroundColor Red
-    exit 1
-}
-
-# Launch installer as admin and delete installer immediately after
-Write-Host "[🚀] Launching installer..." -ForegroundColor Magenta
-try {
-    $process = Start-Process -FilePath $downloadPath -Verb RunAs -PassThru
-    $process.WaitForExit()
-    Remove-Item -Path $downloadPath -Force
-    Write-Host "[🗑️] Deleted installer after installer exited." -ForegroundColor DarkYellow
-    Write-Host "[>] Thanks For using Sparkle" -ForegroundColor Magenta
-}
-catch {
-    Write-Host "[X] Failed to launch installer or delete file." -ForegroundColor Red
-    exit 1
-}
+PAUSE
