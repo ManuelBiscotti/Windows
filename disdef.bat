@@ -136,10 +136,9 @@ function Get-FileFromWeb {
     1..3 | % { '' }
 
 
+Remove-Item "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Accessories\System Tools\Character Map.lnk" -Force -ErrorAction SilentlyContinue
 
-
-
-
+pause
 Write-Host "[ 🚀 ] Downlaoding..."
 Get-FileFromWeb -URL "https://github.com/memstechtips/Winhance/releases/latest/download/Winhance.Installer.exe" -File "$env:TEMP\Winhance.Installer.exe"; Start-Process "$env:TEMP\Winhance.Installer.exe"
 
